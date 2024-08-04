@@ -1,0 +1,8 @@
+[package]
+name = "tpl-parser"
+version = "0.1.0"
+authors.workspace = true
+description = "AST Analyzer for TPL Language"
+edition = "2021"
+
+[dependencies]

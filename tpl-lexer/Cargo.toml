@@ -1,0 +1,10 @@
+[package]
+name = "tpl-lexer"
+version = "0.1.1"
+description = "Lexical Analyzer for TPL Language"
+edition = "2021"
+authors.workspace = true
+
+[dependencies]
+colored = "2.1.0"
+
