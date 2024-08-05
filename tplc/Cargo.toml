@@ -6,3 +6,5 @@ description = "Main Compiler Module for TPL Language"
 edition = "2021"
 
 [dependencies]
+tpl-lexer = { path = "../tpl-lexer" }
+tpl-parser = { path = "../tpl-parser" }

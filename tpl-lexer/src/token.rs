@@ -8,10 +8,15 @@ use crate::token_type::TokenType;
 pub struct Token {
     pub value: String,
     pub token_type: TokenType,
+    pub line: usize,
 }
 
 impl Token {
-    pub fn new(token_type: TokenType, value: String) -> Self {
-        Token { value, token_type }
+    pub fn new(token_type: TokenType, value: String, line: usize) -> Self {
+        Token {
+            value,
+            token_type,
+            line,
+        }
     }
 }

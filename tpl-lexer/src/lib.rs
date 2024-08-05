@@ -37,17 +37,24 @@ impl Lexer {
             filename,
 
             std_symbols: HashMap::from([
-                ('+', Token::new(TokenType::Plus, String::new())),
-                ('-', Token::new(TokenType::Minus, String::new())),
-                ('*', Token::new(TokenType::Multiply, String::new())),
-                ('/', Token::new(TokenType::Divide, String::new())),
-                ('.', Token::new(TokenType::Dot, String::new())),
-                ('"', Token::new(TokenType::Quote, String::new())),
+                ('+', Token::new(TokenType::Plus, String::new(), 0)),
+                ('-', Token::new(TokenType::Minus, String::new(), 0)),
+                ('*', Token::new(TokenType::Multiply, String::new(), 0)),
+                ('/', Token::new(TokenType::Divide, String::new(), 0)),
+                ('.', Token::new(TokenType::Dot, String::new(), 0)),
+                ('"', Token::new(TokenType::Quote, String::new(), 0)),
+                (';', Token::new(TokenType::Semicolon, String::new(), 0)),
             ]),
-            std_words: HashMap::from([(
-                "print".to_string(),
-                Token::new(TokenType::Function, String::from("print")),
-            )]),
+            std_words: HashMap::from([
+                (
+                    "print".to_string(),
+                    Token::new(TokenType::Function, String::from("print"), 0),
+                ),
+                (
+                    "let".to_string(),
+                    Token::new(TokenType::Keyword, String::from("int"), 0),
+                ),
+            ]),
             errors: LexerErrorHandler::new(),
 
             input: source.chars().collect(),
@@ -131,18 +138,18 @@ impl Lexer {
 
                         // pushing token
 
-                        output.push(Token::new(token_type, token_value));
+                        output.push(Token::new(token_type, token_value, self.line));
 
                         self.getc();
                     } else {
-                        output.push(Token::new(TokenType::Minus, String::new()));
+                        output.push(Token::new(TokenType::Minus, String::new(), 0));
                         self.getc();
                     }
                 }
                 _ if self.std_symbols.contains_key(&self.char) => {
                     let matched_token = self.std_symbols.get(&self.char).unwrap().clone();
 
-                    if matched_token == Token::new(TokenType::Quote, String::new()) {
+                    if matched_token.token_type == TokenType::Quote {
                         self.getc();
                         let mut captured_string = String::new();
 
@@ -155,17 +162,20 @@ impl Lexer {
                         self.getc();
 
                         // pushing token
-                        output.push(Token::new(TokenType::String, captured_string));
+                        output.push(Token::new(TokenType::String, captured_string, self.line));
                         self.getc();
                     } else {
-                        output.push(matched_token);
+                        let mut formatted_token = matched_token;
+                        formatted_token.line = self.line;
+
+                        output.push(formatted_token);
                         self.getc();
                     }
                 }
                 _ if self.char.is_digit(10) => {
                     let value = self.get_number();
 
-                    output.push(Token::new(TokenType::Number, value.to_string()));
+                    output.push(Token::new(TokenType::Number, value.to_string(), self.line));
                     self.getc();
                 }
                 _ if self.char.is_alphabetic() => {
@@ -183,7 +193,7 @@ impl Lexer {
                         let matched_token = self.std_words.get(&id).unwrap().clone();
                         output.push(matched_token);
                     } else {
-                        output.push(Token::new(TokenType::Identifier, id))
+                        output.push(Token::new(TokenType::Identifier, id, self.line))
                     }
                 }
 
@@ -195,8 +205,8 @@ impl Lexer {
             }
         }
 
-        if !output.contains(&Token::new(TokenType::EOF, String::new())) {
-            output.push(Token::new(TokenType::EOF, String::new()));
+        if !output.contains(&Token::new(TokenType::EOF, String::new(), 0)) {
+            output.push(Token::new(TokenType::EOF, String::new(), 0));
         };
 
         if !self.errors.is_empty() {

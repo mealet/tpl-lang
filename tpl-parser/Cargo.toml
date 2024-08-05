@@ -6,3 +6,5 @@ description = "AST Analyzer for TPL Language"
 edition = "2021"
 
 [dependencies]
+colored = "2.1.0"
+tpl-lexer = { path = "../tpl-lexer" }

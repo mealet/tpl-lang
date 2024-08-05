@@ -28,10 +28,18 @@ dependencies = [
 [[package]]
 name = "tpl-parser"
 version = "0.1.0"
+dependencies = [
+ "colored",
+ "tpl-lexer",
+]
 
 [[package]]
 name = "tplc"
 version = "0.1.0"
+dependencies = [
+ "tpl-lexer",
+ "tpl-parser",
+]
 
 [[package]]
 name = "windows-sys"

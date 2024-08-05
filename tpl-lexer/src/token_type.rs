@@ -16,10 +16,13 @@ pub enum TokenType {
     Minus,
     Multiply,
     Divide,
+
+    Semicolon,
     Dot,
     Quote,
 
     Function,
+    Keyword,
 
     EOF,
 }
