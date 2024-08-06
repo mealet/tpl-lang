@@ -3,7 +3,7 @@ mod expressions;
 mod statements;
 mod value;
 
-use error::{ParseError, ParseErrorHandler};
+use error::ParseErrorHandler;
 use tpl_lexer::{token::Token, token_type::TokenType};
 
 use expressions::Expressions;
@@ -20,6 +20,7 @@ pub struct Parser {
     position: usize,
 
     errors: ParseErrorHandler,
+    eof: bool,
 }
 
 #[allow(unused)]
@@ -33,6 +34,7 @@ impl Parser {
             tokens,
             position: 0,
             errors: ParseErrorHandler::new(),
+            eof: false,
         }
     }
 
@@ -86,8 +88,87 @@ impl Parser {
                     _ => Statements::None,
                 }
             }
-            _ => Statements::None,
+            TokenType::Identifier => {
+                let next = self.next();
+                match next.token_type {
+                    TokenType::Equal => {
+                        // variable assign
+                        self.next();
+                        return self.assign_statement(current.value);
+                    }
+                    _ => {
+                        self.error("Unexpected symbol after `Identifier`");
+                        return Statements::None;
+                    }
+                }
+            }
+            TokenType::EOF => {
+                self.eof = true;
+                return Statements::None;
+            }
+            _ => return Statements::Expression(self.expression()),
         }
+    }
+
+    fn expression(&mut self) -> Expressions {
+        let current = self.current();
+
+        match current.token_type {
+            TokenType::Identifier => {
+                let mut node = Expressions::Value(Value::Identifier(current.value));
+                let next_token = self.next();
+
+                match next_token.token_type {
+                    TokenType::Plus
+                    | TokenType::Minus
+                    | TokenType::Multiply
+                    | TokenType::Divide => {
+                        node = Expressions::Binary {
+                            operand: next_token.value,
+                            lhs: Box::new(node),
+                            rhs: Box::new(self.expression()),
+                        }
+                    }
+                    TokenType::Semicolon => {
+                        self.next();
+                    }
+                    _ => {
+                        node = Expressions::None;
+                        self.error("Unexpected operation in expression");
+                    }
+                }
+
+                return node;
+            }
+            TokenType::Number => {
+                let mut node =
+                    Expressions::Value(Value::Integer(current.value.trim().parse().unwrap()));
+                let next_token = self.next();
+
+                match next_token.token_type {
+                    TokenType::Plus
+                    | TokenType::Minus
+                    | TokenType::Multiply
+                    | TokenType::Divide => {
+                        //
+                    }
+                    TokenType::Semicolon => {
+                        self.next();
+                    }
+                    _ => {
+                        node = Expressions::None;
+                        self.error("Unexpected operation in expression");
+                        self.next();
+                    }
+                }
+            }
+            _ => {
+                self.error("Expression expected");
+                self.next();
+            }
+        }
+
+        return Expressions::None;
     }
 
     // statements
@@ -99,6 +180,7 @@ impl Parser {
             if !self.expect(TokenType::Identifier) {
                 self.error("Identifier expected after `let` keyword!");
                 self.next();
+
                 return Statements::None;
             }
 
@@ -107,21 +189,25 @@ impl Parser {
             match self.next().token_type {
                 TokenType::Equal => {
                     let _ = self.next();
-                    let value = self.statement();
+                    let value = self.expression();
 
                     return Statements::AnnotationStatement {
                         identifier: id,
-                        value: Some(Box::new(self.statement())),
+                        value: Some(Box::new(value)),
                     };
+                    self.next();
                 }
                 TokenType::Semicolon => {
                     return Statements::AnnotationStatement {
                         identifier: id,
                         value: None,
-                    }
+                    };
+                    self.next();
                 }
                 _ => {
                     self.error("Expected `=` or `;` after variable annotation");
+
+                    self.next();
                     return Statements::None;
                 }
             }
@@ -130,16 +216,43 @@ impl Parser {
         }
     }
 
+    fn assign_statement(&mut self, identifier: String) -> Statements {
+        match self.current().token_type {
+            TokenType::Equal => {
+                self.next();
+                return self.assign_statement(identifier);
+            }
+            TokenType::Semicolon => {
+                self.error("Expressions expected in assign statement, but `;` found!");
+                self.next();
+                return Statements::None;
+            }
+            _ => {
+                return Statements::AssignStatement {
+                    identifier,
+                    value: Some(Box::new(self.expression())),
+                };
+            }
+        }
+    }
+
     // main function
 
     pub fn parse(&mut self) -> Result<Vec<Statements>, ParseErrorHandler> {
         let mut output = Vec::new();
 
-        while self.position < self.tokens.len() {
+        while self.position < self.tokens.len() - 1 {
             let stmt = self.statement();
             output.push(stmt);
+
+            if self.eof {
+                break;
+            }
         }
 
-        Ok(output)
+        if !self.errors.is_empty() {
+            return Err(self.errors.clone());
+        }
+        return Ok(output);
     }
 }

@@ -25,7 +25,6 @@ pub enum Expressions {
         operand: String,
         value: Value,
     },
-    Variable {
-        name: String,
-    },
+    Value(Value),
+    None,
 }

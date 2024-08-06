@@ -1,15 +1,15 @@
-use crate::{expressions::Expressions, value::Value};
+use crate::expressions::Expressions;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(unused)]
 pub enum Statements {
     AssignStatement {
         identifier: String,
-        value: Value,
+        value: Option<Box<Expressions>>,
     },
     AnnotationStatement {
         identifier: String,
-        value: Option<Box<Statements>>,
+        value: Option<Box<Expressions>>,
     },
     FunctionCallStatement {
         function_name: String,
@@ -17,4 +17,5 @@ pub enum Statements {
     },
     Expression(Expressions),
     None,
+    End,
 }

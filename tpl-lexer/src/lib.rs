@@ -6,10 +6,9 @@ pub mod error;
 pub mod token;
 pub mod token_type;
 
-use colored::Colorize;
 use std::collections::HashMap;
 //
-use error::{LexerError, LexerErrorHandler};
+use error::LexerErrorHandler;
 use token::Token;
 use token_type::TokenType;
 
@@ -37,10 +36,12 @@ impl Lexer {
             filename,
 
             std_symbols: HashMap::from([
-                ('+', Token::new(TokenType::Plus, String::new(), 0)),
-                ('-', Token::new(TokenType::Minus, String::new(), 0)),
-                ('*', Token::new(TokenType::Multiply, String::new(), 0)),
-                ('/', Token::new(TokenType::Divide, String::new(), 0)),
+                ('+', Token::new(TokenType::Plus, String::from("+"), 0)),
+                ('-', Token::new(TokenType::Minus, String::from("-"), 0)),
+                ('*', Token::new(TokenType::Multiply, String::from("*"), 0)),
+                ('/', Token::new(TokenType::Divide, String::from("/"), 0)),
+                ('=', Token::new(TokenType::Equal, String::from("="), 0)),
+                //
                 ('.', Token::new(TokenType::Dot, String::new(), 0)),
                 ('"', Token::new(TokenType::Quote, String::new(), 0)),
                 (';', Token::new(TokenType::Semicolon, String::new(), 0)),
@@ -52,7 +53,7 @@ impl Lexer {
                 ),
                 (
                     "let".to_string(),
-                    Token::new(TokenType::Keyword, String::from("int"), 0),
+                    Token::new(TokenType::Keyword, String::from("let"), 0),
                 ),
             ]),
             errors: LexerErrorHandler::new(),
@@ -193,7 +194,7 @@ impl Lexer {
                         let matched_token = self.std_words.get(&id).unwrap().clone();
                         output.push(matched_token);
                     } else {
-                        output.push(Token::new(TokenType::Identifier, id, self.line))
+                        output.push(Token::new(TokenType::Identifier, id, self.line));
                     }
                 }
 

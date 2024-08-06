@@ -41,6 +41,10 @@ impl ParseErrorHandler {
         return self.data.is_empty();
     }
 
+    pub fn len(&self) -> usize {
+        return self.data.len();
+    }
+
     pub fn informate(&self) -> String {
         let message = format!("parsing-analyzer found {} errors!", self.data.len());
 
