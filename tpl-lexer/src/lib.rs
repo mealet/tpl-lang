@@ -52,8 +52,16 @@ impl Lexer {
                     Token::new(TokenType::Function, String::from("print"), 0),
                 ),
                 (
-                    "let".to_string(),
-                    Token::new(TokenType::Keyword, String::from("let"), 0),
+                    "int".to_string(),
+                    Token::new(TokenType::Keyword, String::from("int"), 0),
+                ),
+                (
+                    "str".to_string(),
+                    Token::new(TokenType::Keyword, String::from("str"), 0),
+                ),
+                (
+                    "bool".to_string(),
+                    Token::new(TokenType::Keyword, String::from("bool"), 0),
                 ),
             ]),
             errors: LexerErrorHandler::new(),
@@ -177,7 +185,6 @@ impl Lexer {
                     let value = self.get_number();
 
                     output.push(Token::new(TokenType::Number, value.to_string(), self.line));
-                    self.getc();
                 }
                 _ if self.char.is_alphabetic() => {
                     let allowed_identifier_chars = ['!', '_', '-', '.'];

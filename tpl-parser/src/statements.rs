@@ -9,6 +9,7 @@ pub enum Statements {
     },
     AnnotationStatement {
         identifier: String,
+        datatype: String,
         value: Option<Box<Expressions>>,
     },
     FunctionCallStatement {

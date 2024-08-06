@@ -30,6 +30,7 @@ name = "tpl-parser"
 version = "0.1.0"
 dependencies = [
  "colored",
+ "lazy_static",
  "tpl-lexer",
 ]
 

@@ -3,12 +3,18 @@ mod expressions;
 mod statements;
 mod value;
 
+use lazy_static::lazy_static;
+
 use error::ParseErrorHandler;
 use tpl_lexer::{token::Token, token_type::TokenType};
 
 use expressions::Expressions;
 use statements::Statements;
 use value::Value;
+
+lazy_static! {
+    static ref DATATYPES: Vec<&'static str> = vec!["int", "str", "bool"];
+}
 
 #[allow(unused)]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,7 +87,7 @@ impl Parser {
         match current.token_type {
             TokenType::Keyword => {
                 match current.value.as_str() {
-                    "let" => {
+                    _ if DATATYPES.contains(&current.value.as_str()) => {
                         // variable annotation
                         self.annotation_statement()
                     }
@@ -150,17 +156,22 @@ impl Parser {
                     | TokenType::Minus
                     | TokenType::Multiply
                     | TokenType::Divide => {
-                        //
+                        self.next();
+                        let rhs = self.expression();
+
+                        node = Expressions::Binary {
+                            operand: next_token.value,
+                            lhs: Box::new(node),
+                            rhs: Box::new(rhs),
+                        };
                     }
                     TokenType::Semicolon => {
                         self.next();
                     }
-                    _ => {
-                        node = Expressions::None;
-                        self.error("Unexpected operation in expression");
-                        self.next();
-                    }
+                    _ => {}
                 }
+
+                return node;
             }
             _ => {
                 self.error("Expression expected");
@@ -174,11 +185,12 @@ impl Parser {
     // statements
 
     fn annotation_statement(&mut self) -> Statements {
-        if self.current().value == String::from("let") {
+        if DATATYPES.contains(&self.current().value.as_str()) {
+            let datatype = self.current().value;
             let _ = self.next();
 
             if !self.expect(TokenType::Identifier) {
-                self.error("Identifier expected after `let` keyword!");
+                self.error("Identifier expected after type keyword!");
                 self.next();
 
                 return Statements::None;
@@ -193,6 +205,7 @@ impl Parser {
 
                     return Statements::AnnotationStatement {
                         identifier: id,
+                        datatype,
                         value: Some(Box::new(value)),
                     };
                     self.next();
@@ -200,6 +213,7 @@ impl Parser {
                 TokenType::Semicolon => {
                     return Statements::AnnotationStatement {
                         identifier: id,
+                        datatype,
                         value: None,
                     };
                     self.next();
