@@ -14,6 +14,12 @@ use value::Value;
 
 lazy_static! {
     static ref DATATYPES: Vec<&'static str> = vec!["int", "str", "bool"];
+    static ref BINARY_OPERATORS: Vec<TokenType> = vec![
+        TokenType::Plus,
+        TokenType::Minus,
+        TokenType::Divide,
+        TokenType::Multiply
+    ];
 }
 
 #[allow(unused)]
@@ -80,6 +86,10 @@ impl Parser {
         self.current().token_type == expected
     }
 
+    fn is_binary_operand(&self, token_type: TokenType) -> bool {
+        BINARY_OPERATORS.contains(&token_type)
+    }
+
     // fundamental
 
     fn statement(&mut self) -> Statements {
@@ -110,18 +120,9 @@ impl Parser {
                 let mut node = Expressions::Value(Value::Identifier(current.value));
                 let next_token = self.next();
 
-                match next_token.token_type {
-                    TokenType::Plus
-                    | TokenType::Minus
-                    | TokenType::Multiply
-                    | TokenType::Divide => {
-                        self.next();
-
-                        node = Expressions::Binary {
-                            operand: next_token.value,
-                            lhs: Box::new(node),
-                            rhs: Box::new(self.expression()),
-                        }
+                match next_token.token_type.clone() {
+                    _ if self.is_binary_operand(next_token.token_type) => {
+                        node = self.binary_expression(node);
                     }
                     TokenType::Semicolon => {
                         self.next();
@@ -139,19 +140,9 @@ impl Parser {
                     Expressions::Value(Value::Integer(current.value.trim().parse().unwrap()));
                 let next_token = self.next();
 
-                match next_token.token_type {
-                    TokenType::Plus
-                    | TokenType::Minus
-                    | TokenType::Multiply
-                    | TokenType::Divide => {
-                        self.next();
-                        let rhs = self.expression();
-
-                        node = Expressions::Binary {
-                            operand: next_token.value,
-                            lhs: Box::new(node),
-                            rhs: Box::new(rhs),
-                        };
+                match next_token.token_type.clone() {
+                    _ if self.is_binary_operand(next_token.token_type) => {
+                        node = self.binary_expression(node);
                     }
                     TokenType::Semicolon => {
                         self.next();
@@ -168,6 +159,32 @@ impl Parser {
         }
 
         return Expressions::None;
+    }
+
+    // expressions
+
+    fn binary_expression(&mut self, node: Expressions) -> Expressions {
+        let current_token = self.current();
+
+        match current_token.token_type.clone() {
+            _ if self.is_binary_operand(current_token.token_type) => {
+                let _ = self.next();
+
+                let lhs = Box::new(node);
+                let rhs = Box::new(self.expression());
+
+                return Expressions::Binary {
+                    operand: current_token.value,
+                    lhs,
+                    rhs,
+                };
+            }
+            _ => {
+                self.error("Unexpected token at binary expression!");
+                self.next();
+                return Expressions::None;
+            }
+        }
     }
 
     // statements

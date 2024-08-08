@@ -2,7 +2,7 @@ use tpl_lexer::*;
 use tpl_parser::*;
 
 fn main() {
-    let input = String::from("int a = b + c;");
+    let input = String::from("int a = a + b;");
     let filename = String::from("main.tpl");
 
     let mut lexer = Lexer::new(input.clone(), filename.clone());
