@@ -12,6 +12,8 @@ use expressions::Expressions;
 use statements::Statements;
 use value::Value;
 
+// globals
+
 lazy_static! {
     static ref DATATYPES: Vec<&'static str> = vec!["int", "str", "bool"];
     static ref BINARY_OPERATORS: Vec<TokenType> = vec![
@@ -21,6 +23,10 @@ lazy_static! {
         TokenType::Multiply
     ];
 }
+
+const END_STATEMENT: TokenType = TokenType::Semicolon;
+
+// struct and impl
 
 #[allow(unused)]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -104,6 +110,29 @@ impl Parser {
                     _ => Statements::None,
                 }
             }
+            TokenType::Function => {
+                // searching for built-in functions
+
+                match current.value.as_str() {
+                    "print" => self.print_statement(),
+                    _ => Statements::None,
+                }
+            }
+            TokenType::Identifier => {
+                let next = self.next();
+
+                match next.token_type {
+                    TokenType::Equal => self.assign_statement(current.value),
+                    END_STATEMENT => {
+                        Statements::Expression(Expressions::Value(Value::Identifier(current.value)))
+                    }
+                    _ => {
+                        self.error("Unexpected expression/statement after identifier");
+                        self.next();
+                        return Statements::None;
+                    }
+                }
+            }
             TokenType::EOF => {
                 self.eof = true;
                 return Statements::None;
@@ -124,7 +153,7 @@ impl Parser {
                     _ if self.is_binary_operand(next_token.token_type) => {
                         node = self.binary_expression(node);
                     }
-                    TokenType::Semicolon => {
+                    END_STATEMENT => {
                         self.next();
                     }
                     _ => {
@@ -144,11 +173,19 @@ impl Parser {
                     _ if self.is_binary_operand(next_token.token_type) => {
                         node = self.binary_expression(node);
                     }
-                    TokenType::Semicolon => {
+                    END_STATEMENT => {
                         self.next();
                     }
                     _ => {}
                 }
+
+                return node;
+            }
+            TokenType::String => {
+                let mut node = Expressions::Value(Value::String(current.value));
+                let next_token = self.next();
+
+                // for now nothing here
 
                 return node;
             }
@@ -189,6 +226,37 @@ impl Parser {
 
     // statements
 
+    fn print_statement(&mut self) -> Statements {
+        let mut current = self.current();
+
+        match current.token_type {
+            TokenType::Function => {
+                current = self.next();
+                return self.print_statement();
+            }
+            TokenType::LParen => {}
+            _ => {
+                self.error("Unexpected usage of `print` statement");
+                while self.current().token_type != END_STATEMENT {
+                    self.next();
+                }
+                return Statements::None;
+            }
+        }
+
+        let arguments =
+            self.expressions_enum(TokenType::LParen, TokenType::RParen, TokenType::Comma);
+
+        if self.current().token_type == END_STATEMENT {
+            let _ = self.next();
+        }
+
+        return Statements::FunctionCallStatement {
+            function_name: String::from("print"),
+            arguments,
+        };
+    }
+
     fn annotation_statement(&mut self) -> Statements {
         if DATATYPES.contains(&self.current().value.as_str()) {
             let datatype = self.current().value;
@@ -215,7 +283,7 @@ impl Parser {
                     };
                     self.next();
                 }
-                TokenType::Semicolon => {
+                END_STATEMENT => {
                     return Statements::AnnotationStatement {
                         identifier: id,
                         datatype,
@@ -241,7 +309,7 @@ impl Parser {
                 self.next();
                 return self.assign_statement(identifier);
             }
-            TokenType::Semicolon => {
+            END_STATEMENT => {
                 self.error("Expressions expected in assign statement, but `;` found!");
                 self.next();
                 return Statements::None;
@@ -253,6 +321,48 @@ impl Parser {
                 };
             }
         }
+    }
+
+    // etc
+
+    fn expressions_enum(
+        &mut self,
+        start_token_type: TokenType,
+        end_token_type: TokenType,
+        separator: TokenType,
+    ) -> Vec<Expressions> {
+        let mut current = self.current();
+
+        match current.token_type {
+            start_token_type => current = self.next(),
+            end_token_type => {
+                self.error("Unexpected enumeration end");
+                return Vec::new();
+            }
+        }
+
+        let mut output = Vec::new();
+
+        while current.token_type != end_token_type {
+            current = self.current();
+
+            if current.token_type == separator {
+                let _ = self.next();
+                continue;
+            } else if current.token_type == end_token_type {
+                let _ = self.next();
+                break;
+            }
+
+            let expression = self.expression();
+            output.push(expression);
+        }
+
+        if self.current().token_type == end_token_type {
+            let _ = self.next();
+        }
+
+        return output;
     }
 
     // main function

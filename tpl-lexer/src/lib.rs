@@ -43,8 +43,16 @@ impl Lexer {
                 ('=', Token::new(TokenType::Equal, String::from("="), 0)),
                 //
                 ('.', Token::new(TokenType::Dot, String::new(), 0)),
+                (',', Token::new(TokenType::Comma, String::new(), 0)),
                 ('"', Token::new(TokenType::Quote, String::new(), 0)),
                 (';', Token::new(TokenType::Semicolon, String::new(), 0)),
+                //
+                ('(', Token::new(TokenType::LParen, String::from("("), 0)),
+                (')', Token::new(TokenType::RParen, String::from(")"), 0)),
+                ('[', Token::new(TokenType::LBrack, String::from("["), 0)),
+                (']', Token::new(TokenType::RBrack, String::from("]"), 0)),
+                ('{', Token::new(TokenType::LBrace, String::from("{"), 0)),
+                ('}', Token::new(TokenType::RBrace, String::from("}"), 0)),
             ]),
             std_words: HashMap::from([
                 (
@@ -166,9 +174,6 @@ impl Lexer {
                             captured_string.push(self.char);
                             self.getc();
                         }
-
-                        // skipping quote
-                        self.getc();
 
                         // pushing token
                         output.push(Token::new(TokenType::String, captured_string, self.line));
