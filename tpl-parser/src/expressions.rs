@@ -1,18 +1,5 @@
 use crate::value::Value;
 
-// Avaible unary expressions:
-//      Unary Minus (-x)
-//      Unary Plus (+x)
-//      Increment(++)
-//      Decrement(--)
-//      Logical NOT (!x)
-
-// Avaible binary expressions:
-//      Addition (+)
-//      Substraction (-)
-//      Multiplication (*)
-//      Division (/)
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(unused)]
 pub enum Expressions {

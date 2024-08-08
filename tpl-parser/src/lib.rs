@@ -94,20 +94,6 @@ impl Parser {
                     _ => Statements::None,
                 }
             }
-            TokenType::Identifier => {
-                let next = self.next();
-                match next.token_type {
-                    TokenType::Equal => {
-                        // variable assign
-                        self.next();
-                        return self.assign_statement(current.value);
-                    }
-                    _ => {
-                        self.error("Unexpected symbol after `Identifier`");
-                        return Statements::None;
-                    }
-                }
-            }
             TokenType::EOF => {
                 self.eof = true;
                 return Statements::None;
@@ -129,6 +115,8 @@ impl Parser {
                     | TokenType::Minus
                     | TokenType::Multiply
                     | TokenType::Divide => {
+                        self.next();
+
                         node = Expressions::Binary {
                             operand: next_token.value,
                             lhs: Box::new(node),
