@@ -96,6 +96,13 @@ impl Parser {
         BINARY_OPERATORS.contains(&token_type)
     }
 
+    fn skip_eos(&mut self) {
+        // EOS - End Of Statement (in current case this is semicolon)
+        if self.current().token_type == END_STATEMENT {
+            let _ = self.next();
+        }
+    }
+
     // fundamental
 
     fn statement(&mut self) -> Statements {
@@ -189,8 +196,12 @@ impl Parser {
 
                 return node;
             }
+            END_STATEMENT => {
+                let _ = self.next();
+                return Expressions::None;
+            }
             _ => {
-                self.error("Expression expected");
+                self.error("Expression or Statement expected");
                 self.next();
             }
         }
@@ -276,20 +287,22 @@ impl Parser {
                     let _ = self.next();
                     let value = self.expression();
 
+                    self.skip_eos(); // skipping semicolon if it exists
+
                     return Statements::AnnotationStatement {
                         identifier: id,
                         datatype,
                         value: Some(Box::new(value)),
                     };
-                    self.next();
                 }
                 END_STATEMENT => {
+                    self.skip_eos();
+
                     return Statements::AnnotationStatement {
                         identifier: id,
                         datatype,
                         value: None,
                     };
-                    self.next();
                 }
                 _ => {
                     self.error("Expected `=` or `;` after variable annotation");
@@ -346,16 +359,22 @@ impl Parser {
         while current.token_type != end_token_type {
             current = self.current();
 
-            if current.token_type == separator {
-                let _ = self.next();
-                continue;
-            } else if current.token_type == end_token_type {
-                let _ = self.next();
-                break;
+            match current.token_type {
+                separator => {
+                    let _ = self.next();
+                    continue;
+                }
+                end_token_type => {
+                    let _ = self.next();
+                    break;
+                }
+                _ => {
+                    // FIXME: Idk why, but that case never catches and parser cant see any
+                    // arguments
+                    let expression = self.expression();
+                    output.push(expression);
+                }
             }
-
-            let expression = self.expression();
-            output.push(expression);
         }
 
         if self.current().token_type == end_token_type {

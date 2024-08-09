@@ -2,7 +2,7 @@
 // Toy Programming Language
 // ------------------------
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Copy)]
 #[allow(unused)]
 pub enum TokenType {
     Identifier, // abc
