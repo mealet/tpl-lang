@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 tpl-lexer = { path = "../tpl-lexer" }
 tpl-parser = { path = "../tpl-parser" }
+tpl-ir = { path = "../tpl-ir" }

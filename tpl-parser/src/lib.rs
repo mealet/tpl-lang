@@ -1,7 +1,7 @@
 mod error;
-mod expressions;
-mod statements;
-mod value;
+pub mod expressions;
+pub mod statements;
+pub mod value;
 
 use lazy_static::lazy_static;
 
@@ -105,6 +105,33 @@ impl Parser {
 
     // fundamental
 
+    fn term(&mut self) -> Expressions {
+        let current = self.current();
+        let mut output = Expressions::None;
+
+        match current.token_type {
+            TokenType::Number => {
+                output = Expressions::Value(Value::Integer(current.value.trim().parse().unwrap()))
+            }
+            TokenType::String => output = Expressions::Value(Value::String(current.value)),
+            TokenType::Boolean => {
+                output =
+                    Expressions::Value(Value::Boolean(if current.value == String::from("true") {
+                        true
+                    } else {
+                        false
+                    }))
+            }
+            TokenType::Identifier => output = Expressions::Value(Value::Identifier(current.value)),
+            _ => {
+                self.error("Unexpected term found");
+            }
+        }
+
+        let _ = self.next();
+        return output;
+    }
+
     fn statement(&mut self) -> Statements {
         let current = self.current();
         match current.token_type {
@@ -149,64 +176,20 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Expressions {
+        let mut node = self.term();
         let current = self.current();
 
         match current.token_type {
-            TokenType::Identifier => {
-                let mut node = Expressions::Value(Value::Identifier(current.value));
-                let next_token = self.next();
-
-                match next_token.token_type.clone() {
-                    _ if self.is_binary_operand(next_token.token_type) => {
-                        node = self.binary_expression(node);
-                    }
-                    END_STATEMENT => {
-                        self.next();
-                    }
-                    _ => {
-                        node = Expressions::None;
-                        self.error("Unexpected operation in expression");
-                    }
-                }
-
-                return node;
-            }
-            TokenType::Number => {
-                let mut node =
-                    Expressions::Value(Value::Integer(current.value.trim().parse().unwrap()));
-                let next_token = self.next();
-
-                match next_token.token_type.clone() {
-                    _ if self.is_binary_operand(next_token.token_type) => {
-                        node = self.binary_expression(node);
-                    }
-                    END_STATEMENT => {
-                        self.next();
-                    }
-                    _ => {}
-                }
-
-                return node;
-            }
-            TokenType::String => {
-                let mut node = Expressions::Value(Value::String(current.value));
-                let next_token = self.next();
-
-                // for now nothing here
-
-                return node;
+            _ if self.is_binary_operand(current.token_type) => {
+                node = self.binary_expression(node);
             }
             END_STATEMENT => {
-                let _ = self.next();
-                return Expressions::None;
-            }
-            _ => {
-                self.error("Expression or Statement expected");
                 self.next();
             }
+            _ => {}
         }
 
-        return Expressions::None;
+        return node;
     }
 
     // expressions
@@ -346,7 +329,7 @@ impl Parser {
     ) -> Vec<Expressions> {
         let mut current = self.current();
 
-        match current.token_type {
+        match current.token_type.clone() {
             start_token_type => current = self.next(),
             end_token_type => {
                 self.error("Unexpected enumeration end");
@@ -359,21 +342,14 @@ impl Parser {
         while current.token_type != end_token_type {
             current = self.current();
 
-            match current.token_type {
-                separator => {
-                    let _ = self.next();
-                    continue;
-                }
-                end_token_type => {
-                    let _ = self.next();
-                    break;
-                }
-                _ => {
-                    // FIXME: Idk why, but that case never catches and parser cant see any
-                    // arguments
-                    let expression = self.expression();
-                    output.push(expression);
-                }
+            if current.token_type == separator {
+                let _ = self.next();
+            } else if current.token_type == end_token_type {
+                let _ = self.next();
+                break;
+            } else {
+                let expression = self.expression();
+                output.push(expression);
             }
         }
 

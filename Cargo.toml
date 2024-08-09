@@ -2,10 +2,10 @@
 members = [
   "tplc",
   "tpl-lexer",
-  "tpl-parser",
+  "tpl-parser", "tpl-ir",
 ]
 
 [workspace.package]
-version = "0.1.7"
+version = "0.1.8"
 authors = ["mealet <workjason34@gmail.com>"]
 description = "Toy Programming Language - simple programming language written in Rust Lang"
