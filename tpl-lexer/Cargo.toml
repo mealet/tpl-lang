@@ -1,6 +1,6 @@
 [package]
 name = "tpl-lexer"
-version = "0.1.1"
+version.workspace = true
 description = "Lexical Analyzer for TPL Language"
 edition = "2021"
 authors.workspace = true
