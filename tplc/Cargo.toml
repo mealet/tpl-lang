@@ -6,6 +6,7 @@ description = "Main Compiler Module for TPL Language"
 edition = "2021"
 
 [dependencies]
+inkwell = { version = "0.5.0", features = ["llvm18-0"] }
 tpl-lexer = { path = "../tpl-lexer" }
 tpl-parser = { path = "../tpl-parser" }
 tpl-ir = { path = "../tpl-ir" }

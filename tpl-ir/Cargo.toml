@@ -6,5 +6,5 @@ authors.workspace = true
 description.workspace = true
 
 [dependencies]
-inkwell = { version = "0.5.0", features = ["llvm14-0"] }
 tpl-parser = { path = "../tpl-parser" }
+inkwell = { version = "0.5.0", features = ["llvm18-0"] }

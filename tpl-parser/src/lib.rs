@@ -22,6 +22,7 @@ lazy_static! {
         TokenType::Divide,
         TokenType::Multiply
     ];
+    static ref PRIORITY_BINARY_OPERATORS: Vec<String> = vec!["*".to_string(), "/".to_string()];
 }
 
 const END_STATEMENT: TokenType = TokenType::Semicolon;
@@ -94,6 +95,10 @@ impl Parser {
 
     fn is_binary_operand(&self, token_type: TokenType) -> bool {
         BINARY_OPERATORS.contains(&token_type)
+    }
+
+    fn is_priority_binary_operand(&self, operand: String) -> bool {
+        PRIORITY_BINARY_OPERATORS.contains(&operand)
     }
 
     fn skip_eos(&mut self) {
@@ -201,13 +206,39 @@ impl Parser {
             _ if self.is_binary_operand(current_token.token_type) => {
                 let _ = self.next();
 
-                let lhs = Box::new(node);
-                let rhs = Box::new(self.expression());
+                let lhs = node;
+                let rhs = self.expression();
+
+                if self.is_priority_binary_operand(current_token.clone().value) {
+                    let mut new_node = rhs.clone();
+                    let old_lhs = lhs.clone();
+
+                    if let Expressions::Binary { lhs, rhs, operand } = new_node {
+                        let lhs_new = old_lhs;
+                        let rhs_new = lhs;
+
+                        // creating new expression
+
+                        let priority_node = Expressions::Binary {
+                            lhs: Box::new(lhs_new),
+                            rhs: rhs_new,
+                            operand: current_token.clone().value,
+                        };
+
+                        let output_node = Expressions::Binary {
+                            lhs: Box::new(priority_node),
+                            rhs,
+                            operand,
+                        };
+
+                        return output_node;
+                    }
+                }
 
                 return Expressions::Binary {
                     operand: current_token.value,
-                    lhs,
-                    rhs,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
                 };
             }
             _ => {

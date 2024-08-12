@@ -71,6 +71,14 @@ impl Lexer {
                     "bool".to_string(),
                     Token::new(TokenType::Keyword, String::from("bool"), 0),
                 ),
+                (
+                    "true".to_string(),
+                    Token::new(TokenType::Boolean, String::from("true"), 0),
+                ),
+                (
+                    "false".to_string(),
+                    Token::new(TokenType::Boolean, String::from("false"), 0),
+                ),
             ]),
             errors: LexerErrorHandler::new(),
 
