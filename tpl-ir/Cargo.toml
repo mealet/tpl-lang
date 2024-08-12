@@ -1,9 +1,9 @@
 [package]
 name = "tpl-ir"
 edition = "2021"
+description = "IR Generator for TPL Language"
 version.workspace = true
 authors.workspace = true
-description.workspace = true
 
 [dependencies]
 tpl-parser = { path = "../tpl-parser" }
