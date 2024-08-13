@@ -1,6 +1,6 @@
 [package]
 name = "tpl-parser"
-version = "0.1.0"
+version.workspace = true
 authors.workspace = true
 description = "AST Analyzer for TPL Language"
 edition = "2021"
