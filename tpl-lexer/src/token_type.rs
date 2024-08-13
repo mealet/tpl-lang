@@ -1,6 +1,8 @@
-// ------------------------
-// Toy Programming Language
-// ------------------------
+// Toy Programming Language | by mealet
+// https://github.com/mealet/tpl-lang
+// =========================================
+// Project licensed under the BSD-3 LICENSE.
+// Check the `LICENSE` file to more info.
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
 #[allow(unused)]

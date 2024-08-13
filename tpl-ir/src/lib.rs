@@ -1,8 +1,14 @@
+// Toy Programming Language | by mealet
+// https://github.com/mealet/tpl-lang
+// =========================================
+// Project licensed under the BSD-3 LICENSE.
+// Check the `LICENSE` file to more info.
+
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::types::BasicTypeEnum;
-use inkwell::values::{BasicValueEnum, FunctionValue, GlobalValue, PointerValue};
+use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 
 use std::collections::HashMap;
 
@@ -14,7 +20,8 @@ pub struct Compiler<'ctx> {
     pub builder: Builder<'ctx>,
     pub module: Module<'ctx>,
 
-    variables: HashMap<String, (BasicTypeEnum<'ctx>, PointerValue<'ctx>)>,
+    variables: HashMap<String, (String, BasicTypeEnum<'ctx>, PointerValue<'ctx>)>,
+    printf_fn: FunctionValue<'ctx>,
 }
 
 // #[allow(unused)]
@@ -23,11 +30,19 @@ impl<'a, 'ctx> Compiler<'ctx> {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
 
+        // defining built-in functions
+        let printf_type = context.i8_type().fn_type(
+            &[context.ptr_type(inkwell::AddressSpace::default()).into()],
+            true,
+        );
+        let printf_fn = module.add_function("printf", printf_type, None);
+
         Compiler {
             context: &context,
             builder,
             module,
             variables: HashMap::new(),
+            printf_fn,
         }
     }
 
@@ -60,18 +75,18 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 let var_type = self.get_basic_type(&datatype);
                 let alloca = self.builder.build_alloca(var_type, &identifier).unwrap();
                 self.variables
-                    .insert(identifier.clone(), (var_type, alloca));
+                    .insert(identifier.clone(), (datatype, var_type, alloca));
 
                 if let Some(intial_value) = value {
                     let compiled_expression = self.compile_expression(*intial_value, function);
-                    let _ = self.builder.build_store(alloca, compiled_expression);
+                    let _ = self.builder.build_store(alloca, compiled_expression.1);
                 }
             }
             Statements::AssignStatement { identifier, value } => {
                 if let Some(var_ptr) = self.variables.clone().get(&identifier) {
                     if let Some(expr) = value {
                         let expr_value = self.compile_expression(*expr, function);
-                        let _ = self.builder.build_store(var_ptr.1, expr_value);
+                        let _ = self.builder.build_store(var_ptr.2, expr_value.1);
                     }
                 }
             }
@@ -91,7 +106,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
         &mut self,
         expr: Expressions,
         function: FunctionValue<'ctx>,
-    ) -> BasicValueEnum<'ctx> {
+    ) -> (String, BasicValueEnum<'ctx>) {
         match expr {
             Expressions::Value(val) => self.compile_value(val),
             Expressions::Binary { operand, lhs, rhs } => {
@@ -99,30 +114,62 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 let right = self.compile_expression(*rhs, function);
 
                 match operand.as_str() {
-                    "+" => self
-                        .builder
-                        .build_int_add(left.into_int_value(), right.into_int_value(), "tmpadd")
-                        .unwrap()
-                        .into(),
-                    "-" => self
-                        .builder
-                        .build_int_sub(left.into_int_value(), right.into_int_value(), "tmpsub")
-                        .unwrap()
-                        .into(),
-                    "*" => self
-                        .builder
-                        .build_int_mul(left.into_int_value(), right.into_int_value(), "tmpmul")
-                        .unwrap()
-                        .into(),
-                    "/" => self
-                        .builder
-                        .build_int_signed_div(
-                            left.into_int_value(),
-                            right.into_int_value(),
-                            "tmpdiv",
-                        )
-                        .unwrap()
-                        .into(),
+                    "+" => {
+                        // add
+                        return (
+                            right.0,
+                            self.builder
+                                .build_int_add(
+                                    left.1.into_int_value(),
+                                    right.1.into_int_value(),
+                                    "tmpadd",
+                                )
+                                .unwrap()
+                                .into(),
+                        );
+                    }
+                    "-" => {
+                        // substract
+                        return (
+                            right.0,
+                            self.builder
+                                .build_int_sub(
+                                    left.1.into_int_value(),
+                                    right.1.into_int_value(),
+                                    "tmpsub",
+                                )
+                                .unwrap()
+                                .into(),
+                        );
+                    }
+                    "*" => {
+                        // multiply
+                        return (
+                            right.0,
+                            self.builder
+                                .build_int_mul(
+                                    left.1.into_int_value(),
+                                    right.1.into_int_value(),
+                                    "tmpmul",
+                                )
+                                .unwrap()
+                                .into(),
+                        );
+                    }
+                    "/" => {
+                        // divide
+                        return (
+                            right.0,
+                            self.builder
+                                .build_int_signed_div(
+                                    left.1.into_int_value(),
+                                    right.1.into_int_value(),
+                                    "tmpdiv",
+                                )
+                                .unwrap()
+                                .into(),
+                        );
+                    }
                     _ => panic!("Unsupported expression"),
                 }
             }
@@ -130,17 +177,29 @@ impl<'a, 'ctx> Compiler<'ctx> {
         }
     }
 
-    fn compile_value(&self, value: Value) -> BasicValueEnum<'ctx> {
+    fn compile_value(&self, value: Value) -> (String, BasicValueEnum<'ctx>) {
         match value {
-            Value::Integer(i) => self.context.i32_type().const_int(i as u64, false).into(),
-            Value::Boolean(b) => self.context.bool_type().const_int(b as u64, false).into(),
+            Value::Integer(i) => (
+                "int".to_string(),
+                self.context.i32_type().const_int(i as u64, false).into(),
+            ),
+            Value::Boolean(b) => (
+                "bool".to_string(),
+                self.context.bool_type().const_int(b as u64, false).into(),
+            ),
             Value::String(str) => {
                 let str_val = self.builder.build_global_string_ptr(&str, "str");
-                str_val.unwrap().as_pointer_value().into()
+                (
+                    "str".to_string(),
+                    str_val.unwrap().as_pointer_value().into(),
+                )
             }
             Value::Identifier(id) => {
                 if let Some(var_ptr) = self.variables.get(&id) {
-                    self.builder.build_load(var_ptr.0, var_ptr.1, &id).unwrap()
+                    (
+                        var_ptr.0.clone(),
+                        self.builder.build_load(var_ptr.1, var_ptr.2, &id).unwrap(),
+                    )
                 } else {
                     panic!("Undefined variable: {}", id);
                 }
@@ -161,20 +220,34 @@ impl<'a, 'ctx> Compiler<'ctx> {
     }
 
     fn build_print_call(&mut self, arguments: Vec<Expressions>, function: FunctionValue<'ctx>) {
-        let printf_type = self.context.i8_type().fn_type(
-            &[self
-                .context
-                .ptr_type(inkwell::AddressSpace::default())
-                .into()],
-            true,
-        );
-        let printf_fn = self.module.add_function("printf", printf_type, None);
-
         for arg in arguments {
             let value = self.compile_expression(arg, function);
+            let mut output_value = value.1.clone();
 
-            let format_string = match value {
-                BasicValueEnum::IntValue(_) => self.builder.build_global_string_ptr("%d\n", "fmt"),
+            let format_string = match value.1 {
+                BasicValueEnum::IntValue(int) => match value.0.as_str() {
+                    "int" => self.builder.build_global_string_ptr("%d\n", "fmt"),
+                    "bool" => {
+                        let true_str = self
+                            .builder
+                            .build_global_string_ptr("true", "true_str")
+                            .unwrap()
+                            .as_pointer_value();
+                        let false_str = self
+                            .builder
+                            .build_global_string_ptr("false", "false_str")
+                            .unwrap()
+                            .as_pointer_value();
+
+                        output_value = self
+                            .builder
+                            .build_select(int, true_str, false_str, "bool_str")
+                            .unwrap();
+
+                        self.builder.build_global_string_ptr("%s\n", "fmt_bool")
+                    }
+                    _ => panic!("Unsupported IntValue"),
+                },
                 BasicValueEnum::PointerValue(_) => {
                     self.builder.build_global_string_ptr("%s\n", "fmt_str")
                 }
@@ -182,10 +255,10 @@ impl<'a, 'ctx> Compiler<'ctx> {
             };
 
             let _ = self.builder.build_call(
-                printf_fn,
+                self.printf_fn,
                 &[
                     format_string.unwrap().as_pointer_value().into(),
-                    value.into(),
+                    output_value.into(),
                 ],
                 "printf",
             );
