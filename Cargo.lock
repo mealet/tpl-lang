@@ -158,14 +158,14 @@ dependencies = [
 
 [[package]]
 name = "tpl-lexer"
-version = "0.1.1"
+version = "0.1.9"
 dependencies = [
  "colored",
 ]
 
 [[package]]
 name = "tpl-parser"
-version = "0.1.0"
+version = "0.1.9"
 dependencies = [
  "colored",
  "lazy_static",
