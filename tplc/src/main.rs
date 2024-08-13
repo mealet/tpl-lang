@@ -4,15 +4,15 @@ use tpl_parser::*;
 
 mod compiler;
 
-const OPTIMIZATION_LEVEL: inkwell::OptimizationLevel = inkwell::OptimizationLevel::None; // Optimization
-                                                                                         // set to None, because in any other way `gcc` or `clang` returns error
+const OPTIMIZATION_LEVEL: inkwell::OptimizationLevel = inkwell::OptimizationLevel::Default; // Optimization
+                                                                                            // set to None, because in any other way `gcc` or `clang` returns error
 const RELOC_MODE: inkwell::targets::RelocMode = inkwell::targets::RelocMode::PIC;
 const CODE_MODEL: inkwell::targets::CodeModel = inkwell::targets::CodeModel::Default;
 
 fn main() {
     // WARNING: This is a testing code for developing
 
-    let input = String::from("str a = \"asd\"; print(a);");
+    let input = String::from("str a = \"Hello World!\";\nprint(a);");
     let filename = String::from("main.tpl");
 
     let ctx = inkwell::context::Context::create();
@@ -47,6 +47,4 @@ fn main() {
 
 // TODO: Add linker in compiler.rs
 // TODO: Optimize and make code more cleaner
-//
-// FIXME: Segmentation fault when printing string
-// FIXME: Linker Error with boolean type
+// TODO: Boolean types printing like numbers
