@@ -94,7 +94,14 @@ fn main() {
     // creating lexical analyzer and getting tokens
 
     let mut lexer = Lexer::new(config.source.clone(), config.output.clone());
-    let tokens = lexer.tokenize().unwrap();
+    let tokens = match lexer.tokenize() {
+        Ok(tokens) => tokens,
+        Err(e) => {
+            let info = e.informate();
+            eprintln!("{}", info);
+            std::process::exit(1);
+        }
+    };
 
     // creating parser and getting Abstract Syntax Tree
 
@@ -108,6 +115,9 @@ fn main() {
             // compiling statements to module
             let _ = compiler.generate(stmts);
             let module = compiler.get_module();
+
+            // debug
+            let _ = module.print_to_stderr();
 
             // compiling module to object file
 
@@ -129,7 +139,8 @@ fn main() {
         }
         Err(err) => {
             // printing all errors in terminal and quitting
-            println!("{}", err.informate())
+            eprintln!("{}", err.informate());
+            std::process::exit(1);
         }
     }
 }

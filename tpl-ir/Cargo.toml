@@ -8,3 +8,4 @@ authors.workspace = true
 [dependencies]
 tpl-parser = { path = "../tpl-parser" }
 inkwell = { version = "0.5.0", features = ["llvm18-0"] }
+colored = "2.1.0"

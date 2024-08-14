@@ -4,6 +4,8 @@
 // Project licensed under the BSD-3 LICENSE.
 // Check the `LICENSE` file to more info.
 
+mod error;
+
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
@@ -12,6 +14,7 @@ use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
 
 use std::collections::HashMap;
 
+use error::{ErrorType, GenError};
 use tpl_parser::{expressions::Expressions, statements::Statements, value::Value};
 
 #[derive(Debug)]
@@ -21,10 +24,12 @@ pub struct Compiler<'ctx> {
     pub module: Module<'ctx>,
 
     variables: HashMap<String, (String, BasicTypeEnum<'ctx>, PointerValue<'ctx>)>,
+
+    // built-in functions
     printf_fn: FunctionValue<'ctx>,
 }
 
-// #[allow(unused)]
+#[allow(unused)]
 impl<'a, 'ctx> Compiler<'ctx> {
     pub fn new(context: &'ctx Context, module_name: &str) -> Self {
         let module = context.create_module(module_name);
@@ -42,6 +47,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
             builder,
             module,
             variables: HashMap::new(),
+
             printf_fn,
         }
     }
@@ -113,67 +119,86 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 let left = self.compile_expression(*lhs, function);
                 let right = self.compile_expression(*rhs, function);
 
-                match operand.as_str() {
-                    "+" => {
-                        // add
-                        return (
-                            right.0,
-                            self.builder
-                                .build_int_add(
-                                    left.1.into_int_value(),
-                                    right.1.into_int_value(),
-                                    "tmpadd",
-                                )
-                                .unwrap()
-                                .into(),
-                        );
+                // matching types
+                match left.0.as_str() {
+                    // int
+                    "int" => {
+                        match operand.as_str() {
+                            "+" => {
+                                // add
+                                return (
+                                    right.0,
+                                    self.builder
+                                        .build_int_add(
+                                            left.1.into_int_value(),
+                                            right.1.into_int_value(),
+                                            "tmpadd",
+                                        )
+                                        .unwrap()
+                                        .into(),
+                                );
+                            }
+                            "-" => {
+                                // substract
+                                return (
+                                    right.0,
+                                    self.builder
+                                        .build_int_sub(
+                                            left.1.into_int_value(),
+                                            right.1.into_int_value(),
+                                            "tmpsub",
+                                        )
+                                        .unwrap()
+                                        .into(),
+                                );
+                            }
+                            "*" => {
+                                // multiply
+                                return (
+                                    right.0,
+                                    self.builder
+                                        .build_int_mul(
+                                            left.1.into_int_value(),
+                                            right.1.into_int_value(),
+                                            "tmpmul",
+                                        )
+                                        .unwrap()
+                                        .into(),
+                                );
+                            }
+                            "/" => {
+                                // divide
+                                return (
+                                    right.0,
+                                    self.builder
+                                        .build_int_signed_div(
+                                            left.1.into_int_value(),
+                                            right.1.into_int_value(),
+                                            "tmpdiv",
+                                        )
+                                        .unwrap()
+                                        .into(),
+                                );
+                            }
+                            _ => todo!(),
+                        }
                     }
-                    "-" => {
-                        // substract
-                        return (
-                            right.0,
-                            self.builder
-                                .build_int_sub(
-                                    left.1.into_int_value(),
-                                    right.1.into_int_value(),
-                                    "tmpsub",
-                                )
-                                .unwrap()
-                                .into(),
+                    _ => {
+                        GenError::throw(
+                            format!("Binary operations is not supported for `{}` type!", left.0),
+                            ErrorType::NotSupported,
                         );
+                        std::process::exit(1);
                     }
-                    "*" => {
-                        // multiply
-                        return (
-                            right.0,
-                            self.builder
-                                .build_int_mul(
-                                    left.1.into_int_value(),
-                                    right.1.into_int_value(),
-                                    "tmpmul",
-                                )
-                                .unwrap()
-                                .into(),
-                        );
-                    }
-                    "/" => {
-                        // divide
-                        return (
-                            right.0,
-                            self.builder
-                                .build_int_signed_div(
-                                    left.1.into_int_value(),
-                                    right.1.into_int_value(),
-                                    "tmpdiv",
-                                )
-                                .unwrap()
-                                .into(),
-                        );
-                    }
-                    _ => panic!("Unsupported expression"),
                 }
             }
-            _ => panic!("Unsupported expression"),
+            _ => {
+                GenError::throw(
+                    format!("`{:?}` is not supported!", expr),
+                    ErrorType::NotSupported,
+                );
+                std::process::exit(1);
+            }
         }
     }
 
@@ -201,7 +226,11 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         self.builder.build_load(var_ptr.1, var_ptr.2, &id).unwrap(),
                     )
                 } else {
-                    panic!("Undefined variable: {}", id);
+                    GenError::throw(
+                        format!("Undefined variable with id: `{}`!", id),
+                        ErrorType::NotSupported,
+                    );
+                    std::process::exit(1);
                 }
             }
         }
@@ -215,9 +244,17 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 .context
                 .ptr_type(inkwell::AddressSpace::default())
                 .into(),
-            _ => panic!("Unsupported datatype"),
+            _ => {
+                GenError::throw(
+                    format!("Unsupported `{}` datatype!", datatype),
+                    ErrorType::NotSupported,
+                );
+                std::process::exit(1);
+            }
         }
     }
+
+    // built-in functions
 
     fn build_print_call(&mut self, arguments: Vec<Expressions>, function: FunctionValue<'ctx>) {
         for arg in arguments {
@@ -246,12 +283,24 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
                         self.builder.build_global_string_ptr("%s\n", "fmt_bool")
                     }
-                    _ => panic!("Unsupported IntValue"),
+                    _ => {
+                        GenError::throw(
+                            format!("Unsupported IntValue `{}`!", value.0),
+                            ErrorType::NotSupported,
+                        );
+                        std::process::exit(1);
+                    }
                 },
                 BasicValueEnum::PointerValue(_) => {
                     self.builder.build_global_string_ptr("%s\n", "fmt_str")
                 }
-                _ => panic!("Unsupported type for print"),
+                _ => {
+                    GenError::throw(
+                        format!("Type `{}` is not supported for print function!", value.0),
+                        ErrorType::NotSupported,
+                    );
+                    std::process::exit(1);
+                }
             };
 
             let _ = self.builder.build_call(
