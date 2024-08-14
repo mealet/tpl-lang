@@ -62,5 +62,17 @@ tplc example.tpl output
 ./output
 ```
 
+<details>
+ <summary><h2>😵 Errors Examples</h2></summary>
+
+ ![image](https://github.com/user-attachments/assets/dca42b0f-dc68-4192-82d0-ae7523248b43) </br>
+ ![image](https://github.com/user-attachments/assets/96f71bf9-bc11-4afa-b7ad-a3e81731d43e) </br>
+ ![image](https://github.com/user-attachments/assets/ca948e3d-8398-4d82-b923-8d01e89a5b5b) </br>
+ ![image](https://github.com/user-attachments/assets/523264db-ae4f-4c2f-b7a4-b13076461cf5) </br>
+ ![image](https://github.com/user-attachments/assets/f18f6a49-a4ee-414b-8c2f-70e6345c94ff) </br>
+
+
+</details>
+
 ### 💀 License
 Project licensed under the BSD-3 License. More information in [**LICENSE**](https://github.com/mealet/tpl-lang/blob/main/LICENSE) file
