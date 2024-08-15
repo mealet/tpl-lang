@@ -18,6 +18,12 @@ pub enum TokenType {
     Minus,    // -
     Multiply, // *
     Divide,   // /
+    Not,      // !
+
+    Lt, // <
+    Bt, // >
+    Eq, // ==
+    Ne, // !=
 
     Semicolon, // ;
     Dot,       // .

@@ -22,6 +22,11 @@ pub enum Statements {
         function_name: String,
         arguments: Vec<Expressions>,
     },
+    IfStatement {
+        condition: Expressions,
+        then_block: Vec<Statements>,
+        else_block: Option<Vec<Statements>>,
+    },
     Expression(Expressions),
     None,
     End,

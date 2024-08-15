@@ -108,41 +108,44 @@ fn main() {
     let mut parser = Parser::new(tokens, config.input.clone(), config.source.clone());
     let ast = parser.parse();
 
-    // catching errors
+    println!("{:#?}", &ast);
 
-    match ast {
-        Ok(stmts) => {
-            // compiling statements to module
-            let _ = compiler.generate(stmts);
-            let module = compiler.get_module();
-
-            // // debug
-            // let _ = module.print_to_stderr();
-
-            // compiling module to object file
-
-            let object_file = format!("{}.o", config.output.clone());
-
-            let _ = compiler::ObjectCompiler::compile(
-                OPTIMIZATION_LEVEL,
-                RELOC_MODE,
-                CODE_MODEL,
-                module,
-                object_file.as_str(),
-            );
-
-            // linking and deleting object file
-
-            let _ = compiler::ObjectLinker::compile(object_file.clone(), &config.output.clone());
-
-            let _ = std::fs::remove_file(object_file);
-        }
-        Err(err) => {
-            // printing all errors in terminal and quitting
-            eprintln!("{}", err.informate());
-            std::process::exit(1);
-        }
-    }
+    // // catching errors
+    //
+    // match ast {
+    //     Ok(stmts) => {
+    //         // compiling statements to module
+    //         let _ = compiler.generate(stmts);
+    //         let module = compiler.get_module();
+    //
+    //         // // debug
+    //         // let _ = module.print_to_stderr();
+    //
+    //         // compiling module to object file
+    //
+    //         let object_file = format!("{}.o", config.output.clone());
+    //
+    //         let _ = compiler::ObjectCompiler::compile(
+    //             OPTIMIZATION_LEVEL,
+    //             RELOC_MODE,
+    //             CODE_MODEL,
+    //             module,
+    //             object_file.as_str(),
+    //         );
+    //
+    //         // linking and deleting object file
+    //
+    //         let _ = compiler::ObjectLinker::compile(object_file.clone(), &config.output.clone());
+    //
+    //         let _ = std::fs::remove_file(object_file);
+    //     }
+    //     Err(err) => {
+    //         // printing all errors in terminal and quitting
+    //         eprintln!("{}", err.informate());
+    //         std::process::exit(1);
+    //     }
+    // }
 }
 
-// TODO: Add normal error handling and formatting in `tpl-ir` module
+// TODO: Add `if` and `if/else` statements support in `tpl-ir` module.
+// TODO: Create `while` and `for` cycles.
