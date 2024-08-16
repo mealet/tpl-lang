@@ -1,6 +1,5 @@
-if 5 < 10 {
-  int a = 5;
+if 5 > 10 {
+  print("yes");
 } else {
-  int a = 10;
+  print("no");
 };
-print(a);

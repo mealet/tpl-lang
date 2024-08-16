@@ -7,7 +7,8 @@ pub struct GenError;
 pub enum ErrorType {
     NotDefined,
     NotSupported,
-    Unexpected,
+    NotExpected,
+    TypeError,
 }
 
 impl GenError {

@@ -10,7 +10,7 @@ use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
 use inkwell::types::BasicTypeEnum;
-use inkwell::values::{BasicValueEnum, FunctionValue, PointerValue};
+use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
 
 use std::collections::HashMap;
 
@@ -104,7 +104,86 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     self.build_print_call(arguments, function);
                 }
             }
-            _ => {}
+            Statements::IfStatement {
+                condition,
+                then_block,
+                else_block,
+            } => {
+                // compiling condition
+                let compiled_condition = self.compile_condition(condition, function);
+
+                // checking for else block
+                if let Some(else_matched_block) = else_block {
+                    // creating blocks
+                    let then_basic_block = self.context.append_basic_block(function, "if_then");
+                    let else_basic_block = self.context.append_basic_block(function, "if_else");
+                    let merge_basic_block = self.context.append_basic_block(function, "if_merge");
+
+                    // building conditional branch to blocks
+                    self.builder.build_conditional_branch(
+                        compiled_condition,
+                        then_basic_block,
+                        else_basic_block,
+                    );
+
+                    // building `then` block
+                    self.builder.position_at_end(then_basic_block);
+
+                    for stmt in then_block {
+                        self.compile_statement(stmt, function);
+                    }
+
+                    // building branch to merge point
+                    self.builder.build_unconditional_branch(merge_basic_block);
+
+                    // filling `else` block
+                    self.builder.position_at_end(else_basic_block);
+
+                    for stmt in else_matched_block {
+                        self.compile_statement(stmt, function);
+                    }
+
+                    // branch to merge block
+
+                    self.builder.build_unconditional_branch(merge_basic_block);
+
+                    // and changing current builder position
+                    self.builder.position_at_end(merge_basic_block);
+                } else {
+                    // the same but without else block
+                    let then_basic_block = self.context.append_basic_block(function, "if_then");
+                    let merge_basic_block = self.context.append_basic_block(function, "if_merge");
+
+                    // building conditional branch to blocks
+                    self.builder.build_conditional_branch(
+                        compiled_condition,
+                        then_basic_block,
+                        merge_basic_block,
+                    );
+
+                    // building `then` block
+                    self.builder.position_at_end(then_basic_block);
+
+                    for stmt in then_block {
+                        self.compile_statement(stmt, function);
+                    }
+
+                    // building branch to merge point
+                    self.builder.build_unconditional_branch(merge_basic_block);
+
+                    // and changing current builder position
+                    self.builder.position_at_end(merge_basic_block);
+                }
+            }
+            _ => {
+                GenError::throw(
+                    String::from(
+                        "Unsupported statement found! Please open issue with your code on Github!",
+                    ),
+                    ErrorType::NotSupported,
+                );
+                std::process::exit(1);
+            }
         }
     }
 
@@ -123,7 +202,14 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 match left.0.as_str() {
                     // int
                     "int" => {
+                        // checking if all sides are the same type
+                        if right.0 != "int" {
+                            GenError::throw(format!("Left and Right sides must be the same types in Binary Expression!"), ErrorType::TypeError);
+                            std::process::exit(1);
+                        }
+
                         match operand.as_str() {
+                            // NOTE: Basic Binary Operations
                             "+" => {
                                 // add
                                 return (
@@ -233,6 +319,60 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
             }
+        }
+    }
+
+    fn compile_condition(
+        &mut self,
+        condition: Expressions,
+        function: FunctionValue<'ctx>,
+    ) -> IntValue<'ctx> {
+        if let Expressions::Binary { operand, lhs, rhs } = condition {
+            let left = self.compile_expression(*lhs, function);
+            let right = self.compile_expression(*rhs, function);
+
+            // matching same supported types
+            match (left.0.as_str(), right.0.as_str()) {
+                ("int", "int") => {
+                    // matching operand
+                    let predicate = match operand.as_str() {
+                        ">" => inkwell::IntPredicate::SGT,
+                        "<" => inkwell::IntPredicate::SLT,
+                        "==" => inkwell::IntPredicate::EQ,
+                        "!=" => inkwell::IntPredicate::NE,
+                        _ => {
+                            GenError::throw(
+                                format!("Compare operand `{}` is not supported!", operand),
+                                ErrorType::NotSupported,
+                            );
+                            std::process::exit(1);
+                        }
+                    };
+
+                    // creating condition
+                    let condition = self.builder.build_int_compare(
+                        predicate,
+                        left.1.into_int_value(),
+                        right.1.into_int_value(),
+                        "int_condition",
+                    );
+
+                    return condition.unwrap();
+                }
+                _ => {
+                    GenError::throw(
+                        format!("Cannot compare `{}` and `{}` types!", left.0, right.0),
+                        ErrorType::TypeError,
+                    );
+                    std::process::exit(1);
+                }
+            }
+        } else {
+            GenError::throw(
+                String::from("Conditions only supported in `Binary Operations`"),
+                ErrorType::NotSupported,
+            );
+            std::process::exit(1);
         }
     }
 
