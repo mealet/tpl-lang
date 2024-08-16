@@ -9,6 +9,8 @@ pub enum ErrorType {
     NotSupported,
     NotExpected,
     TypeError,
+    MemoryError,
+    BuildError,
 }
 
 impl GenError {

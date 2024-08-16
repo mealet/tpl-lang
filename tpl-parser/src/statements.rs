@@ -27,6 +27,15 @@ pub enum Statements {
         then_block: Vec<Statements>,
         else_block: Option<Vec<Statements>>,
     },
+    WhileStatement {
+        condition: Expressions,
+        block: Vec<Statements>,
+    },
+    ForStatement {
+        varname: String,
+        iterable_object: Expressions,
+        block: Vec<Statements>,
+    },
     Expression(Expressions),
     None,
     End,

@@ -167,6 +167,10 @@ impl Parser {
                         );
                         Statements::None
                     }
+                    "while" => {
+                        // `while` cycle
+                        return self.while_statement();
+                    }
                     _ => Statements::None,
                 }
             }
@@ -463,21 +467,64 @@ impl Parser {
                     else_block: Some(else_stmts),
                 };
             }
-            TokenType::Semicolon => {
+            _ => {
+                // skipping semicolon if we have
                 self.skip_eos();
+                // returning statement
                 return Statements::IfStatement {
                     condition,
                     then_block: stmts,
                     else_block: None,
                 };
             }
-            _ => {
+        }
+    }
+
+    fn while_statement(&mut self) -> Statements {
+        if self.current().token_type == TokenType::Keyword {
+            // skipping keyword
+            let _ = self.next();
+            return self.while_statement();
+        }
+
+        // parsing condition
+        let condition = self.expression();
+
+        // searching for opening block
+        if self.current().token_type != TokenType::LBrace {
+            self.error("New block expected after condition!");
+            return Statements::None;
+        }
+
+        let _ = self.next();
+
+        // parsing statements
+        let mut stmts = Vec::new();
+
+        while self.current().token_type != TokenType::RBrace {
+            if self.current().token_type == TokenType::EOF {
                 self.error(
-                    "Unexpected block/statement after `if` statement. Please add semicolon!",
+                    "Unexpected end-of-file in block after `while` statement. Please add '}'!",
                 );
                 return Statements::None;
             }
+
+            let statement = self.statement();
+            stmts.push(statement);
         }
+
+        // skipping brace
+        if self.current().token_type == TokenType::RBrace {
+            let _ = self.next();
+        }
+
+        // skiping semicolon
+        self.skip_eos();
+
+        return Statements::WhileStatement {
+            condition,
+            block: stmts,
+        };
     }
 
     // etc

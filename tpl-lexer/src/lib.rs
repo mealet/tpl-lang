@@ -61,11 +61,12 @@ impl Lexer {
                 ('}', Token::new(TokenType::RBrace, String::from("}"), 0)),
             ]),
             std_words: HashMap::from([
+                // NOTE: Built-in functions
                 (
                     "print".to_string(),
                     Token::new(TokenType::Function, String::from("print"), 0),
                 ),
-                //
+                // NOTE: Keywords
                 (
                     "if".to_string(),
                     Token::new(TokenType::Keyword, String::from("if"), 0),
@@ -74,7 +75,15 @@ impl Lexer {
                     "else".to_string(),
                     Token::new(TokenType::Keyword, String::from("else"), 0),
                 ),
-                //
+                (
+                    "while".to_string(),
+                    Token::new(TokenType::Keyword, String::from("while"), 0),
+                ),
+                (
+                    "for".to_string(),
+                    Token::new(TokenType::Keyword, String::from("for"), 0),
+                ),
+                // NOTE: Datatypes
                 (
                     "int".to_string(),
                     Token::new(TokenType::Keyword, String::from("int"), 0),
@@ -87,7 +96,7 @@ impl Lexer {
                     "bool".to_string(),
                     Token::new(TokenType::Keyword, String::from("bool"), 0),
                 ),
-                //
+                // NOTE: Boolean keywords
                 (
                     "true".to_string(),
                     Token::new(TokenType::Boolean, String::from("true"), 0),

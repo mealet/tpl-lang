@@ -79,12 +79,40 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 value,
             } => {
                 let var_type = self.get_basic_type(&datatype);
-                let alloca = self.builder.build_alloca(var_type, &identifier).unwrap();
+                let alloca = self
+                    .builder
+                    .build_alloca(var_type, &identifier)
+                    .unwrap_or_else(|_| {
+                        GenError::throw(
+                            format!(
+                                "Error with creating allocation with identifier `{}`",
+                                &identifier
+                            ),
+                            ErrorType::MemoryError,
+                        );
+                        std::process::exit(1);
+                    });
                 self.variables
-                    .insert(identifier.clone(), (datatype, var_type, alloca));
+                    .insert(identifier.clone(), (datatype.clone(), var_type, alloca));
 
                 if let Some(intial_value) = value {
                     let compiled_expression = self.compile_expression(*intial_value, function);
+
+                    // matching datatypes
+
+                    if compiled_expression.0 != datatype {
+                        GenError::throw(
+                            format!(
+                                "Type `{}` expected for '{}' variable, but found `{}`!",
+                                datatype,
+                                identifier.clone(),
+                                compiled_expression.0
+                            ),
+                            ErrorType::TypeError,
+                        );
+                        std::process::exit(1);
+                    }
+
                     let _ = self.builder.build_store(alloca, compiled_expression.1);
                 }
             }
@@ -92,6 +120,22 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 if let Some(var_ptr) = self.variables.clone().get(&identifier) {
                     if let Some(expr) = value {
                         let expr_value = self.compile_expression(*expr, function);
+
+                        // matching datatypes
+
+                        if expr_value.0 != var_ptr.0 {
+                            GenError::throw(
+                                format!(
+                                    "Expected type `{}`, but found `{}`!",
+                                    var_ptr.0, expr_value.0
+                                ),
+                                ErrorType::TypeError,
+                            );
+                            std::process::exit(1);
+                        }
+
+                        // storing value
+
                         let _ = self.builder.build_store(var_ptr.2, expr_value.1);
                     }
                 }
@@ -174,6 +218,39 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     // and changing current builder position
                     self.builder.position_at_end(merge_basic_block);
                 }
+            }
+            Statements::WhileStatement { condition, block } => {
+                // creating basic blocks
+                let before_basic_block = self.context.append_basic_block(function, "while_before");
+                let then_basic_block = self.context.append_basic_block(function, "while_then");
+                let after_basic_block = self.context.append_basic_block(function, "while_after");
+
+                // setting current position to block `before`
+                self.builder.build_unconditional_branch(before_basic_block);
+                self.builder.position_at_end(before_basic_block);
+
+                // compiling condition
+                let compiled_condition = self.compile_condition(condition, function);
+
+                // building conditional branch to blocks
+                self.builder.build_conditional_branch(
+                    compiled_condition,
+                    then_basic_block,
+                    after_basic_block,
+                );
+
+                // building `then` block
+                self.builder.position_at_end(then_basic_block);
+
+                for stmt in block {
+                    self.compile_statement(stmt, function);
+                }
+
+                // returning to block `before` for comparing condition
+                self.builder.build_unconditional_branch(before_basic_block);
+
+                // setting builder position to `after` block
+                self.builder.position_at_end(after_basic_block);
             }
             _ => {
                 GenError::throw(
@@ -299,17 +376,31 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 self.context.bool_type().const_int(b as u64, false).into(),
             ),
             Value::String(str) => {
-                let str_val = self.builder.build_global_string_ptr(&str, "str");
-                (
-                    "str".to_string(),
-                    str_val.unwrap().as_pointer_value().into(),
-                )
+                let str_val = self
+                    .builder
+                    .build_global_string_ptr(&str, "str")
+                    .unwrap_or_else(|_| {
+                        GenError::throw(
+                            format!("Error while creating string: `{}`", str),
+                            ErrorType::MemoryError,
+                        );
+                        std::process::exit(1);
+                    });
+                ("str".to_string(), str_val.as_pointer_value().into())
             }
             Value::Identifier(id) => {
                 if let Some(var_ptr) = self.variables.get(&id) {
                     (
                         var_ptr.0.clone(),
-                        self.builder.build_load(var_ptr.1, var_ptr.2, &id).unwrap(),
+                        self.builder
+                            .build_load(var_ptr.1, var_ptr.2, &id)
+                            .unwrap_or_else(|_| {
+                                GenError::throw(
+                                    format!("Error with loading `{}` variable", id),
+                                    ErrorType::MemoryError,
+                                );
+                                std::process::exit(1);
+                            }),
                     )
                 } else {
                     GenError::throw(
@@ -357,7 +448,16 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         "int_condition",
                     );
 
-                    return condition.unwrap();
+                    return condition.unwrap_or_else(|_| {
+                        GenError::throw(
+                            format!(
+                                "An error occured while building condition `{} {} {}`!",
+                                left.0, operand, right.0
+                            ),
+                            ErrorType::BuildError,
+                        );
+                        std::process::exit(1);
+                    });
                 }
                 _ => {
                     GenError::throw(

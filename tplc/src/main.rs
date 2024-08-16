@@ -145,5 +145,5 @@ fn main() {
     }
 }
 
-// TODO: Add `if` and `if/else` statements support in `tpl-ir` module.
-// TODO: Create `while` and `for` cycles.
+// TODO: Create `for` cycle.
+// TODO: Add showing line when throwing GenError
