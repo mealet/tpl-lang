@@ -144,6 +144,3 @@ fn main() {
         }
     }
 }
-
-// TODO: Create `for` cycle.
-// TODO: Add showing line when throwing GenError

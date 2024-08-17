@@ -4,6 +4,8 @@
 // Project licensed under the BSD-3 LICENSE.
 // Check the `LICENSE` file to more info.
 
+// NOTE: `line` field added for error handling on IR stage
+
 use crate::value::Value;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -13,10 +15,12 @@ pub enum Expressions {
         operand: String,
         lhs: Box<Expressions>,
         rhs: Box<Expressions>,
+        line: usize,
     },
     Unary {
         operand: String,
         value: Value,
+        line: usize,
     },
     Value(Value),
     None,

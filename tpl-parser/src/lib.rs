@@ -171,6 +171,10 @@ impl Parser {
                         // `while` cycle
                         return self.while_statement();
                     }
+                    "for" => {
+                        // `for` cycle
+                        return self.for_statement();
+                    }
                     _ => Statements::None,
                 }
             }
@@ -226,6 +230,7 @@ impl Parser {
 
     fn binary_expression(&mut self, node: Expressions) -> Expressions {
         let current_token = self.current();
+        let current_line = current_token.line;
 
         match current_token.token_type.clone() {
             _ if self.is_binary_operand(current_token.token_type) => {
@@ -238,7 +243,13 @@ impl Parser {
                     let mut new_node = rhs.clone();
                     let old_lhs = lhs.clone();
 
-                    if let Expressions::Binary { lhs, rhs, operand } = new_node {
+                    if let Expressions::Binary {
+                        lhs,
+                        rhs,
+                        operand,
+                        line,
+                    } = new_node
+                    {
                         let lhs_new = old_lhs;
                         let rhs_new = lhs;
 
@@ -248,12 +259,14 @@ impl Parser {
                             lhs: Box::new(lhs_new),
                             rhs: rhs_new,
                             operand: current_token.clone().value,
+                            line: current_line,
                         };
 
                         let output_node = Expressions::Binary {
                             lhs: Box::new(priority_node),
                             rhs,
                             operand,
+                            line: current_line,
                         };
 
                         return output_node;
@@ -264,6 +277,7 @@ impl Parser {
                     operand: current_token.value,
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
+                    line: current_line,
                 };
             }
             _ => {
@@ -278,6 +292,7 @@ impl Parser {
 
     fn print_statement(&mut self) -> Statements {
         let mut current = self.current();
+        let line = current.line;
 
         match current.token_type {
             TokenType::Function => {
@@ -304,10 +319,13 @@ impl Parser {
         return Statements::FunctionCallStatement {
             function_name: String::from("print"),
             arguments,
+            line,
         };
     }
 
     fn annotation_statement(&mut self) -> Statements {
+        let line = self.current().line;
+
         if DATATYPES.contains(&self.current().value.as_str()) {
             let datatype = self.current().value;
             let _ = self.next();
@@ -332,6 +350,7 @@ impl Parser {
                         identifier: id,
                         datatype,
                         value: Some(Box::new(value)),
+                        line,
                     };
                 }
                 END_STATEMENT => {
@@ -341,6 +360,7 @@ impl Parser {
                         identifier: id,
                         datatype,
                         value: None,
+                        line,
                     };
                 }
                 _ => {
@@ -356,6 +376,8 @@ impl Parser {
     }
 
     fn assign_statement(&mut self, identifier: String) -> Statements {
+        let line = self.current().line;
+
         match self.current().token_type {
             TokenType::Equal => {
                 self.next();
@@ -370,12 +392,15 @@ impl Parser {
                 return Statements::AssignStatement {
                     identifier,
                     value: Some(Box::new(self.expression())),
+                    line,
                 };
             }
         }
     }
 
     fn if_statement(&mut self) -> Statements {
+        let line = self.current().line;
+
         if self.current().token_type == TokenType::Keyword {
             // skipping keyword
             let _ = self.next();
@@ -465,6 +490,7 @@ impl Parser {
                     condition,
                     then_block: stmts,
                     else_block: Some(else_stmts),
+                    line,
                 };
             }
             _ => {
@@ -475,12 +501,15 @@ impl Parser {
                     condition,
                     then_block: stmts,
                     else_block: None,
+                    line,
                 };
             }
         }
     }
 
     fn while_statement(&mut self) -> Statements {
+        let line = self.current().line;
+
         if self.current().token_type == TokenType::Keyword {
             // skipping keyword
             let _ = self.next();
@@ -524,7 +553,78 @@ impl Parser {
         return Statements::WhileStatement {
             condition,
             block: stmts,
+            line,
         };
+    }
+
+    fn for_statement(&mut self) -> Statements {
+        let line = self.current().line;
+
+        if self.current().token_type == TokenType::Keyword {
+            // skipping keyword
+            let _ = self.next();
+            return self.for_statement();
+        }
+
+        // getting variable name
+        if !self.expect(TokenType::Identifier) {
+            self.error("Variable name expected after keyword `for`!");
+            return Statements::None;
+        }
+
+        let varname = self.current().value;
+
+        // searching for `in` keyword
+
+        let keyword = self.next();
+
+        if let (TokenType::Keyword, "in") = (keyword.token_type, keyword.value.as_str()) {
+            let _ = self.next();
+
+            // parsing iter object
+            let iterable_object = self.expression();
+
+            // searching for opening block
+            if self.current().token_type != TokenType::LBrace {
+                self.error("New block expected after condition!");
+                return Statements::None;
+            }
+
+            let _ = self.next();
+
+            // parsing statements
+            let mut stmts = Vec::new();
+
+            while self.current().token_type != TokenType::RBrace {
+                if self.current().token_type == TokenType::EOF {
+                    self.error(
+                        "Unexpected end-of-file in block after `for` statement. Please add '}'!",
+                    );
+                    return Statements::None;
+                }
+
+                let statement = self.statement();
+                stmts.push(statement);
+            }
+
+            // skipping brace
+            if self.current().token_type == TokenType::RBrace {
+                let _ = self.next();
+            }
+
+            // skiping semicolon
+            self.skip_eos();
+
+            return Statements::ForStatement {
+                varname,
+                iterable_object,
+                block: stmts,
+                line,
+            };
+        } else {
+            self.error("Expected keyword 'in` after variable name in `for` statement!");
+            return Statements::None;
+        }
     }
 
     // etc

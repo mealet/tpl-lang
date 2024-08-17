@@ -14,18 +14,20 @@ pub enum ErrorType {
 }
 
 impl GenError {
-    pub fn throw(description: String, error_type: ErrorType) {
+    pub fn throw(description: String, error_type: ErrorType, line: usize) {
         let stringified_type = format!("{:?}", error_type);
-        let fmt = Self::format(description, stringified_type);
+        let fmt = Self::format(description, stringified_type, line);
 
         eprintln!("{}", fmt);
     }
 
-    pub fn format(description: String, error_type: String) -> String {
+    pub fn format(description: String, error_type: String, line: usize) -> String {
         format!(
-            "{} {}",
+            "{} {}\n{} line: {}",
             format!("[CodeGen][{}]", error_type).red(),
-            description
+            description,
+            "-->".red(),
+            line + 1
         )
     }
 }

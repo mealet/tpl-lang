@@ -83,6 +83,10 @@ impl Lexer {
                     "for".to_string(),
                     Token::new(TokenType::Keyword, String::from("for"), 0),
                 ),
+                (
+                    "in".to_string(),
+                    Token::new(TokenType::Keyword, String::from("in"), 0),
+                ),
                 // NOTE: Datatypes
                 (
                     "int".to_string(),
