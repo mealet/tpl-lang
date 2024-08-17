@@ -43,6 +43,10 @@ impl Lexer {
                 ('*', Token::new(TokenType::Multiply, String::from("*"), 0)),
                 ('/', Token::new(TokenType::Divide, String::from("/"), 0)),
                 ('=', Token::new(TokenType::Equal, String::from("="), 0)),
+                ('!', Token::new(TokenType::Not, String::from("!"), 0)),
+                //
+                ('<', Token::new(TokenType::Lt, String::from("<"), 0)),
+                ('>', Token::new(TokenType::Bt, String::from(">"), 0)),
                 //
                 ('.', Token::new(TokenType::Dot, String::new(), 0)),
                 (',', Token::new(TokenType::Comma, String::new(), 0)),
@@ -57,10 +61,33 @@ impl Lexer {
                 ('}', Token::new(TokenType::RBrace, String::from("}"), 0)),
             ]),
             std_words: HashMap::from([
+                // NOTE: Built-in functions
                 (
                     "print".to_string(),
                     Token::new(TokenType::Function, String::from("print"), 0),
                 ),
+                // NOTE: Keywords
+                (
+                    "if".to_string(),
+                    Token::new(TokenType::Keyword, String::from("if"), 0),
+                ),
+                (
+                    "else".to_string(),
+                    Token::new(TokenType::Keyword, String::from("else"), 0),
+                ),
+                (
+                    "while".to_string(),
+                    Token::new(TokenType::Keyword, String::from("while"), 0),
+                ),
+                (
+                    "for".to_string(),
+                    Token::new(TokenType::Keyword, String::from("for"), 0),
+                ),
+                (
+                    "in".to_string(),
+                    Token::new(TokenType::Keyword, String::from("in"), 0),
+                ),
+                // NOTE: Datatypes
                 (
                     "int".to_string(),
                     Token::new(TokenType::Keyword, String::from("int"), 0),
@@ -73,6 +100,7 @@ impl Lexer {
                     "bool".to_string(),
                     Token::new(TokenType::Keyword, String::from("bool"), 0),
                 ),
+                // NOTE: Boolean keywords
                 (
                     "true".to_string(),
                     Token::new(TokenType::Boolean, String::from("true"), 0),
@@ -176,24 +204,63 @@ impl Lexer {
                 _ if self.std_symbols.contains_key(&self.char) => {
                     let matched_token = self.std_symbols.get(&self.char).unwrap().clone();
 
-                    if matched_token.token_type == TokenType::Quote {
-                        self.getc();
-                        let mut captured_string = String::new();
+                    match matched_token.token_type {
+                        TokenType::Quote => {
+                            self.getc();
+                            let mut captured_string = String::new();
 
-                        while self.char != '"' {
-                            captured_string.push(self.char);
+                            while self.char != '"' {
+                                captured_string.push(self.char);
+                                self.getc();
+                            }
+
+                            // pushing token
+                            output.push(Token::new(TokenType::String, captured_string, self.line));
                             self.getc();
                         }
+                        TokenType::Equal => {
+                            // checking if next symbol is `equal`
+                            self.getc();
 
-                        // pushing token
-                        output.push(Token::new(TokenType::String, captured_string, self.line));
-                        self.getc();
-                    } else {
-                        let mut formatted_token = matched_token;
-                        formatted_token.line = self.line;
+                            if self.char == '=' {
+                                output.push(Token::new(
+                                    TokenType::Eq,
+                                    String::from("=="),
+                                    self.line,
+                                ));
+                                self.getc();
+                            } else {
+                                let mut formatted_token = matched_token;
+                                formatted_token.line = self.line;
 
-                        output.push(formatted_token);
-                        self.getc();
+                                output.push(formatted_token);
+                            }
+                        }
+                        TokenType::Not => {
+                            // checking if next symbol is `equal`
+                            self.getc();
+
+                            if self.char == '=' {
+                                output.push(Token::new(
+                                    TokenType::Ne,
+                                    String::from("!="),
+                                    self.line,
+                                ));
+                                self.getc();
+                            } else {
+                                let mut formatted_token = matched_token;
+                                formatted_token.line = self.line;
+
+                                output.push(formatted_token);
+                            }
+                        }
+                        _ => {
+                            let mut formatted_token = matched_token;
+                            formatted_token.line = self.line;
+
+                            output.push(formatted_token);
+                            self.getc();
+                        }
                     }
                 }
                 _ if self.char.is_digit(10) => {

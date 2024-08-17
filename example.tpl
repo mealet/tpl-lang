@@ -1,2 +1,15 @@
-int a = 2 + 2 * 2; // should be 6
-print(a + 4); // should print 10
+bool a = 5 < 10;
+
+if a {
+   print("yes");
+};
+
+str i = "hello world!";
+
+for i in 5 {
+    print(i);
+};
+
+// test comments
+
+print(i);

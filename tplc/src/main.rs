@@ -116,8 +116,8 @@ fn main() {
             let _ = compiler.generate(stmts);
             let module = compiler.get_module();
 
-            // debug
-            let _ = module.print_to_stderr();
+            // // debug
+            // let _ = module.print_to_stderr();
 
             // compiling module to object file
 
@@ -144,5 +144,3 @@ fn main() {
         }
     }
 }
-
-// TODO: Add normal error handling and formatting in `tpl-ir` module
