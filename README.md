@@ -52,6 +52,33 @@ print(flag); // will print "true"
 
 str greeting = "Hello World!"; // string type
 print(greeting); // "Hello World!"
+
+// if-else construction
+
+if 1 < 2 {
+    print("1 is less than 2");
+};
+
+if 2 != 2 {
+    // code
+} else {
+    print("2 = 2");
+};
+
+// loops
+int a = 0;
+
+while a < 5 {
+    a = a + 1;
+    print(a);
+};
+
+for i in 5 {
+    print(i);
+};
+
+// tests in variables
+bool test = 1 + 1 == 2;
 ```
 3. Compile it by command:
 ```sh
