@@ -14,9 +14,6 @@
 **Toy Programming Language** - is a simple compiling language, based on LLVM. </br>
 Project created to learn and show other people how to create compilers in Rust 🦀
 
-In that case we can create variables with `int`, `bool` and `str` types, use binary operations on numbers and print them by `print()` function.
-Compiler supports multiple error handling at each stage
-
 ### 🤖 Tools Used
 * Programming Language: [Rust]
 * Code Generator: [LLVM]
