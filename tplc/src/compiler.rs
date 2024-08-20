@@ -42,7 +42,7 @@ impl ObjectCompiler {
 }
 
 impl ObjectLinker {
-    pub fn link(input_file: String, output_file: &String) -> Result<(), i32> {
+    pub fn link(input_file: &String, output_file: &String) -> Result<(), i32> {
         let gcc = Command::new("gcc")
             .arg(input_file)
             .arg("-o")
@@ -57,7 +57,7 @@ impl ObjectLinker {
         Ok(())
     }
 
-    pub fn compile(input_file: String, output_file: &String) {
+    pub fn compile(input_file: &String, output_file: &String) {
         let link_result = Self::link(input_file, output_file);
 
         match link_result {

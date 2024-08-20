@@ -33,6 +33,13 @@ pub enum Statements {
     },
 
     // Functions
+    FunctionDefineStatement {
+        function_name: String,
+        function_type: String,
+        arguments: Vec<(String, String)>, // ("a", "int")
+        block: Vec<Statements>,
+        line: usize,
+    },
     FunctionCallStatement {
         function_name: String,
         arguments: Vec<Expressions>,
@@ -57,7 +64,13 @@ pub enum Statements {
         block: Vec<Statements>,
         line: usize,
     },
+
+    // Some Keywords
     BreakStatement {
+        line: usize,
+    },
+    ReturnStatement {
+        value: Expressions,
         line: usize,
     },
 

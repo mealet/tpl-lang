@@ -75,10 +75,12 @@ impl Lexer {
                     "else".to_string(),
                     Token::new(TokenType::Keyword, String::from("else"), 0),
                 ),
+                //
                 (
                     "while".to_string(),
                     Token::new(TokenType::Keyword, String::from("while"), 0),
                 ),
+                //
                 (
                     "for".to_string(),
                     Token::new(TokenType::Keyword, String::from("for"), 0),
@@ -91,9 +93,14 @@ impl Lexer {
                     "break".to_string(),
                     Token::new(TokenType::Keyword, String::from("break"), 0),
                 ),
+                //
                 (
                     "define".to_string(),
                     Token::new(TokenType::Keyword, String::from("define"), 0),
+                ),
+                (
+                    "return".to_string(),
+                    Token::new(TokenType::Keyword, String::from("return"), 0),
                 ),
                 // NOTE: Datatypes
                 (
@@ -277,7 +284,7 @@ impl Lexer {
                     output.push(Token::new(TokenType::Number, value.to_string(), self.line));
                 }
                 _ if self.char.is_alphabetic() => {
-                    let allowed_identifier_chars = ['!', '_', '-', '.'];
+                    let allowed_identifier_chars = ['!', '_', '.'];
 
                     let mut id = String::new();
                     while self.char.is_alphanumeric()

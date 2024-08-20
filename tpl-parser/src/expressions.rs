@@ -22,6 +22,10 @@ pub enum Expressions {
         value: Value,
         line: usize,
     },
+    Argument {
+        name: String,
+        datatype: String,
+    },
     Value(Value),
     None,
 }

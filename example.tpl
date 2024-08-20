@@ -1,12 +1,4 @@
-int counter = 0;
+int a = 1;
+a++;
 
-while true {
-  counter += 1;
-
-  if counter == 5 {
-    print("five!");
-    break;
-  };
-};
-
-print("end");
+print(a);
