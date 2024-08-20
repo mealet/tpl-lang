@@ -1,15 +1,12 @@
-bool a = 5 < 10;
+int counter = 0;
 
-if a {
-   print("yes");
+while true {
+  counter += 1;
+
+  if counter == 5 {
+    print("five!");
+    break;
+  };
 };
 
-str i = "hello world!";
-
-for i in 5 {
-    print(i);
-};
-
-// test comments
-
-print(i);
+print("end");

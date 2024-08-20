@@ -70,7 +70,7 @@ impl Parser {
 
     // error
 
-    fn error(&mut self, description: &str) {
+    fn error<T: std::fmt::Display>(&mut self, description: T) {
         let source_clone = self.source.clone();
         let source_lines: Vec<&str> = source_clone.lines().collect();
 
@@ -175,6 +175,12 @@ impl Parser {
                         // `for` cycle
                         return self.for_statement();
                     }
+                    "break" => {
+                        // `break` keyword
+                        let _ = self.next();
+                        let _ = self.skip_eos();
+                        return Statements::BreakStatement { line: current.line };
+                    }
                     _ => Statements::None,
                 }
             }
@@ -191,6 +197,15 @@ impl Parser {
 
                 match next.token_type {
                     TokenType::Equal => self.assign_statement(current.value),
+                    _ if BINARY_OPERATORS.contains(&next.token_type) => {
+                        if self.next().token_type != TokenType::Equal {
+                            self.error("Unexpected Binary Operation in statement found!");
+                            return Statements::None;
+                        }
+
+                        // parsing binary assignment
+                        return self.binary_assign_statement(current.value, next.value);
+                    }
                     END_STATEMENT => {
                         Statements::Expression(Expressions::Value(Value::Identifier(current.value)))
                     }
@@ -394,6 +409,30 @@ impl Parser {
                     value: Some(Box::new(self.expression())),
                     line,
                 };
+            }
+        }
+    }
+
+    fn binary_assign_statement(&mut self, identifier: String, operand: String) -> Statements {
+        let line = self.current().line;
+
+        match self.current().token_type {
+            TokenType::Equal => {
+                self.next();
+                return self.binary_assign_statement(identifier, operand);
+            }
+            END_STATEMENT => {
+                self.error("Expressions expected in binary assignment, but `;` found!");
+                self.next();
+                return Statements::None;
+            }
+            _ => {
+                return Statements::BinaryAssignStatement {
+                    identifier,
+                    operand,
+                    value: Some(Box::new(self.expression())),
+                    line,
+                }
             }
         }
     }

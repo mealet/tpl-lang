@@ -87,6 +87,14 @@ impl Lexer {
                     "in".to_string(),
                     Token::new(TokenType::Keyword, String::from("in"), 0),
                 ),
+                (
+                    "break".to_string(),
+                    Token::new(TokenType::Keyword, String::from("break"), 0),
+                ),
+                (
+                    "define".to_string(),
+                    Token::new(TokenType::Keyword, String::from("define"), 0),
+                ),
                 // NOTE: Datatypes
                 (
                     "int".to_string(),
@@ -124,7 +132,7 @@ impl Lexer {
 
     // fundamental functions
 
-    fn error(&mut self, description: &str) {
+    fn error<T: std::fmt::Display>(&mut self, description: T) {
         let source_clone = self.source.clone();
         let source_lines: Vec<&str> = source_clone.lines().collect();
 
@@ -289,7 +297,7 @@ impl Lexer {
 
                 // undefined chars/symbols
                 _ => {
-                    let _ = self.error(format!("Undefined char found: {}", self.char).as_str());
+                    let _ = self.error(format!("Undefined char found: {}", self.char));
                     self.getc();
                 }
             }

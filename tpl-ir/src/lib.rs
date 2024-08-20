@@ -6,6 +6,7 @@
 
 mod error;
 
+use inkwell::basic_block::BasicBlock;
 use inkwell::builder::Builder;
 use inkwell::context::Context;
 use inkwell::module::Module;
@@ -21,10 +22,15 @@ const TEST_OPERATORS: [&'static str; 4] = [">", "<", "==", "!="];
 
 #[derive(Debug)]
 pub struct Compiler<'ctx> {
+    // important
     pub context: &'ctx Context,
     pub builder: Builder<'ctx>,
     pub module: Module<'ctx>,
 
+    main_function: FunctionValue<'ctx>,
+    current_block: BasicBlock<'ctx>,
+
+    // hashmaps
     variables: HashMap<String, (String, BasicTypeEnum<'ctx>, PointerValue<'ctx>)>,
 
     // built-in functions
@@ -44,37 +50,46 @@ impl<'a, 'ctx> Compiler<'ctx> {
         );
         let printf_fn = module.add_function("printf", printf_type, None);
 
+        // main function creation
+        let i32_type = context.i32_type();
+        let fn_type = i32_type.fn_type(&[], false);
+        let function = module.add_function("main", fn_type, None);
+        let basic_block = context.append_basic_block(function, "entry");
+
         Compiler {
             context: &context,
             builder,
             module,
             variables: HashMap::new(),
 
+            current_block: basic_block,
+            main_function: function,
+
             printf_fn,
         }
     }
 
     pub fn generate(&mut self, statements: Vec<Statements>) {
-        // main function creation
-        let i32_type = self.context.i32_type();
-        let fn_type = i32_type.fn_type(&[], false);
-        let function = self.module.add_function("main", fn_type, None);
-        let basic_block = self.context.append_basic_block(function, "entry");
-
-        self.builder.position_at_end(basic_block);
+        self.builder.position_at_end(self.current_block);
 
         for statement in statements {
-            self.compile_statement(statement, function);
+            self.compile_statement(statement, self.main_function);
         }
 
         // returning 0
         let _ = self
             .builder
-            .build_return(Some(&i32_type.const_int(0, false)));
+            .build_return(Some(&self.context.i32_type().const_int(0, false)));
+    }
+
+    fn switch_block(&mut self, dest: BasicBlock<'ctx>) {
+        self.current_block = dest;
+        self.builder.position_at_end(dest);
     }
 
     fn compile_statement(&mut self, statement: Statements, function: FunctionValue<'ctx>) {
         match statement {
+            // NOTE: Annotation
             Statements::AnnotationStatement {
                 identifier,
                 datatype,
@@ -122,6 +137,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     let _ = self.builder.build_store(alloca, compiled_expression.1);
                 }
             }
+
+            // NOTE: Assignment
             Statements::AssignStatement {
                 identifier,
                 value,
@@ -158,6 +175,44 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
             }
+            Statements::BinaryAssignStatement {
+                identifier,
+                operand,
+                value,
+                line,
+            } => {
+                if let Some(var_ptr) = self.variables.clone().get(&identifier) {
+                    if let Some(expr) = value {
+                        // building new binary expression
+                        let new_expression = Expressions::Binary {
+                            operand,
+                            lhs: Box::new(Expressions::Value(Value::Identifier(identifier))),
+                            rhs: expr.clone(),
+                            line,
+                        };
+
+                        let expr_value = self.compile_expression(new_expression, line, function);
+
+                        // matching types
+                        if expr_value.0 != var_ptr.0 {
+                            GenError::throw(
+                                format!(
+                                    "Expected type `{}`, but found `{}`!",
+                                    var_ptr.0, expr_value.0
+                                ),
+                                ErrorType::TypeError,
+                                line,
+                            );
+                        }
+
+                        // storing value
+
+                        let _ = self.builder.build_store(var_ptr.2, expr_value.1);
+                    }
+                }
+            }
+
+            // NOTE: Functions
             Statements::FunctionCallStatement {
                 function_name,
                 arguments,
@@ -191,7 +246,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     );
 
                     // building `then` block
-                    self.builder.position_at_end(then_basic_block);
+                    self.switch_block(then_basic_block);
 
                     for stmt in then_block {
                         self.compile_statement(stmt, function);
@@ -201,7 +256,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     self.builder.build_unconditional_branch(merge_basic_block);
 
                     // filling `else` block
-                    self.builder.position_at_end(else_basic_block);
+                    self.switch_block(else_basic_block);
 
                     for stmt in else_matched_block {
                         self.compile_statement(stmt, function);
@@ -212,7 +267,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     self.builder.build_unconditional_branch(merge_basic_block);
 
                     // and changing current builder position
-                    self.builder.position_at_end(merge_basic_block);
+
+                    self.switch_block(merge_basic_block);
                 } else {
                     // the same but without else block
                     let then_basic_block = self.context.append_basic_block(function, "if_then");
@@ -226,7 +282,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     );
 
                     // building `then` block
-                    self.builder.position_at_end(then_basic_block);
+                    self.switch_block(then_basic_block);
 
                     for stmt in then_block {
                         self.compile_statement(stmt, function);
@@ -236,9 +292,11 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     self.builder.build_unconditional_branch(merge_basic_block);
 
                     // and changing current builder position
-                    self.builder.position_at_end(merge_basic_block);
+                    self.switch_block(merge_basic_block);
                 }
             }
+
+            // NOTE: Constructions
             Statements::WhileStatement {
                 condition,
                 block,
@@ -251,7 +309,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
                 // setting current position to block `before`
                 self.builder.build_unconditional_branch(before_basic_block);
-                self.builder.position_at_end(before_basic_block);
+                self.switch_block(before_basic_block);
 
                 // compiling condition
                 let compiled_condition = self.compile_condition(condition, line, function);
@@ -264,7 +322,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 );
 
                 // building `then` block
-                self.builder.position_at_end(then_basic_block);
+                self.switch_block(then_basic_block);
 
                 for stmt in block {
                     self.compile_statement(stmt, function);
@@ -274,7 +332,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 self.builder.build_unconditional_branch(before_basic_block);
 
                 // setting builder position to `after` block
-                self.builder.position_at_end(after_basic_block);
+                self.switch_block(after_basic_block);
             }
             Statements::ForStatement {
                 varname,
@@ -311,7 +369,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
                 // setting current position at block `before`
                 self.builder.build_unconditional_branch(before_basic_block);
-                self.builder.position_at_end(before_basic_block);
+                self.switch_block(before_basic_block);
 
                 let old_variable = self.variables.remove(&varname);
 
@@ -337,7 +395,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 );
 
                 // building `then` block
-                self.builder.position_at_end(then_basic_block);
+                self.switch_block(then_basic_block);
 
                 for stmt in block {
                     self.compile_statement(stmt, function);
@@ -378,18 +436,34 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 self.builder.build_unconditional_branch(before_basic_block);
 
                 // setting builder position to `after` block
-                self.builder.position_at_end(after_basic_block);
+                self.switch_block(after_basic_block);
 
                 // returning old variable
                 if let Some(val) = old_variable {
                     self.variables.insert(varname, val);
                 }
             }
+            Statements::BreakStatement { line } => {
+                match self.current_block.get_next_basic_block() {
+                    Some(next_block) => {
+                        // changing block to next
+                        self.builder.build_unconditional_branch(next_block);
+                    }
+                    None => {
+                        GenError::throw(
+                            "Unexpected `break` keyword call!",
+                            ErrorType::NotExpected,
+                            line,
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            }
+
+            // NOTE: Not supported
             _ => {
                 GenError::throw(
-                    String::from(
-                        "Unsupported statement found! Please open issue with your code on Github!",
-                    ),
+                    "Unsupported statement found! Please open issue with your code on Github!",
                     ErrorType::NotSupported,
                     0,
                 );
@@ -648,7 +722,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
             }
             _ => {
                 GenError::throw(
-                    "Unexpected expression found on condition!".to_string(),
+                    "Unexpected expression found on condition!",
                     ErrorType::NotExpected,
                     line,
                 );
