@@ -444,20 +444,12 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 }
             }
             Statements::BreakStatement { line } => {
-                match self.current_block.get_next_basic_block() {
-                    Some(next_block) => {
-                        // changing block to next
-                        self.builder.build_unconditional_branch(next_block);
-                    }
-                    None => {
-                        GenError::throw(
-                            "Unexpected `break` keyword call!",
-                            ErrorType::NotExpected,
-                            line,
-                        );
-                        std::process::exit(1);
-                    }
-                }
+                GenError::throw(
+                    "`break` keyword is not supported yet.",
+                    ErrorType::NotSupported,
+                    line,
+                );
+                std::process::exit(1);
             }
 
             // NOTE: Not supported
