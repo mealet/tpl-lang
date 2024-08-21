@@ -66,7 +66,9 @@ if 2 != 2 {
 int a = 0;
 
 while a < 5 {
-    a = a + 1;
+    a += 1;
+    // or
+    a++;
     print(a);
 };
 
@@ -76,6 +78,19 @@ for i in 5 {
 
 // tests in variables
 bool test = 1 + 1 == 2;
+
+// defining functions
+define int foo(int a, int b) {
+    print("hello from foo function!");
+    return a + b;
+};
+
+// calling functions
+foo(4, 2);
+
+// calling functions in variables annotation or assignment
+int a = foo(4, 2);
+a = foo(5, 5);
 ```
 3. Compile it by command:
 ```sh
