@@ -170,12 +170,12 @@ impl Lexer {
 
     // helpful functions
 
-    fn get_number(&mut self) -> i32 {
+    fn get_number(&mut self) -> i64 {
         let mut value = 0;
         // lexer will support numbers like 10_000_000 instead 10000000
         while self.char.is_digit(10) || self.char == '_' {
             if self.char != '_' {
-                value = value * 10 + self.char.to_digit(10).unwrap() as i32;
+                value = value * 10 + self.char.to_digit(10).unwrap() as i64;
             }
             self.getc();
         }
@@ -212,7 +212,7 @@ impl Lexer {
 
                         self.getc();
                     } else {
-                        output.push(Token::new(TokenType::Minus, String::new(), 0));
+                        output.push(Token::new(TokenType::Minus, String::from("-"), 0));
                         self.getc();
                     }
                 }

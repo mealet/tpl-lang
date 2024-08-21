@@ -1,3 +1,5 @@
 target/
 *.o
 *.out
+example.tpl
+example

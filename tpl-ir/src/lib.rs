@@ -53,15 +53,15 @@ impl<'a, 'ctx> Compiler<'ctx> {
         let builder = context.create_builder();
 
         // defining built-in functions
-        let printf_type = context.i8_type().fn_type(
+        let printf_type = context.i64_type().fn_type(
             &[context.ptr_type(inkwell::AddressSpace::default()).into()],
             true,
         );
         let printf_fn = module.add_function("printf", printf_type, None);
 
         // main function creation
-        let i32_type = context.i32_type();
-        let fn_type = i32_type.fn_type(&[], false);
+        let i64_type = context.i64_type();
+        let fn_type = i64_type.fn_type(&[], false);
         let function = module.add_function("main", fn_type, None);
         let basic_block = context.append_basic_block(function, "entry");
 
@@ -93,7 +93,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
         if !self.function_returned {
             let _ = self
                 .builder
-                .build_return(Some(&self.context.i32_type().const_int(0, false)));
+                .build_return(Some(&self.context.i64_type().const_int(0, false)));
         }
     }
 
@@ -500,7 +500,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     });
 
                 self.builder
-                    .build_store(var_alloca, self.context.i32_type().const_zero());
+                    .build_store(var_alloca, self.context.i64_type().const_zero());
 
                 // setting current position at block `before`
                 self.builder.build_unconditional_branch(before_basic_block);
@@ -552,7 +552,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     .builder
                     .build_int_add(
                         current_value.into_int_value(),
-                        self.context.i32_type().const_int(1, false),
+                        self.context.i64_type().const_int(1, false),
                         "iter_increment_tmp",
                     )
                     .unwrap_or_else(|_| {
@@ -699,7 +699,14 @@ impl<'a, 'ctx> Compiler<'ctx> {
                                     self.compile_condition(expr.clone(), line, function).into(),
                                 )
                             }
-                            _ => todo!(),
+                            _ => {
+                                GenError::throw(
+                                    format!("Unsupported binary operation found: `{}`", operand),
+                                    ErrorType::NotSupported,
+                                    line,
+                                );
+                                std::process::exit(1);
+                            }
                         }
                     }
                     _ => {
@@ -727,7 +734,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
         match value {
             Value::Integer(i) => (
                 "int".to_string(),
-                self.context.i32_type().const_int(i as u64, false).into(),
+                self.context.i64_type().const_int(i as u64, true).into(),
             ),
             Value::Boolean(b) => (
                 "bool".to_string(),
@@ -960,7 +967,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
     fn get_basic_type(&self, datatype: &str, line: usize) -> BasicTypeEnum<'ctx> {
         match datatype {
-            "int" => self.context.i32_type().into(),
+            "int" => self.context.i64_type().into(),
             "bool" => self.context.bool_type().into(),
             "str" => self
                 .context
@@ -985,7 +992,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
         line: usize,
     ) -> FunctionType<'ctx> {
         match datatype {
-            "int" => self.context.i32_type().fn_type(params, is_var_args),
+            "int" => self.context.i64_type().fn_type(params, is_var_args),
             "bool" => self.context.bool_type().fn_type(params, is_var_args),
             "str" => self
                 .context
@@ -1016,7 +1023,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
             let format_string = match value.1 {
                 BasicValueEnum::IntValue(int) => match value.0.as_str() {
-                    "int" => self.builder.build_global_string_ptr("%d\n", "fmt"),
+                    "int" => self.builder.build_global_string_ptr("%lld\n", "fmt"),
                     "bool" => {
                         let true_str = self
                             .builder
