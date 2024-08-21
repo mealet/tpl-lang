@@ -5,27 +5,42 @@
 // Check the `LICENSE` file to more info.
 
 mod error;
+mod function;
 
-use inkwell::builder::Builder;
-use inkwell::context::Context;
-use inkwell::module::Module;
-use inkwell::types::BasicTypeEnum;
-use inkwell::values::{BasicValueEnum, FunctionValue, IntValue, PointerValue};
+use inkwell::{
+    basic_block::BasicBlock,
+    builder::Builder,
+    context::Context,
+    module::Module,
+    types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
+    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+};
 
 use std::collections::HashMap;
 
 use error::{ErrorType, GenError};
+use function::Function;
 use tpl_parser::{expressions::Expressions, statements::Statements, value::Value};
 
 const TEST_OPERATORS: [&'static str; 4] = [">", "<", "==", "!="];
 
 #[derive(Debug)]
 pub struct Compiler<'ctx> {
+    // important
     pub context: &'ctx Context,
     pub builder: Builder<'ctx>,
     pub module: Module<'ctx>,
 
+    // function and block
+    main_function: FunctionValue<'ctx>,
+    current_block: BasicBlock<'ctx>,
+
+    // hashmaps
     variables: HashMap<String, (String, BasicTypeEnum<'ctx>, PointerValue<'ctx>)>,
+    functions: HashMap<String, Function<'ctx>>,
+
+    // flags
+    function_returned: bool,
 
     // built-in functions
     printf_fn: FunctionValue<'ctx>,
@@ -44,37 +59,52 @@ impl<'a, 'ctx> Compiler<'ctx> {
         );
         let printf_fn = module.add_function("printf", printf_type, None);
 
+        // main function creation
+        let i32_type = context.i32_type();
+        let fn_type = i32_type.fn_type(&[], false);
+        let function = module.add_function("main", fn_type, None);
+        let basic_block = context.append_basic_block(function, "entry");
+
         Compiler {
             context: &context,
             builder,
             module,
+
             variables: HashMap::new(),
+            functions: HashMap::new(),
+
+            current_block: basic_block,
+            main_function: function,
+
+            function_returned: false,
 
             printf_fn,
         }
     }
 
     pub fn generate(&mut self, statements: Vec<Statements>) {
-        // main function creation
-        let i32_type = self.context.i32_type();
-        let fn_type = i32_type.fn_type(&[], false);
-        let function = self.module.add_function("main", fn_type, None);
-        let basic_block = self.context.append_basic_block(function, "entry");
-
-        self.builder.position_at_end(basic_block);
+        self.builder.position_at_end(self.current_block);
 
         for statement in statements {
-            self.compile_statement(statement, function);
+            self.compile_statement(statement, self.main_function);
         }
 
         // returning 0
-        let _ = self
-            .builder
-            .build_return(Some(&i32_type.const_int(0, false)));
+        if !self.function_returned {
+            let _ = self
+                .builder
+                .build_return(Some(&self.context.i32_type().const_int(0, false)));
+        }
+    }
+
+    fn switch_block(&mut self, dest: BasicBlock<'ctx>) {
+        self.current_block = dest;
+        self.builder.position_at_end(dest);
     }
 
     fn compile_statement(&mut self, statement: Statements, function: FunctionValue<'ctx>) {
         match statement {
+            // NOTE: Annotation
             Statements::AnnotationStatement {
                 identifier,
                 datatype,
@@ -122,6 +152,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     let _ = self.builder.build_store(alloca, compiled_expression.1);
                 }
             }
+
+            // NOTE: Assignment
             Statements::AssignStatement {
                 identifier,
                 value,
@@ -158,15 +190,172 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
             }
+            Statements::BinaryAssignStatement {
+                identifier,
+                operand,
+                value,
+                line,
+            } => {
+                if let Some(var_ptr) = self.variables.clone().get(&identifier) {
+                    if let Some(expr) = value {
+                        // building new binary expression
+                        let new_expression = Expressions::Binary {
+                            operand,
+                            lhs: Box::new(Expressions::Value(Value::Identifier(identifier))),
+                            rhs: expr.clone(),
+                            line,
+                        };
+
+                        let expr_value = self.compile_expression(new_expression, line, function);
+
+                        // matching types
+                        if expr_value.0 != var_ptr.0 {
+                            GenError::throw(
+                                format!(
+                                    "Expected type `{}`, but found `{}`!",
+                                    var_ptr.0, expr_value.0
+                                ),
+                                ErrorType::TypeError,
+                                line,
+                            );
+                        }
+
+                        // storing value
+
+                        let _ = self.builder.build_store(var_ptr.2, expr_value.1);
+                    }
+                }
+            }
+
+            // NOTE: Functions
+            Statements::FunctionDefineStatement {
+                function_name,
+                function_type,
+                arguments,
+                block,
+                line,
+            } => {
+                // compiling args types
+                let mut args: Vec<BasicMetadataTypeEnum<'ctx>> = Vec::new();
+                for item in arguments.clone() {
+                    let arg = self.get_basic_type(item.1.as_str(), line);
+                    args.push(arg.into())
+                }
+
+                // creating function type
+                let fn_type = self.get_fn_type(function_type.as_str(), &args, false, line);
+
+                // adding function
+                let function = self
+                    .module
+                    .add_function(function_name.as_str(), fn_type, None);
+
+                // creating entry point into function
+                let entry = self.context.append_basic_block(function, "entry");
+
+                // storing old builder position and switching to new
+                let old_position = self.current_block;
+                self.builder.position_at_end(entry);
+
+                // storing arguments values to variables
+                let mut old_variables = HashMap::new();
+
+                for (index, arg) in arguments.iter().enumerate() {
+                    let varname = arg.0.clone();
+                    let arg_value = function.get_nth_param(index as u32).unwrap_or_else(|| {
+                        GenError::throw(
+                            format!("An error occured with fetching parameter while defining `{}` function!", function_name),
+                            ErrorType::BuildError,
+                            line
+                        );
+                        std::process::exit(1);
+                    });
+                    let old_value = self.variables.remove(&varname);
+                    old_variables.insert(varname.clone(), old_value);
+
+                    // storing value
+                    let parameter_type = self.get_basic_type(arg.1.as_str(), line);
+                    let parameter_alloca = self
+                        .builder
+                        .build_alloca(
+                            parameter_type,
+                            format!("{}_param_{}", function_name, index).as_str(),
+                        )
+                        .unwrap_or_else(|_| {
+                            GenError::throw(
+                                format!(
+                                    "An error occured with creating alloca for parameter `{}`!",
+                                    varname.clone()
+                                ),
+                                ErrorType::BuildError,
+                                line,
+                            );
+                            std::process::exit(1);
+                        });
+
+                    self.builder.build_store(parameter_alloca, arg_value);
+
+                    // and inserting variables pointers to main hashmap
+                    self.variables
+                        .insert(varname, (arg.1.clone(), parameter_type, parameter_alloca));
+                }
+
+                // compiling statements
+                for stmt in block {
+                    self.compile_statement(stmt, function);
+                }
+
+                if !function.verify(false) {
+                    GenError::throw(
+                        format!("Function `{}` failed verification! Please check if you returned a value!", function_name.clone()),
+                        ErrorType::VerificationFailure,
+                        line
+                    );
+                    std::process::exit(1);
+                }
+
+                // storing function to compiler
+                let mut arguments_types = Vec::new();
+                for arg in arguments {
+                    arguments_types.push(arg.1);
+                }
+
+                self.functions.insert(
+                    function_name.clone(),
+                    Function {
+                        name: function_name,
+                        function_type,
+                        function_value: function,
+                        arguments_types,
+                    },
+                );
+
+                // and switching to old position
+                self.builder.position_at_end(old_position);
+            }
+
             Statements::FunctionCallStatement {
                 function_name,
                 arguments,
                 line,
             } => {
-                if function_name == "print" {
-                    self.build_print_call(arguments, line, function);
+                match function_name.as_str() {
+                    "print" => {
+                        self.build_print_call(arguments, line, function);
+                    }
+                    _ => {
+                        // user defined function
+                        self.fn_call(function_name, arguments, line, function);
+                    }
                 }
             }
+
+            Statements::ReturnStatement { value, line } => {
+                let compiled_value = self.compile_expression(value, line, function);
+                self.builder.build_return(Some(&compiled_value.1));
+            }
+
+            // NOTE: Constructions
             Statements::IfStatement {
                 condition,
                 then_block,
@@ -191,7 +380,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     );
 
                     // building `then` block
-                    self.builder.position_at_end(then_basic_block);
+                    self.switch_block(then_basic_block);
 
                     for stmt in then_block {
                         self.compile_statement(stmt, function);
@@ -201,7 +390,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     self.builder.build_unconditional_branch(merge_basic_block);
 
                     // filling `else` block
-                    self.builder.position_at_end(else_basic_block);
+                    self.switch_block(else_basic_block);
 
                     for stmt in else_matched_block {
                         self.compile_statement(stmt, function);
@@ -212,7 +401,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     self.builder.build_unconditional_branch(merge_basic_block);
 
                     // and changing current builder position
-                    self.builder.position_at_end(merge_basic_block);
+
+                    self.switch_block(merge_basic_block);
                 } else {
                     // the same but without else block
                     let then_basic_block = self.context.append_basic_block(function, "if_then");
@@ -226,7 +416,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     );
 
                     // building `then` block
-                    self.builder.position_at_end(then_basic_block);
+                    self.switch_block(then_basic_block);
 
                     for stmt in then_block {
                         self.compile_statement(stmt, function);
@@ -236,9 +426,11 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     self.builder.build_unconditional_branch(merge_basic_block);
 
                     // and changing current builder position
-                    self.builder.position_at_end(merge_basic_block);
+                    self.switch_block(merge_basic_block);
                 }
             }
+
+            // NOTE: Cycles
             Statements::WhileStatement {
                 condition,
                 block,
@@ -251,7 +443,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
                 // setting current position to block `before`
                 self.builder.build_unconditional_branch(before_basic_block);
-                self.builder.position_at_end(before_basic_block);
+                self.switch_block(before_basic_block);
 
                 // compiling condition
                 let compiled_condition = self.compile_condition(condition, line, function);
@@ -264,7 +456,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 );
 
                 // building `then` block
-                self.builder.position_at_end(then_basic_block);
+                self.switch_block(then_basic_block);
 
                 for stmt in block {
                     self.compile_statement(stmt, function);
@@ -274,8 +466,9 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 self.builder.build_unconditional_branch(before_basic_block);
 
                 // setting builder position to `after` block
-                self.builder.position_at_end(after_basic_block);
+                self.switch_block(after_basic_block);
             }
+
             Statements::ForStatement {
                 varname,
                 iterable_object,
@@ -311,7 +504,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
                 // setting current position at block `before`
                 self.builder.build_unconditional_branch(before_basic_block);
-                self.builder.position_at_end(before_basic_block);
+                self.switch_block(before_basic_block);
 
                 let old_variable = self.variables.remove(&varname);
 
@@ -337,7 +530,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 );
 
                 // building `then` block
-                self.builder.position_at_end(then_basic_block);
+                self.switch_block(then_basic_block);
 
                 for stmt in block {
                     self.compile_statement(stmt, function);
@@ -378,18 +571,27 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 self.builder.build_unconditional_branch(before_basic_block);
 
                 // setting builder position to `after` block
-                self.builder.position_at_end(after_basic_block);
+                self.switch_block(after_basic_block);
 
                 // returning old variable
                 if let Some(val) = old_variable {
                     self.variables.insert(varname, val);
                 }
             }
+
+            Statements::BreakStatement { line } => {
+                GenError::throw(
+                    "`break` keyword is not supported yet.",
+                    ErrorType::NotSupported,
+                    line,
+                );
+                std::process::exit(1);
+            }
+
+            // NOTE: Not supported
             _ => {
                 GenError::throw(
-                    String::from(
-                        "Unsupported statement found! Please open issue with your code on Github!",
-                    ),
+                    "Unsupported statement found! Please open issue with your code on Github!",
                     ErrorType::NotSupported,
                     0,
                 );
@@ -406,6 +608,14 @@ impl<'a, 'ctx> Compiler<'ctx> {
     ) -> (String, BasicValueEnum<'ctx>) {
         match expr.clone() {
             Expressions::Value(val) => self.compile_value(val, line),
+            Expressions::Call {
+                function_name,
+                arguments,
+                line,
+            } => {
+                // calling and taking value from user defined function
+                return self.fn_call(function_name, arguments, line, function);
+            }
             Expressions::Binary {
                 operand,
                 lhs,
@@ -648,7 +858,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
             }
             _ => {
                 GenError::throw(
-                    "Unexpected expression found on condition!".to_string(),
+                    "Unexpected expression found on condition!",
                     ErrorType::NotExpected,
                     line,
                 );
@@ -656,6 +866,97 @@ impl<'a, 'ctx> Compiler<'ctx> {
             }
         }
     }
+
+    // user defined call
+    fn fn_call(
+        &mut self,
+        function_name: String,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if let Some(func) = self.functions.clone().get(&function_name) {
+            // compiling args len
+            if arguments.len() != func.arguments_types.len() {
+                GenError::throw(
+                    format!(
+                        "Function `{}` has {} arguments, but {} found!",
+                        function_name,
+                        func.arguments_types.len(),
+                        arguments.len()
+                    ),
+                    ErrorType::NotExpected,
+                    line,
+                );
+                std::process::exit(1);
+            }
+
+            // compiling args
+            let compiled_args: Vec<(String, BasicValueEnum<'ctx>)> = arguments
+                .iter()
+                .map(|x| self.compile_expression(x.clone(), line, function))
+                .collect();
+
+            // matching arguments types
+            let mut arguments_error = false;
+            let mut values: Vec<BasicMetadataValueEnum> = Vec::new();
+
+            for (index, arg) in compiled_args.iter().enumerate() {
+                if arg.0 != func.arguments_types[index] {
+                    arguments_error = true;
+                    GenError::throw(
+                        format!(
+                            "Argument {} must be `{}` type, but found `{}`!",
+                            index + 1,
+                            func.arguments_types[index],
+                            arg.0
+                        ),
+                        ErrorType::TypeError,
+                        line,
+                    );
+                } else {
+                    values.push(arg.1.into());
+                }
+            }
+
+            if arguments_error {
+                std::process::exit(1);
+            }
+
+            // calling function
+            let call_result = self.builder
+                .build_call(
+                    func.function_value,
+                    &values,
+                    format!("{}_call", &func.name).as_str(),
+                )
+                .unwrap_or_else(|_| {
+                    GenError::throw(
+                        format!("An error occured while calling `{}` function!", &func.name),
+                        ErrorType::BuildError,
+                        line,
+                    );
+                    std::process::exit(1);
+                })
+                .try_as_basic_value()
+                .left()
+                .unwrap_or_else(|| {
+                    GenError::throw("Error with compiling function's returned value to basic datatype! Please open issue on github repo!", ErrorType::BuildError, line);
+                    std::process::exit(1);
+                });
+
+            return (func.function_type.clone(), call_result);
+        } else {
+            GenError::throw(
+                format!("Function `{}` is not defined here!", function_name),
+                ErrorType::NotDefined,
+                line,
+            );
+            std::process::exit(1);
+        }
+    }
+
+    // getting types
 
     fn get_basic_type(&self, datatype: &str, line: usize) -> BasicTypeEnum<'ctx> {
         match datatype {
@@ -668,6 +969,31 @@ impl<'a, 'ctx> Compiler<'ctx> {
             _ => {
                 GenError::throw(
                     format!("Unsupported `{}` datatype!", datatype),
+                    ErrorType::NotSupported,
+                    line,
+                );
+                std::process::exit(1);
+            }
+        }
+    }
+
+    fn get_fn_type(
+        &self,
+        datatype: &str,
+        params: &[BasicMetadataTypeEnum<'ctx>],
+        is_var_args: bool,
+        line: usize,
+    ) -> FunctionType<'ctx> {
+        match datatype {
+            "int" => self.context.i32_type().fn_type(params, is_var_args),
+            "bool" => self.context.bool_type().fn_type(params, is_var_args),
+            "str" => self
+                .context
+                .ptr_type(inkwell::AddressSpace::default())
+                .fn_type(params, is_var_args),
+            _ => {
+                GenError::throw(
+                    format!("Unsupported `{}` function type found!", datatype),
                     ErrorType::NotSupported,
                     line,
                 );

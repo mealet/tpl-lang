@@ -70,7 +70,7 @@ impl Parser {
 
     // error
 
-    fn error(&mut self, description: &str) {
+    fn error<T: std::fmt::Display>(&mut self, description: T) {
         let source_clone = self.source.clone();
         let source_lines: Vec<&str> = source_clone.lines().collect();
 
@@ -121,33 +121,6 @@ impl Parser {
 
     // fundamental
 
-    fn term(&mut self) -> Expressions {
-        let current = self.current();
-        let mut output = Expressions::None;
-
-        match current.token_type {
-            TokenType::Number => {
-                output = Expressions::Value(Value::Integer(current.value.trim().parse().unwrap()))
-            }
-            TokenType::String => output = Expressions::Value(Value::String(current.value)),
-            TokenType::Boolean => {
-                output =
-                    Expressions::Value(Value::Boolean(if current.value == String::from("true") {
-                        true
-                    } else {
-                        false
-                    }))
-            }
-            TokenType::Identifier => output = Expressions::Value(Value::Identifier(current.value)),
-            _ => {
-                self.error("Unexpected term found");
-            }
-        }
-
-        let _ = self.next();
-        return output;
-    }
-
     fn statement(&mut self) -> Statements {
         let current = self.current();
         match current.token_type {
@@ -175,6 +148,20 @@ impl Parser {
                         // `for` cycle
                         return self.for_statement();
                     }
+                    "define" => {
+                        // function definition
+                        return self.define_statement();
+                    }
+                    "return" => {
+                        // returning value
+                        return self.return_statement();
+                    }
+                    "break" => {
+                        // `break` keyword
+                        let _ = self.next();
+                        let _ = self.skip_eos();
+                        return Statements::BreakStatement { line: current.line };
+                    }
                     _ => Statements::None,
                 }
             }
@@ -191,6 +178,45 @@ impl Parser {
 
                 match next.token_type {
                     TokenType::Equal => self.assign_statement(current.value),
+                    TokenType::LParen => self.call_statement(current.value),
+                    _ if BINARY_OPERATORS.contains(&next.token_type) => {
+                        match self.next().token_type {
+                            TokenType::Equal => {
+                                // parsing binary assignment
+                                return self.binary_assign_statement(current.value, next.value);
+                            }
+                            TokenType::Plus | TokenType::Minus => {
+                                // getting operands
+                                let first_operand = next.value;
+                                let second_operand = self.current().value;
+
+                                // comparing both
+
+                                if first_operand != second_operand {
+                                    self.error(
+                                        "Unexpected variation of increment/decrement found!",
+                                    );
+                                    return Statements::None;
+                                }
+
+                                let _ = self.next();
+                                let _ = self.skip_eos();
+
+                                // and returning as binary assignment
+
+                                return Statements::BinaryAssignStatement {
+                                    identifier: current.value,
+                                    operand: first_operand,
+                                    value: Some(Box::new(Expressions::Value(Value::Integer(1)))),
+                                    line: current.line,
+                                };
+                            }
+                            _ => {
+                                self.error("Unexpected Binary Operation in statement found!");
+                                return Statements::None;
+                            }
+                        }
+                    }
                     END_STATEMENT => {
                         Statements::Expression(Expressions::Value(Value::Identifier(current.value)))
                     }
@@ -209,6 +235,50 @@ impl Parser {
         }
     }
 
+    fn term(&mut self) -> Expressions {
+        let current = self.current();
+        let mut output = Expressions::None;
+
+        match current.token_type {
+            TokenType::Number => {
+                output = Expressions::Value(Value::Integer(current.value.trim().parse().unwrap()))
+            }
+            TokenType::String => output = Expressions::Value(Value::String(current.value)),
+            TokenType::Boolean => {
+                output =
+                    Expressions::Value(Value::Boolean(if current.value == String::from("true") {
+                        true
+                    } else {
+                        false
+                    }))
+            }
+            TokenType::Identifier => output = Expressions::Value(Value::Identifier(current.value)),
+            _ if DATATYPES.contains(&current.value.as_str()) => {
+                // parsing argument
+                let datatype = current.value;
+                let identifier = self.next();
+
+                if !self.expect(TokenType::Identifier) {
+                    self.error("Unexpected token found after data-type in expression!");
+                    return Expressions::None;
+                }
+
+                let _ = self.next();
+
+                return Expressions::Argument {
+                    name: identifier.value,
+                    datatype,
+                };
+            }
+            _ => {
+                self.error("Unexpected term found");
+            }
+        }
+
+        let _ = self.next();
+        return output;
+    }
+
     fn expression(&mut self) -> Expressions {
         let mut node = self.term();
         let current = self.current();
@@ -217,9 +287,21 @@ impl Parser {
             _ if self.is_binary_operand(current.token_type) => {
                 node = self.binary_expression(node);
             }
+
+            TokenType::LParen => {
+                // calling function
+                if let Expressions::Value(Value::Identifier(val)) = node {
+                    return self.call_expression(val);
+                } else {
+                    self.error("Unexpected parenthesis found after identifier in expression!");
+                    return Expressions::None;
+                }
+            }
+
             END_STATEMENT => {
                 self.next();
             }
+
             _ => {}
         }
 
@@ -286,6 +368,33 @@ impl Parser {
                 return Expressions::None;
             }
         }
+    }
+
+    fn call_expression(&mut self, function_name: String) -> Expressions {
+        let line = self.current().line;
+
+        match self.current().token_type {
+            TokenType::Identifier => {
+                let _ = self.next();
+                return self.call_expression(function_name);
+            }
+            TokenType::LParen => {}
+            _ => {
+                self.error("Unexpected variation of call expression!");
+                return Expressions::None;
+            }
+        }
+
+        // parsing arguments
+        let arguments =
+            self.expressions_enum(TokenType::LParen, TokenType::RParen, TokenType::Comma);
+        let _ = self.skip_eos();
+
+        return Expressions::Call {
+            function_name,
+            arguments,
+            line,
+        };
     }
 
     // statements
@@ -394,6 +503,30 @@ impl Parser {
                     value: Some(Box::new(self.expression())),
                     line,
                 };
+            }
+        }
+    }
+
+    fn binary_assign_statement(&mut self, identifier: String, operand: String) -> Statements {
+        let line = self.current().line;
+
+        match self.current().token_type {
+            TokenType::Equal => {
+                self.next();
+                return self.binary_assign_statement(identifier, operand);
+            }
+            END_STATEMENT => {
+                self.error("Expressions expected in binary assignment, but `;` found!");
+                self.next();
+                return Statements::None;
+            }
+            _ => {
+                return Statements::BinaryAssignStatement {
+                    identifier,
+                    operand,
+                    value: Some(Box::new(self.expression())),
+                    line,
+                }
             }
         }
     }
@@ -625,6 +758,142 @@ impl Parser {
             self.error("Expected keyword 'in` after variable name in `for` statement!");
             return Statements::None;
         }
+    }
+
+    fn call_statement(&mut self, function_name: String) -> Statements {
+        let line = self.current().line;
+
+        match self.current().token_type {
+            TokenType::Identifier => {
+                let _ = self.next();
+                return self.call_statement(function_name);
+            }
+            TokenType::LParen => {}
+            _ => {
+                self.error("Unexpected variation of call statement!");
+                return Statements::None;
+            }
+        }
+
+        // parsing arguments
+        let arguments =
+            self.expressions_enum(TokenType::LParen, TokenType::RParen, TokenType::Comma);
+        let _ = self.skip_eos();
+
+        return Statements::FunctionCallStatement {
+            function_name,
+            arguments,
+            line,
+        };
+    }
+
+    fn define_statement(&mut self) -> Statements {
+        let line = self.current().line;
+
+        match self.current().token_type {
+            TokenType::Keyword => {
+                if self.current().value == String::from("define") {
+                    let _ = self.next();
+                }
+
+                if !DATATYPES.contains(&self.current().value.as_str()) {
+                    self.error("Unexpected keyword found after `define`!");
+                    return Statements::None;
+                }
+
+                // keeping datatype
+                let function_type = self.current().value;
+
+                // searching for the function name
+                let identifier = self.next();
+
+                if !self.expect(TokenType::Identifier) {
+                    self.error("Identifier for function expected, but found anything else!");
+                    return Statements::None;
+                }
+
+                // getting function name
+                let function_name = identifier.value;
+
+                // getting arguments
+                let _ = self.next();
+                let args =
+                    self.expressions_enum(TokenType::LParen, TokenType::RParen, TokenType::Comma);
+
+                let mut arguments_tuples = Vec::new();
+
+                // checking for right arguments definition
+                if args.len() > 0 {
+                    for arg in args {
+                        match arg {
+                            Expressions::Argument { name, datatype } => {
+                                arguments_tuples.push((name, datatype));
+                            }
+                            _ => {
+                                self.error("All arguments in definition must be `type name` (example: `int a`)");
+                                return Statements::None;
+                            }
+                        }
+                    }
+                }
+
+                // parsing block
+                if !self.expect(TokenType::LBrace) {
+                    self.error("Expected block with code after function declaration!");
+                    return Statements::None;
+                }
+
+                let _ = self.next();
+
+                let mut stmts = Vec::new();
+
+                while self.current().token_type != TokenType::RBrace {
+                    if self.current().token_type == TokenType::EOF {
+                        self.error(
+                        "Unexpected end-of-file in block after `for` statement. Please add '}'!",
+                    );
+                        return Statements::None;
+                    }
+
+                    let statement = self.statement();
+                    stmts.push(statement);
+                }
+
+                // skipping brace and semicolon
+                if self.current().token_type == TokenType::RBrace {
+                    let _ = self.next();
+                }
+
+                let _ = self.skip_eos();
+
+                // returning function
+
+                return Statements::FunctionDefineStatement {
+                    function_name,
+                    function_type,
+                    arguments: arguments_tuples,
+                    block: stmts,
+                    line,
+                };
+            }
+            _ => {
+                self.error("Unexpected variation of defining function");
+                return Statements::None;
+            }
+        }
+    }
+
+    fn return_statement(&mut self) -> Statements {
+        if self.current().token_type == TokenType::Keyword {
+            let _ = self.next();
+        }
+
+        let line = self.current().line;
+        let value = self.expression();
+
+        let _ = self.skip_eos();
+
+        return Statements::ReturnStatement { value, line };
     }
 
     // etc

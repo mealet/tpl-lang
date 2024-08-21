@@ -11,15 +11,33 @@ use crate::expressions::Expressions;
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(unused)]
 pub enum Statements {
+    // Assign
     AssignStatement {
         identifier: String,
         value: Option<Box<Expressions>>,
         line: usize,
     },
+    BinaryAssignStatement {
+        identifier: String,
+        operand: String,
+        value: Option<Box<Expressions>>,
+        line: usize,
+    },
+
+    // Annotation
     AnnotationStatement {
         identifier: String,
         datatype: String,
         value: Option<Box<Expressions>>,
+        line: usize,
+    },
+
+    // Functions
+    FunctionDefineStatement {
+        function_name: String,
+        function_type: String,
+        arguments: Vec<(String, String)>, // ("a", "int")
+        block: Vec<Statements>,
         line: usize,
     },
     FunctionCallStatement {
@@ -27,6 +45,8 @@ pub enum Statements {
         arguments: Vec<Expressions>,
         line: usize,
     },
+
+    // Constructions
     IfStatement {
         condition: Expressions,
         then_block: Vec<Statements>,
@@ -44,6 +64,17 @@ pub enum Statements {
         block: Vec<Statements>,
         line: usize,
     },
+
+    // Some Keywords
+    BreakStatement {
+        line: usize,
+    },
+    ReturnStatement {
+        value: Expressions,
+        line: usize,
+    },
+
+    // Etc.
     Expression(Expressions),
     None,
     End,

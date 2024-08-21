@@ -1,15 +1,6 @@
-bool a = 5 < 10;
-
-if a {
-   print("yes");
+define int foo(int a, int b) {
+  return a + b;
 };
 
-str i = "hello world!";
-
-for i in 5 {
-    print(i);
-};
-
-// test comments
-
-print(i);
+int val = foo(4, 2);
+print(val);

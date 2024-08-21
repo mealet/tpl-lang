@@ -133,7 +133,7 @@ fn main() {
 
             // linking and deleting object file
 
-            let _ = compiler::ObjectLinker::compile(object_file.clone(), &config.output.clone());
+            let _ = compiler::ObjectLinker::compile(&object_file, &config.output);
 
             let _ = std::fs::remove_file(object_file);
         }
@@ -144,6 +144,3 @@ fn main() {
         }
     }
 }
-
-// TODO: Add binary assignments ("i += 2")
-// TODO: Add increment and decrement ("i++", "j--")

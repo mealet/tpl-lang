@@ -75,10 +75,12 @@ impl Lexer {
                     "else".to_string(),
                     Token::new(TokenType::Keyword, String::from("else"), 0),
                 ),
+                //
                 (
                     "while".to_string(),
                     Token::new(TokenType::Keyword, String::from("while"), 0),
                 ),
+                //
                 (
                     "for".to_string(),
                     Token::new(TokenType::Keyword, String::from("for"), 0),
@@ -86,6 +88,19 @@ impl Lexer {
                 (
                     "in".to_string(),
                     Token::new(TokenType::Keyword, String::from("in"), 0),
+                ),
+                (
+                    "break".to_string(),
+                    Token::new(TokenType::Keyword, String::from("break"), 0),
+                ),
+                //
+                (
+                    "define".to_string(),
+                    Token::new(TokenType::Keyword, String::from("define"), 0),
+                ),
+                (
+                    "return".to_string(),
+                    Token::new(TokenType::Keyword, String::from("return"), 0),
                 ),
                 // NOTE: Datatypes
                 (
@@ -124,7 +139,7 @@ impl Lexer {
 
     // fundamental functions
 
-    fn error(&mut self, description: &str) {
+    fn error<T: std::fmt::Display>(&mut self, description: T) {
         let source_clone = self.source.clone();
         let source_lines: Vec<&str> = source_clone.lines().collect();
 
@@ -269,7 +284,7 @@ impl Lexer {
                     output.push(Token::new(TokenType::Number, value.to_string(), self.line));
                 }
                 _ if self.char.is_alphabetic() => {
-                    let allowed_identifier_chars = ['!', '_', '-', '.'];
+                    let allowed_identifier_chars = ['!', '_', '.'];
 
                     let mut id = String::new();
                     while self.char.is_alphanumeric()
@@ -289,7 +304,7 @@ impl Lexer {
 
                 // undefined chars/symbols
                 _ => {
-                    let _ = self.error(format!("Undefined char found: {}", self.char).as_str());
+                    let _ = self.error(format!("Undefined char found: {}", self.char));
                     self.getc();
                 }
             }

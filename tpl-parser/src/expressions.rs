@@ -22,6 +22,15 @@ pub enum Expressions {
         value: Value,
         line: usize,
     },
+    Argument {
+        name: String,
+        datatype: String,
+    },
+    Call {
+        function_name: String,
+        arguments: Vec<Expressions>,
+        line: usize,
+    },
     Value(Value),
     None,
 }
