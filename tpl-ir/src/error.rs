@@ -8,6 +8,7 @@ pub enum ErrorType {
     NotDefined,
     NotSupported,
     NotExpected,
+    VerificationFailure,
     TypeError,
     MemoryError,
     BuildError,

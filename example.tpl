@@ -1,4 +1,6 @@
-int a = 1;
-a++;
+define int foo(int a, int b) {
+  return a + b;
+};
 
-print(a);
+int val = foo(4, 2);
+print(val);

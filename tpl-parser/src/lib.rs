@@ -121,50 +121,6 @@ impl Parser {
 
     // fundamental
 
-    fn term(&mut self) -> Expressions {
-        let current = self.current();
-        let mut output = Expressions::None;
-
-        match current.token_type {
-            TokenType::Number => {
-                output = Expressions::Value(Value::Integer(current.value.trim().parse().unwrap()))
-            }
-            TokenType::String => output = Expressions::Value(Value::String(current.value)),
-            TokenType::Boolean => {
-                output =
-                    Expressions::Value(Value::Boolean(if current.value == String::from("true") {
-                        true
-                    } else {
-                        false
-                    }))
-            }
-            TokenType::Identifier => output = Expressions::Value(Value::Identifier(current.value)),
-            _ if DATATYPES.contains(&current.value.as_str()) => {
-                // parsing argument
-                let datatype = current.value;
-                let identifier = self.next();
-
-                if !self.expect(TokenType::Identifier) {
-                    self.error("Unexpected token found after data-type in expression!");
-                    return Expressions::None;
-                }
-
-                let _ = self.next();
-
-                return Expressions::Argument {
-                    name: identifier.value,
-                    datatype,
-                };
-            }
-            _ => {
-                self.error("Unexpected term found");
-            }
-        }
-
-        let _ = self.next();
-        return output;
-    }
-
     fn statement(&mut self) -> Statements {
         let current = self.current();
         match current.token_type {
@@ -222,6 +178,7 @@ impl Parser {
 
                 match next.token_type {
                     TokenType::Equal => self.assign_statement(current.value),
+                    TokenType::LParen => self.call_statement(current.value),
                     _ if BINARY_OPERATORS.contains(&next.token_type) => {
                         match self.next().token_type {
                             TokenType::Equal => {
@@ -278,6 +235,50 @@ impl Parser {
         }
     }
 
+    fn term(&mut self) -> Expressions {
+        let current = self.current();
+        let mut output = Expressions::None;
+
+        match current.token_type {
+            TokenType::Number => {
+                output = Expressions::Value(Value::Integer(current.value.trim().parse().unwrap()))
+            }
+            TokenType::String => output = Expressions::Value(Value::String(current.value)),
+            TokenType::Boolean => {
+                output =
+                    Expressions::Value(Value::Boolean(if current.value == String::from("true") {
+                        true
+                    } else {
+                        false
+                    }))
+            }
+            TokenType::Identifier => output = Expressions::Value(Value::Identifier(current.value)),
+            _ if DATATYPES.contains(&current.value.as_str()) => {
+                // parsing argument
+                let datatype = current.value;
+                let identifier = self.next();
+
+                if !self.expect(TokenType::Identifier) {
+                    self.error("Unexpected token found after data-type in expression!");
+                    return Expressions::None;
+                }
+
+                let _ = self.next();
+
+                return Expressions::Argument {
+                    name: identifier.value,
+                    datatype,
+                };
+            }
+            _ => {
+                self.error("Unexpected term found");
+            }
+        }
+
+        let _ = self.next();
+        return output;
+    }
+
     fn expression(&mut self) -> Expressions {
         let mut node = self.term();
         let current = self.current();
@@ -287,9 +288,20 @@ impl Parser {
                 node = self.binary_expression(node);
             }
 
+            TokenType::LParen => {
+                // calling function
+                if let Expressions::Value(Value::Identifier(val)) = node {
+                    return self.call_expression(val);
+                } else {
+                    self.error("Unexpected parenthesis found after identifier in expression!");
+                    return Expressions::None;
+                }
+            }
+
             END_STATEMENT => {
                 self.next();
             }
+
             _ => {}
         }
 
@@ -356,6 +368,33 @@ impl Parser {
                 return Expressions::None;
             }
         }
+    }
+
+    fn call_expression(&mut self, function_name: String) -> Expressions {
+        let line = self.current().line;
+
+        match self.current().token_type {
+            TokenType::Identifier => {
+                let _ = self.next();
+                return self.call_expression(function_name);
+            }
+            TokenType::LParen => {}
+            _ => {
+                self.error("Unexpected variation of call expression!");
+                return Expressions::None;
+            }
+        }
+
+        // parsing arguments
+        let arguments =
+            self.expressions_enum(TokenType::LParen, TokenType::RParen, TokenType::Comma);
+        let _ = self.skip_eos();
+
+        return Expressions::Call {
+            function_name,
+            arguments,
+            line,
+        };
     }
 
     // statements
@@ -719,6 +758,33 @@ impl Parser {
             self.error("Expected keyword 'in` after variable name in `for` statement!");
             return Statements::None;
         }
+    }
+
+    fn call_statement(&mut self, function_name: String) -> Statements {
+        let line = self.current().line;
+
+        match self.current().token_type {
+            TokenType::Identifier => {
+                let _ = self.next();
+                return self.call_statement(function_name);
+            }
+            TokenType::LParen => {}
+            _ => {
+                self.error("Unexpected variation of call statement!");
+                return Statements::None;
+            }
+        }
+
+        // parsing arguments
+        let arguments =
+            self.expressions_enum(TokenType::LParen, TokenType::RParen, TokenType::Comma);
+        let _ = self.skip_eos();
+
+        return Statements::FunctionCallStatement {
+            function_name,
+            arguments,
+            line,
+        };
     }
 
     fn define_statement(&mut self) -> Statements {
