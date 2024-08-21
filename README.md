@@ -66,7 +66,9 @@ if 2 != 2 {
 int a = 0;
 
 while a < 5 {
-    a = a + 1;
+    a += 1;
+    // or
+    a++;
     print(a);
 };
 
@@ -76,6 +78,19 @@ for i in 5 {
 
 // tests in variables
 bool test = 1 + 1 == 2;
+
+// defining functions
+define int foo(int a, int b) {
+    print("hello from foo function!");
+    return a + b;
+};
+
+// calling functions
+foo(4, 2);
+
+// calling functions in variables annotation or assignment
+int a = foo(4, 2);
+a = foo(5, 5);
 ```
 3. Compile it by command:
 ```sh
@@ -90,11 +105,12 @@ tplc example.tpl output
  <summary><h2>😵 Errors Examples</h2></summary>
 
  ![image](https://github.com/user-attachments/assets/dca42b0f-dc68-4192-82d0-ae7523248b43) </br>
- ![image](https://github.com/user-attachments/assets/96f71bf9-bc11-4afa-b7ad-a3e81731d43e) </br>
  ![image](https://github.com/user-attachments/assets/ca948e3d-8398-4d82-b923-8d01e89a5b5b) </br>
  ![image](https://github.com/user-attachments/assets/523264db-ae4f-4c2f-b7a4-b13076461cf5) </br>
- ![image](https://github.com/user-attachments/assets/f18f6a49-a4ee-414b-8c2f-70e6345c94ff) </br>
-
+ ![image](https://github.com/user-attachments/assets/68531892-8f89-42db-8831-2158ecbedc1a) </br>
+ ![image](https://github.com/user-attachments/assets/82bb95e9-a342-447b-9b84-a9b31bfe636d) </br>
+ ![image](https://github.com/user-attachments/assets/8f95565c-7ca2-4728-986f-c1eb990b3602) </br>
+ ![image](https://github.com/user-attachments/assets/815b7acb-917d-49a8-995a-85e02035b5f2) </br>
 
 </details>
 
