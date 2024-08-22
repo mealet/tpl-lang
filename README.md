@@ -7,7 +7,7 @@
  <img src="https://custom-icon-badges.demolab.com/badge/-Toy-blue?style=for-the-badge&logoColor=white" />
  <img src="https://custom-icon-badges.demolab.com/badge/-Programming-blue?style=for-the-badge&logoColor=white" />
  <img src="https://custom-icon-badges.demolab.com/badge/-Language-blue?style=for-the-badge&logoColor=white" />
- <img src="https://custom-icon-badges.demolab.com/badge/-0.3.0-blue?style=for-the-badge&logoColor=white" />
+ <img src="https://custom-icon-badges.demolab.com/badge/-0.3.1-blue?style=for-the-badge&logoColor=white" />
 </div>
 
 ### 👀 Description
