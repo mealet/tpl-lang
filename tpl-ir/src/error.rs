@@ -33,11 +33,9 @@ impl GenError {
 
     pub fn format<T: std::fmt::Display>(description: T, error_type: String, line: usize) -> String {
         format!(
-            "{} {}\n{} line: {}",
-            format!("[CodeGen][{}]", error_type).red(),
+            "{} {}",
+            format!("[CodeGen][{}][{}]", error_type, line + 1).red(),
             description,
-            "-->".red(),
-            line + 1
         )
     }
 }

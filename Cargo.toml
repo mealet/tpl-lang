@@ -7,6 +7,6 @@ members = [
 ]
 
 [workspace.package]
-version = "0.3.0"
+version = "0.3.1"
 authors = ["mealet <workjason34@gmail.com>"]
 description = "Toy Programming Language - simple programming language written in Rust Lang"

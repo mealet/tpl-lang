@@ -260,7 +260,18 @@ impl Parser {
                         false
                     }))
             }
-            TokenType::Identifier => output = Expressions::Value(Value::Identifier(current.value)),
+            TokenType::Identifier => {
+                output = Expressions::Value(Value::Identifier(current.value.clone()));
+
+                let next = self.next();
+
+                if let TokenType::LParen = next.token_type {
+                    // calling function
+                    return self.call_expression(current.value);
+                }
+
+                return output;
+            }
             _ if DATATYPES.contains(&current.value.as_str()) => {
                 // parsing argument
                 let datatype = current.value;
@@ -280,6 +291,7 @@ impl Parser {
             }
             _ => {
                 self.error("Unexpected term found");
+                return Expressions::None;
             }
         }
 
@@ -295,17 +307,6 @@ impl Parser {
             _ if self.is_binary_operand(current.token_type) => {
                 node = self.binary_expression(node);
             }
-
-            TokenType::LParen => {
-                // calling function
-                if let Expressions::Value(Value::Identifier(val)) = node {
-                    return self.call_expression(val);
-                } else {
-                    self.error("Unexpected parenthesis found after identifier in expression!");
-                    return Expressions::None;
-                }
-            }
-
             END_STATEMENT => {
                 self.next();
             }

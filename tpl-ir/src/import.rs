@@ -62,7 +62,7 @@ impl From<String> for ImportObject {
         // reading source code
         let source = std::fs::read_to_string(path.clone()).unwrap_or_else(|_| {
             ImportError::throw(
-                format!("Cannot read `{}` module!", name.clone()),
+                format!("Cannot read `{}` module!", name),
                 ImportErrorType::ReadFailure,
             );
             std::process::exit(1);

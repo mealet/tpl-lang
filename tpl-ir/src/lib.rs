@@ -45,9 +45,6 @@ pub struct Compiler<'ctx> {
     functions: HashMap<String, Function<'ctx>>,
     imports: HashMap<String, ImportObject>,
 
-    // flags
-    function_returned: bool,
-
     // built-in functions
     printf_fn: FunctionValue<'ctx>,
 }
@@ -83,8 +80,6 @@ impl<'a, 'ctx> Compiler<'ctx> {
             current_block: basic_block,
             main_function: function,
 
-            function_returned: false,
-
             printf_fn,
         }
     }
@@ -97,11 +92,9 @@ impl<'a, 'ctx> Compiler<'ctx> {
         }
 
         // returning 0
-        if !self.function_returned {
-            let _ = self
-                .builder
-                .build_return(Some(&self.context.i64_type().const_int(0, false)));
-        }
+        let _ = self
+            .builder
+            .build_return(Some(&self.context.i64_type().const_int(0, false)));
     }
 
     fn switch_block(&mut self, dest: BasicBlock<'ctx>) {
@@ -311,21 +304,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     );
                 }
 
-                // compiling statements
-                for stmt in block {
-                    self.compile_statement(stmt, function);
-                }
-
-                if !function.verify(false) {
-                    GenError::throw(
-                        format!("Function `{}` failed verification! Please check if you returned a value!", function_name.clone()),
-                        ErrorType::VerificationFailure,
-                        line
-                    );
-                    std::process::exit(1);
-                }
-
                 // storing function to compiler
+                // NOTE: Storing function moved before statements to correct recursion work
                 let mut arguments_types = Vec::new();
                 for arg in arguments {
                     arguments_types.push(arg.1);
@@ -334,15 +314,36 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 self.functions.insert(
                     function_name.clone(),
                     Function {
-                        name: function_name,
+                        name: function_name.clone(),
                         function_type,
                         function_value: function,
                         arguments_types,
                     },
                 );
 
+                // compiling statements
+                for stmt in block {
+                    self.compile_statement(stmt, function);
+                }
+
+                if !function.verify(false) {
+                    GenError::throw(
+                        format!("Function `{}` failed verification! Here's the possible reasons:\n* Function doesn't returns value or returns wrong value's type.\n* Function have branches after returning a value.\n* Function doesn't matches types, or matches wrong.\nPlease check your code or open issue on github repo!", &function_name),
+                        ErrorType::VerificationFailure,
+                        line
+                    );
+                    std::process::exit(1);
+                }
+
                 // and switching to old position
                 self.builder.position_at_end(old_position);
+
+                // returning old variables
+                for opt in old_variables {
+                    if let Some(value) = opt.1 {
+                        self.variables.insert(opt.0, value);
+                    }
+                }
             }
 
             Statements::FunctionCallStatement {
@@ -398,7 +399,13 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     }
 
                     // building branch to merge point
-                    self.builder.build_unconditional_branch(merge_basic_block);
+                    if let Some(last_instruction) = then_basic_block.get_last_instruction() {
+                        if last_instruction.get_opcode()
+                            != inkwell::values::InstructionOpcode::Return
+                        {
+                            self.builder.build_unconditional_branch(merge_basic_block);
+                        }
+                    }
 
                     // filling `else` block
                     self.switch_block(else_basic_block);
@@ -409,7 +416,13 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
                     // branch to merge block
 
-                    self.builder.build_unconditional_branch(merge_basic_block);
+                    if let Some(last_instruction) = else_basic_block.get_last_instruction() {
+                        if last_instruction.get_opcode()
+                            != inkwell::values::InstructionOpcode::Return
+                        {
+                            self.builder.build_unconditional_branch(merge_basic_block);
+                        }
+                    }
 
                     // and changing current builder position
 
@@ -434,7 +447,13 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     }
 
                     // building branch to merge point
-                    self.builder.build_unconditional_branch(merge_basic_block);
+                    if let Some(last_instruction) = then_basic_block.get_last_instruction() {
+                        if last_instruction.get_opcode()
+                            != inkwell::values::InstructionOpcode::Return
+                        {
+                            self.builder.build_unconditional_branch(merge_basic_block);
+                        }
+                    }
 
                     // and changing current builder position
                     self.switch_block(merge_basic_block);
@@ -453,6 +472,13 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 let after_basic_block = self.context.append_basic_block(function, "while_after");
 
                 // setting current position to block `before`
+
+                if let Some(last_instruction) = self.current_block.get_last_instruction() {
+                    if last_instruction.get_opcode() != inkwell::values::InstructionOpcode::Return {
+                        self.builder.build_unconditional_branch(before_basic_block);
+                    }
+                }
+
                 self.builder.build_unconditional_branch(before_basic_block);
                 self.switch_block(before_basic_block);
 
@@ -474,7 +500,11 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 }
 
                 // returning to block `before` for comparing condition
-                self.builder.build_unconditional_branch(before_basic_block);
+                if let Some(last_instruction) = then_basic_block.get_last_instruction() {
+                    if last_instruction.get_opcode() != inkwell::values::InstructionOpcode::Return {
+                        self.builder.build_unconditional_branch(before_basic_block);
+                    }
+                }
 
                 // setting builder position to `after` block
                 self.switch_block(after_basic_block);
@@ -514,7 +544,11 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     .build_store(var_alloca, self.context.i64_type().const_zero());
 
                 // setting current position at block `before`
-                self.builder.build_unconditional_branch(before_basic_block);
+                if let Some(last_instruction) = self.current_block.get_last_instruction() {
+                    if last_instruction.get_opcode() != inkwell::values::InstructionOpcode::Return {
+                        self.builder.build_unconditional_branch(before_basic_block);
+                    }
+                }
                 self.switch_block(before_basic_block);
 
                 let old_variable = self.variables.remove(&varname);
@@ -581,6 +615,11 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 self.builder.build_store(var_alloca, incremented_var);
 
                 // returning to block `before` for comparing condition
+                if let Some(last_instruction) = self.current_block.get_last_instruction() {
+                    if last_instruction.get_opcode() != inkwell::values::InstructionOpcode::Return {
+                        self.builder.build_unconditional_branch(before_basic_block);
+                    }
+                }
                 self.builder.build_unconditional_branch(before_basic_block);
 
                 // setting builder position to `after` block
