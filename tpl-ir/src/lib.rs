@@ -6,6 +6,8 @@
 
 mod error;
 mod function;
+mod import;
+mod variable;
 
 use inkwell::{
     basic_block::BasicBlock,
@@ -13,13 +15,16 @@ use inkwell::{
     context::Context,
     module::Module,
     types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue},
 };
 
 use std::collections::HashMap;
 
 use error::{ErrorType, GenError};
 use function::Function;
+use import::ImportObject;
+use variable::Variable;
+
 use tpl_parser::{expressions::Expressions, statements::Statements, value::Value};
 
 const TEST_OPERATORS: [&'static str; 4] = [">", "<", "==", "!="];
@@ -36,8 +41,9 @@ pub struct Compiler<'ctx> {
     current_block: BasicBlock<'ctx>,
 
     // hashmaps
-    variables: HashMap<String, (String, BasicTypeEnum<'ctx>, PointerValue<'ctx>)>,
+    variables: HashMap<String, Variable<'ctx>>,
     functions: HashMap<String, Function<'ctx>>,
+    imports: HashMap<String, ImportObject>,
 
     // flags
     function_returned: bool,
@@ -72,6 +78,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
             variables: HashMap::new(),
             functions: HashMap::new(),
+            imports: HashMap::new(),
 
             current_block: basic_block,
             main_function: function,
@@ -126,8 +133,10 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         );
                         std::process::exit(1);
                     });
-                self.variables
-                    .insert(identifier.clone(), (datatype.clone(), var_type, alloca));
+                self.variables.insert(
+                    identifier.clone(),
+                    Variable::new(datatype.clone(), var_type, alloca),
+                );
 
                 if let Some(intial_value) = value {
                     let compiled_expression =
@@ -165,11 +174,11 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
                         // matching datatypes
 
-                        if expr_value.0 != var_ptr.0 {
+                        if expr_value.0 != var_ptr.str_type {
                             GenError::throw(
                                 format!(
                                     "Expected type `{}`, but found `{}`!",
-                                    var_ptr.0, expr_value.0
+                                    var_ptr.str_type, expr_value.0
                                 ),
                                 ErrorType::TypeError,
                                 line,
@@ -179,7 +188,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
                         // storing value
 
-                        let _ = self.builder.build_store(var_ptr.2, expr_value.1);
+                        let _ = self.builder.build_store(var_ptr.pointer, expr_value.1);
                     }
                 } else {
                     GenError::throw(
@@ -209,11 +218,11 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         let expr_value = self.compile_expression(new_expression, line, function);
 
                         // matching types
-                        if expr_value.0 != var_ptr.0 {
+                        if expr_value.0 != var_ptr.str_type {
                             GenError::throw(
                                 format!(
                                     "Expected type `{}`, but found `{}`!",
-                                    var_ptr.0, expr_value.0
+                                    var_ptr.str_type, expr_value.0
                                 ),
                                 ErrorType::TypeError,
                                 line,
@@ -222,7 +231,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
                         // storing value
 
-                        let _ = self.builder.build_store(var_ptr.2, expr_value.1);
+                        let _ = self.builder.build_store(var_ptr.pointer, expr_value.1);
                     }
                 }
             }
@@ -296,8 +305,10 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     self.builder.build_store(parameter_alloca, arg_value);
 
                     // and inserting variables pointers to main hashmap
-                    self.variables
-                        .insert(varname, (arg.1.clone(), parameter_type, parameter_alloca));
+                    self.variables.insert(
+                        varname,
+                        Variable::new(arg.1.clone(), parameter_type, parameter_alloca),
+                    );
                 }
 
                 // compiling statements
@@ -508,8 +519,10 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
                 let old_variable = self.variables.remove(&varname);
 
-                self.variables
-                    .insert(varname.clone(), ("int".to_string(), var_type, var_alloca));
+                self.variables.insert(
+                    varname.clone(),
+                    Variable::new("int".to_string(), var_type, var_alloca),
+                );
 
                 // creating condition
                 let cond = Expressions::Binary {
@@ -586,6 +599,62 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     line,
                 );
                 std::process::exit(1);
+            }
+
+            // NOTE: Import
+            Statements::ImportStatement { path, line } => {
+                if let Expressions::Value(Value::String(stringified_path)) = path {
+                    // getting import object
+                    let obj = ImportObject::from(stringified_path);
+
+                    // testing if import already exists
+                    if self.imports.contains_key(&obj.name) {
+                        GenError::throw(
+                            format!("Imported module `{}` already exists!", obj.name),
+                            ErrorType::ImportError,
+                            line,
+                        );
+                        std::process::exit(1);
+                    }
+
+                    // initializating lightweight compiler
+                    // lexer
+                    let mut lw_lexer = tpl_lexer::Lexer::new(obj.source.clone(), obj.name.clone());
+                    let tokens = match lw_lexer.tokenize() {
+                        Ok(tokens) => tokens,
+                        Err(e) => {
+                            let info = e.informate();
+                            eprintln!("{}", info);
+                            std::process::exit(1);
+                        }
+                    };
+
+                    // parser
+                    let mut parser =
+                        tpl_parser::Parser::new(tokens, obj.name.clone(), obj.source.clone());
+                    let ast = parser.parse();
+
+                    // compiling statements
+
+                    match ast {
+                        Ok(stmts) => {
+                            for stmt in stmts {
+                                self.compile_statement(stmt, function);
+                            }
+
+                            // adding function to imported
+                            self.imports.insert(obj.name.clone(), obj);
+                        }
+                        Err(err) => {
+                            // printing all errors in terminal and quitting
+                            eprintln!("{}", err.informate());
+                            std::process::exit(1);
+                        }
+                    }
+                } else {
+                    GenError::throw("Unexpected import found!", ErrorType::NotExpected, line);
+                    std::process::exit(1);
+                }
             }
 
             // NOTE: Not supported
@@ -757,9 +826,9 @@ impl<'a, 'ctx> Compiler<'ctx> {
             Value::Identifier(id) => {
                 if let Some(var_ptr) = self.variables.get(&id) {
                     (
-                        var_ptr.0.clone(),
+                        var_ptr.str_type.clone(),
                         self.builder
-                            .build_load(var_ptr.1, var_ptr.2, &id)
+                            .build_load(var_ptr.basic_type, var_ptr.pointer, &id)
                             .unwrap_or_else(|_| {
                                 GenError::throw(
                                     format!("Error with loading `{}` variable", id),

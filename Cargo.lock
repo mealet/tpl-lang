@@ -150,23 +150,24 @@ dependencies = [
 
 [[package]]
 name = "tpl-ir"
-version = "0.2.9"
+version = "0.3.0"
 dependencies = [
  "colored",
  "inkwell",
+ "tpl-lexer",
  "tpl-parser",
 ]
 
 [[package]]
 name = "tpl-lexer"
-version = "0.2.9"
+version = "0.3.0"
 dependencies = [
  "colored",
 ]
 
 [[package]]
 name = "tpl-parser"
-version = "0.2.9"
+version = "0.3.0"
 dependencies = [
  "colored",
  "lazy_static",
@@ -175,7 +176,7 @@ dependencies = [
 
 [[package]]
 name = "tplc"
-version = "0.2.9"
+version = "0.3.0"
 dependencies = [
  "colored",
  "inkwell",

@@ -130,6 +130,11 @@ impl Parser {
                         // variable annotation
                         self.annotation_statement()
                     }
+                    "import" => {
+                        // file import
+                        return self.import_statement();
+                    }
+
                     "if" => {
                         // `if` or `if/else` construction
                         return self.if_statement();
@@ -140,6 +145,7 @@ impl Parser {
                         );
                         Statements::None
                     }
+
                     "while" => {
                         // `while` cycle
                         return self.while_statement();
@@ -148,6 +154,7 @@ impl Parser {
                         // `for` cycle
                         return self.for_statement();
                     }
+
                     "define" => {
                         // function definition
                         return self.define_statement();
@@ -156,6 +163,7 @@ impl Parser {
                         // returning value
                         return self.return_statement();
                     }
+
                     "break" => {
                         // `break` keyword
                         let _ = self.next();
@@ -894,6 +902,25 @@ impl Parser {
         let _ = self.skip_eos();
 
         return Statements::ReturnStatement { value, line };
+    }
+
+    fn import_statement(&mut self) -> Statements {
+        if self.current().token_type == TokenType::Keyword {
+            let _ = self.next();
+        }
+
+        let line = self.current().line;
+        let path = self.expression();
+
+        let _ = self.skip_eos();
+
+        // checking if path is string
+        if let Expressions::Value(Value::String(_)) = path {
+            return Statements::ImportStatement { path, line };
+        } else {
+            self.error("Unexpected import value found!");
+            return Statements::None;
+        }
     }
 
     // etc

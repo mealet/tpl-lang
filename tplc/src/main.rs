@@ -17,7 +17,7 @@ const OPTIMIZATION_LEVEL: inkwell::OptimizationLevel = inkwell::OptimizationLeve
 const RELOC_MODE: inkwell::targets::RelocMode = inkwell::targets::RelocMode::PIC;
 const CODE_MODEL: inkwell::targets::CodeModel = inkwell::targets::CodeModel::Default;
 
-const COMMENTS_START: &str = "//";
+pub const COMMENTS_START: &str = "//";
 
 struct Config {
     pub input: String,

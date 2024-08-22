@@ -65,6 +65,12 @@ pub enum Statements {
         line: usize,
     },
 
+    // Import
+    ImportStatement {
+        path: Expressions,
+        line: usize,
+    },
+
     // Some Keywords
     BreakStatement {
         line: usize,

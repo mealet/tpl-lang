@@ -76,10 +76,12 @@ impl Lexer {
                     Token::new(TokenType::Keyword, String::from("else"), 0),
                 ),
                 //
+                //
                 (
                     "while".to_string(),
                     Token::new(TokenType::Keyword, String::from("while"), 0),
                 ),
+                //
                 //
                 (
                     "for".to_string(),
@@ -94,6 +96,7 @@ impl Lexer {
                     Token::new(TokenType::Keyword, String::from("break"), 0),
                 ),
                 //
+                //
                 (
                     "define".to_string(),
                     Token::new(TokenType::Keyword, String::from("define"), 0),
@@ -101,6 +104,12 @@ impl Lexer {
                 (
                     "return".to_string(),
                     Token::new(TokenType::Keyword, String::from("return"), 0),
+                ),
+                //
+                //
+                (
+                    "import".to_string(),
+                    Token::new(TokenType::Keyword, String::from("import"), 0),
                 ),
                 // NOTE: Datatypes
                 (
