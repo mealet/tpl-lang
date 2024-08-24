@@ -4,32 +4,41 @@
 [Colored]: https://crates.io/crates/colored
 
 <div align="center">
- <img src="https://custom-icon-badges.demolab.com/badge/-Toy-blue?style=for-the-badge&logoColor=white" />
- <img src="https://custom-icon-badges.demolab.com/badge/-Programming-blue?style=for-the-badge&logoColor=white" />
- <img src="https://custom-icon-badges.demolab.com/badge/-Language-blue?style=for-the-badge&logoColor=white" />
- <img src="https://custom-icon-badges.demolab.com/badge/-0.3.1-blue?style=for-the-badge&logoColor=white" />
+ <img src="https://github.com/user-attachments/assets/291c4d80-e255-4c17-8543-8528e1a4ddda" /> </br>
+
+ <img src="https://custom-icon-badges.demolab.com/badge/written_on-rust-blue?style=for-the-badge&logoColor=white" />
+ <img src="https://custom-icon-badges.demolab.com/badge/based_on-llvm-blue?style=for-the-badge&logoColor=white" />
+ <img src="https://custom-icon-badges.demolab.com/badge/version-0.3.1-blue?style=for-the-badge&logoColor=white" />
 </div>
 
-### 👀 Description
+## 🧐 What is this?
 **Toy Programming Language** - is a simple compiling language, based on LLVM. </br>
 Project created to learn and show other people how to create compilers in Rust 🦀
 
-### 🤖 Tools Used
+Code separated to 4 modules:
+1. `tpl-lexer` - lexical analyzer, which turns code into _tokens_.
+2. `tpl-parser` - tool for parsing tokens and creating _AST_.
+3. `tpl-ir` - codegen module with simple task: translate _AST_ to _LLVM Module_.
+4. `tplc` - main part of all project, which contains such things like: cli tool, config parser, llvm module compiler, object linker and etc.
+
+
+## 🤖 Tools Used
 * Programming Language: [Rust]
 * Code Generator: [LLVM]
 * LLVM Library: [Inkwell]
 * Colored Terminal Library: [Colored]
 
-### 🦛 Building
-1. Download or clone this repository to your computer
-2. Install **[Rust]** language
-3. Type build command at the main directory:
+## 🦛 Building
+1. Download or clone this repository to your computer.
+2. Install **[Rust]** language.
+3. Install **[LLVM]** for your system.
+4. Type build command at the main directory:
 ```sh
 cargo build --release
 ```
 4. Binary file of compiler will be at `target/release` directory under the name: _**tplc**_ (or _**tplc.exe**_ on Windows)
 
-### 👾 Example
+## 👾 Example
 1. Create file `example.tpl` and open in any code editor
 2. Write code:
 ```c++
@@ -114,5 +123,5 @@ tplc example.tpl output
 
 </details>
 
-### 💀 License
+## 💀 License
 Project licensed under the BSD-3 License. More information in [**LICENSE**](https://github.com/mealet/tpl-lang/blob/main/LICENSE) file
