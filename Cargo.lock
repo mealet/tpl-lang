@@ -154,6 +154,7 @@ version = "0.3.1"
 dependencies = [
  "colored",
  "inkwell",
+ "llvm-sys",
  "tpl-lexer",
  "tpl-parser",
 ]
@@ -180,6 +181,7 @@ version = "0.3.1"
 dependencies = [
  "colored",
  "inkwell",
+ "llvm-sys",
  "tpl-ir",
  "tpl-lexer",
  "tpl-parser",
