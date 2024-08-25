@@ -1,0 +1,52 @@
+name: Rust Cross-Compilation
+
+on:
+  push:
+    tags:
+      - 'release-build'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        target: [x86_64-unknown-linux-gnu, x86_64-pc-windows-gnu, x86_64-apple-darwin]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        toolchain: stable
+        target: ${{ matrix.target }}
+        profile: minimal
+
+    - name: Install LLVM
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install llvm-dev libclang-dev clang
+
+    - name: Install Clang on macOS
+      if: matrix.os == 'macos-latest'
+      run: brew install llvm
+
+    - name: Install LLVM on Windows
+      if: matrix.os == 'windows-latest'
+      run: |
+        choco install llvm -y
+
+    - name: Build the project
+      run: cargo build --target ${{ matrix.target }} --release
+
+    - name: Run tests
+      run: cargo test --target ${{ matrix.target }}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.target }}-artifact
+        path: target/${{ matrix.target }}/release/
