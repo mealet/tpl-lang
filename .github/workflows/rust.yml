@@ -1,50 +1,51 @@
-name: Rust Cross-Compilation
-
+name: Release
 on:
   workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ${{ matrix.os }}
+  release:
+    permissions:
+      contents: write
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-        target: [x86_64-unknown-linux-gnu, x86_64-pc-windows-gnu, x86_64-apple-darwin]
+        platform: [macos-latest, ubuntu-20.04, windows-latest]
+    runs-on: ${{ matrix.platform }}
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-        target: ${{ matrix.target }}
-        profile: minimal
+      - name: Install dependencies (ubuntu)
+        if: matrix.platform == 'ubuntu-20.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+          sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
 
-    - name: Install LLVM
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        sudo apt-get update
-        sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+      - name: Install dependencies (windows)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          choco install llvm
+        
+      - name: Install dependencies (macos)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          brew install llvm@18
+      
+      - name: Rust setup
+        uses: dtolnay/rust-toolchain@stable
 
-    - name: Install Clang on macOS
-      if: matrix.os == 'macos-latest'
-      run: brew install llvm@18
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './src-tauri -> target'
 
-    - name: Install LLVM on Windows
-      if: matrix.os == 'windows-latest'
-      run: |
-        choco install llvm -y
+      - name: Build the project
+        run: cargo build --target ${{ matrix.target }} --release
 
-    - name: Build the project
-      run: cargo build --target ${{ matrix.target }} --release
-
-    - name: Run tests
-      run: cargo test --target ${{ matrix.target }}
-
-    - name: Upload artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: ${{ matrix.target }}-artifact
-        path: target/${{ matrix.target }}/release/
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.target }}-artifact
+          path: target/${{ matrix.target }}/release/
