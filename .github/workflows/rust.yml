@@ -1,9 +1,7 @@
 name: Rust Cross-Compilation
 
 on:
-  push:
-    tags:
-      - 'release-build'
+  workflow_dispatch:
 
 jobs:
   build:
