@@ -26,11 +26,11 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install llvm-dev libclang-dev clang
+        bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
 
     - name: Install Clang on macOS
       if: matrix.os == 'macos-latest'
-      run: brew install llvm
+      run: brew install llvm@18
 
     - name: Install LLVM on Windows
       if: matrix.os == 'windows-latest'
