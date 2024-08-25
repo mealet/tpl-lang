@@ -16,23 +16,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install dependencies (ubuntu)
-        if: matrix.platform == 'ubuntu-20.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang
-          sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
-
-      - name: Install dependencies (windows)
-        if: matrix.platform == 'windows-latest'
-        run: |
-          choco install llvm
-        
-      - name: Install dependencies (macos)
-        if: matrix.platform == 'macos-latest'
-        run: |
-          brew install llvm@18
-      
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
 
@@ -41,8 +24,28 @@ jobs:
         with:
           workspaces: './src-tauri -> target'
 
-      - name: Build the project
-        run: cargo build --target ${{ matrix.target }} --release
+      - name: Install and build (ubuntu)
+        if: matrix.platform == 'ubuntu-20.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang
+          sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+
+          cargo build --release
+
+      - name: Install and build (windows)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          choco install llvm
+
+          cargo build --release
+        
+      - name: Install and build (macos)
+        if: matrix.platform == 'macos-latest'
+        run: |
+          brew install llvm@18
+
+          cargo build --release
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
