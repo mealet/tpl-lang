@@ -26,7 +26,7 @@ jobs:
       if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+        sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
 
     - name: Install Clang on macOS
       if: matrix.os == 'macos-latest'
