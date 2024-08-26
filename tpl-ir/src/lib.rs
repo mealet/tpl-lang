@@ -31,6 +31,10 @@ const TEST_OPERATORS: [&'static str; 4] = [">", "<", "==", "!="];
 
 #[derive(Debug)]
 pub struct Compiler<'ctx> {
+    // module info
+    module_name: String,
+    module_source: String,
+
     // important
     pub context: &'ctx Context,
     pub builder: Builder<'ctx>,
@@ -51,7 +55,12 @@ pub struct Compiler<'ctx> {
 
 #[allow(unused)]
 impl<'a, 'ctx> Compiler<'ctx> {
-    pub fn new(context: &'ctx Context, module_name: &str) -> Self {
+    pub fn new(
+        context: &'ctx Context,
+        module_name: &str,
+        module_filename: String,
+        module_source: String,
+    ) -> Self {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
 
@@ -69,6 +78,9 @@ impl<'a, 'ctx> Compiler<'ctx> {
         let basic_block = context.append_basic_block(function, "entry");
 
         Compiler {
+            module_name: module_filename,
+            module_source,
+
             context: &context,
             builder,
             module,
@@ -122,6 +134,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                                 &identifier
                             ),
                             ErrorType::MemoryError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
                         );
                         std::process::exit(1);
@@ -146,6 +160,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                                 compiled_expression.0
                             ),
                             ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
                         );
                         std::process::exit(1);
@@ -174,6 +190,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                                     var_ptr.str_type, expr_value.0
                                 ),
                                 ErrorType::TypeError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
                                 line,
                             );
                             std::process::exit(1);
@@ -187,6 +205,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     GenError::throw(
                         format!("Variable `{}` is not defined!", identifier),
                         ErrorType::NotDefined,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
                         line,
                     );
                     std::process::exit(1);
@@ -218,6 +238,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                                     var_ptr.str_type, expr_value.0
                                 ),
                                 ErrorType::TypeError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
                                 line,
                             );
                         }
@@ -268,6 +290,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         GenError::throw(
                             format!("An error occured with fetching parameter while defining `{}` function!", function_name),
                             ErrorType::BuildError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line
                         );
                         std::process::exit(1);
@@ -290,6 +314,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                                     varname.clone()
                                 ),
                                 ErrorType::BuildError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
                                 line,
                             );
                             std::process::exit(1);
@@ -330,6 +356,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     GenError::throw(
                         format!("Function `{}` failed verification! Here's the possible reasons:\n* Function doesn't returns value or returns wrong value's type.\n* Function have branches after returning a value.\n* Function doesn't matches types, or matches wrong.\nPlease check your code or open issue on github repo!", &function_name),
                         ErrorType::VerificationFailure,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
                         line
                     );
                     std::process::exit(1);
@@ -535,6 +563,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                                 &varname
                             ),
                             ErrorType::MemoryError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
                         );
                         std::process::exit(1);
@@ -591,6 +621,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         GenError::throw(
                             format!("Unable to get access `{}` in for cycle!", &varname),
                             ErrorType::BuildError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
                         );
                         std::process::exit(1);
@@ -606,6 +638,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         GenError::throw(
                             format!("Unable to increment `{}` in for cycle!", &varname),
                             ErrorType::BuildError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
                         );
                         std::process::exit(1);
@@ -635,6 +669,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 GenError::throw(
                     "`break` keyword is not supported yet.",
                     ErrorType::NotSupported,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
                     line,
                 );
                 std::process::exit(1);
@@ -651,6 +687,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         GenError::throw(
                             format!("Imported module `{}` already exists!", obj.name),
                             ErrorType::ImportError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
                         );
                         std::process::exit(1);
@@ -691,7 +729,13 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         }
                     }
                 } else {
-                    GenError::throw("Unexpected import found!", ErrorType::NotExpected, line);
+                    GenError::throw(
+                        "Unexpected import found!",
+                        ErrorType::NotExpected,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
                     std::process::exit(1);
                 }
             }
@@ -701,6 +745,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 GenError::throw(
                     "Unsupported statement found! Please open issue with your code on Github!",
                     ErrorType::NotSupported,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
                     0,
                 );
                 std::process::exit(1);
@@ -739,7 +785,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     "int" => {
                         // checking if all sides are the same type
                         if right.0 != "int" {
-                            GenError::throw(format!("Left and Right sides must be the same types in Binary Expression!"), ErrorType::TypeError, line);
+                            GenError::throw(format!("Left and Right sides must be the same types in Binary Expression!"), ErrorType::TypeError, self.module_name.clone(), self.module_source.clone(), line);
                             std::process::exit(1);
                         }
 
@@ -811,6 +857,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                                 GenError::throw(
                                     format!("Unsupported binary operation found: `{}`", operand),
                                     ErrorType::NotSupported,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
                                     line,
                                 );
                                 std::process::exit(1);
@@ -821,6 +869,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         GenError::throw(
                             format!("Binary operations is not supported for `{}` type!", left.0),
                             ErrorType::NotSupported,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
                         );
                         std::process::exit(1);
@@ -831,6 +881,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 GenError::throw(
                     format!("`{:?}` is not supported!", expr),
                     ErrorType::NotSupported,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
                     0,
                 );
                 std::process::exit(1);
@@ -856,6 +908,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         GenError::throw(
                             format!("Error while creating string: `{}`", str),
                             ErrorType::MemoryError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
                         );
                         std::process::exit(1);
@@ -872,6 +926,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                                 GenError::throw(
                                     format!("Error with loading `{}` variable", id),
                                     ErrorType::MemoryError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
                                     line,
                                 );
                                 std::process::exit(1);
@@ -881,6 +937,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     GenError::throw(
                         format!("Undefined variable with id: `{}`!", id),
                         ErrorType::NotDefined,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
                         line,
                     );
                     std::process::exit(1);
@@ -918,6 +976,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                                 GenError::throw(
                                     format!("Compare operand `{}` is not supported!", operand),
                                     ErrorType::NotSupported,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
                                     line,
                                 );
                                 std::process::exit(1);
@@ -939,6 +999,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                                     left.0, operand, right.0
                                 ),
                                 ErrorType::BuildError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
                                 line,
                             );
                             std::process::exit(1);
@@ -948,6 +1010,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         GenError::throw(
                             format!("Cannot compare `{}` and `{}` types!", left.0, right.0),
                             ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
                         );
                         std::process::exit(1);
@@ -964,6 +1028,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                             compiled_value.0
                         ),
                         ErrorType::NotSupported,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
                         line,
                     );
                     std::process::exit(1);
@@ -975,6 +1041,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 GenError::throw(
                     "Unexpected expression found on condition!",
                     ErrorType::NotExpected,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
                     line,
                 );
                 std::process::exit(1);
@@ -1001,6 +1069,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         arguments.len()
                     ),
                     ErrorType::NotExpected,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
                     line,
                 );
                 std::process::exit(1);
@@ -1014,27 +1084,33 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
             // matching arguments types
             let mut arguments_error = false;
+            let mut arguments_types = Vec::new();
+
             let mut values: Vec<BasicMetadataValueEnum> = Vec::new();
 
             for (index, arg) in compiled_args.iter().enumerate() {
                 if arg.0 != func.arguments_types[index] {
                     arguments_error = true;
-                    GenError::throw(
-                        format!(
-                            "Argument {} must be `{}` type, but found `{}`!",
-                            index + 1,
-                            func.arguments_types[index],
-                            arg.0
-                        ),
-                        ErrorType::TypeError,
-                        line,
-                    );
                 } else {
                     values.push(arg.1.into());
                 }
+
+                arguments_types.push(arg.0.clone());
             }
 
             if arguments_error {
+                GenError::throw(
+                    format!(
+                        "Function `{}` expected arguments types [{}], but found [{}]!",
+                        func.name,
+                        func.arguments_types.clone().join(", "),
+                        arguments_types.join(", "),
+                    ),
+                    ErrorType::TypeError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line,
+                );
                 std::process::exit(1);
             }
 
@@ -1049,6 +1125,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     GenError::throw(
                         format!("An error occured while calling `{}` function!", &func.name),
                         ErrorType::BuildError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
                         line,
                     );
                     std::process::exit(1);
@@ -1056,7 +1134,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 .try_as_basic_value()
                 .left()
                 .unwrap_or_else(|| {
-                    GenError::throw("Error with compiling function's returned value to basic datatype! Please open issue on github repo!", ErrorType::BuildError, line);
+                    GenError::throw("Error with compiling function's returned value to basic datatype! Please open issue on github repo!", ErrorType::BuildError, self.module_name.clone(), self.module_source.clone(), line);
                     std::process::exit(1);
                 });
 
@@ -1065,6 +1143,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
             GenError::throw(
                 format!("Function `{}` is not defined here!", function_name),
                 ErrorType::NotDefined,
+                self.module_name.clone(),
+                self.module_source.clone(),
                 line,
             );
             std::process::exit(1);
@@ -1085,6 +1165,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 GenError::throw(
                     format!("Unsupported `{}` datatype!", datatype),
                     ErrorType::NotSupported,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
                     line,
                 );
                 std::process::exit(1);
@@ -1110,6 +1192,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 GenError::throw(
                     format!("Unsupported `{}` function type found!", datatype),
                     ErrorType::NotSupported,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
                     line,
                 );
                 std::process::exit(1);
@@ -1155,6 +1239,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         GenError::throw(
                             format!("Unsupported IntValue `{}`!", value.0),
                             ErrorType::NotSupported,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
                         );
                         std::process::exit(1);
@@ -1167,6 +1253,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     GenError::throw(
                         format!("Type `{}` is not supported for print function!", value.0),
                         ErrorType::NotSupported,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
                         line,
                     );
                     std::process::exit(1);

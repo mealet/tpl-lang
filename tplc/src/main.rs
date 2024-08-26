@@ -89,7 +89,12 @@ fn main() {
     // creating llvm context and compiler
 
     let ctx = inkwell::context::Context::create();
-    let mut compiler = Compiler::new(&ctx, config.output.as_str());
+    let mut compiler = Compiler::new(
+        &ctx,
+        config.output.as_str(),
+        config.input.clone(),
+        config.source.clone(),
+    );
 
     // creating lexical analyzer and getting tokens
 
