@@ -291,6 +291,7 @@ impl Parser {
             }
             _ => {
                 self.error("Unexpected term found");
+                let _ = self.next();
                 return Expressions::None;
             }
         }

@@ -7,8 +7,10 @@ edition = "2021"
 
 [dependencies]
 inkwell = { version = "0.5.0", features = ["llvm18-0"] }
-llvm-sys = "180.0.0"
 tpl-lexer = { path = "../tpl-lexer" }
 tpl-parser = { path = "../tpl-parser" }
 tpl-ir = { path = "../tpl-ir" }
 colored = "2.1.0"
+
+[build-dependencies]
+llvm-sys = "180.0.0"
