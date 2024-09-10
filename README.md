@@ -8,7 +8,6 @@
 
  <img src="https://custom-icon-badges.demolab.com/badge/written_on-rust-blue?style=for-the-badge&logoColor=white" />
  <img src="https://custom-icon-badges.demolab.com/badge/based_on-llvm-blue?style=for-the-badge&logoColor=white" />
- <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.codetabs.com%2Fv1%2Floc%2F%3Fgithub%3Dmealet%2Ftpl-lang&query=7.linesOfCode&style=for-the-badge&label=total%20lines" />
  <img src="https://custom-icon-badges.demolab.com/badge/version-0.3.2-blue?style=for-the-badge&logoColor=white" />
 </div>
 
