@@ -27,7 +27,7 @@ jobs:
       - name: LLVM Setup
         uses: ZhongRuoyu/setup-llvm@v0.1.1
         with:
-          llvm-version: 18.1.8
+          llvm-version: 18
 
       - name: TPL Build
         run: |
