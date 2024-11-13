@@ -8,6 +8,6 @@ members = [
 resolver = "2"
 
 [workspace.package]
-version = "0.3.2"
+version = "0.3.3"
 authors = ["mealet <workjason34@gmail.com>"]
 description = "Toy Programming Language - simple programming language written in Rust Lang"

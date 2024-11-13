@@ -174,12 +174,7 @@ impl Parser {
                 }
             }
             TokenType::Function => {
-                // searching for built-in functions
-
-                match current.value.as_str() {
-                    "print" => self.print_statement(),
-                    _ => Statements::None,
-                }
+                self.function_call_statement(current.value)
             }
             TokenType::Identifier => {
                 let next = self.next();
@@ -289,8 +284,11 @@ impl Parser {
                     datatype,
                 };
             }
+            TokenType::Function => {
+                return self.call_expression(current.value);
+            }
             _ => {
-                self.error("Unexpected term found");
+                self.error(format!("Unexpected term {:?} found", self.current().value));
                 let _ = self.next();
                 return Expressions::None;
             }
@@ -388,6 +386,10 @@ impl Parser {
                 let _ = self.next();
                 return self.call_expression(function_name);
             }
+            TokenType::Function => {
+                let _ = self.next();
+                return self.call_expression(function_name);
+            }
             TokenType::LParen => {}
             _ => {
                 self.error("Unexpected variation of call expression!");
@@ -407,20 +409,20 @@ impl Parser {
         };
     }
 
-    // statements
-
-    fn print_statement(&mut self) -> Statements {
+    // statements 
+    
+    fn function_call_statement(&mut self, function_name: String) -> Statements {
         let mut current = self.current();
         let line = current.line;
 
         match current.token_type {
             TokenType::Function => {
                 current = self.next();
-                return self.print_statement();
+                return self.function_call_statement(function_name);
             }
             TokenType::LParen => {}
             _ => {
-                self.error("Unexpected usage of `print` statement");
+                self.error(format!("Unexpected usage of `{}` statement", function_name));
                 while self.current().token_type != END_STATEMENT {
                     self.next();
                 }
@@ -436,7 +438,7 @@ impl Parser {
         }
 
         return Statements::FunctionCallStatement {
-            function_name: String::from("print"),
+            function_name,
             arguments,
             line,
         };

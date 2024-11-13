@@ -49,7 +49,7 @@ impl GenError {
 
         format!(
             "{} {}\n{}",
-            format!("[CodeGen][{}][{}]", error_type, module_name).red(),
+            format!("[CodeGen][{}][{}]:", error_type, module_name).red(),
             description,
             format!(
                 "{}{}\n {} {} {}\n{}{}",
@@ -88,7 +88,7 @@ impl ImportError {
     pub fn format<T: std::fmt::Display>(description: T, error_type: String) -> String {
         format!(
             "{} {}",
-            format!("[ImportError][{}]", error_type).red(),
+            format!("[ImportError][{}]:", error_type).red(),
             description
         )
     }

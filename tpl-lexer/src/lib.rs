@@ -7,6 +7,7 @@
 pub mod error;
 pub mod token;
 pub mod token_type;
+mod macros;
 
 use std::collections::HashMap;
 //
@@ -38,101 +39,54 @@ impl Lexer {
             filename,
 
             std_symbols: HashMap::from([
-                ('+', Token::new(TokenType::Plus, String::from("+"), 0)),
-                ('-', Token::new(TokenType::Minus, String::from("-"), 0)),
-                ('*', Token::new(TokenType::Multiply, String::from("*"), 0)),
-                ('/', Token::new(TokenType::Divide, String::from("/"), 0)),
-                ('=', Token::new(TokenType::Equal, String::from("="), 0)),
-                ('!', Token::new(TokenType::Not, String::from("!"), 0)),
-                //
-                ('<', Token::new(TokenType::Lt, String::from("<"), 0)),
-                ('>', Token::new(TokenType::Bt, String::from(">"), 0)),
-                //
-                ('.', Token::new(TokenType::Dot, String::new(), 0)),
-                (',', Token::new(TokenType::Comma, String::new(), 0)),
-                ('"', Token::new(TokenType::Quote, String::new(), 0)),
-                (';', Token::new(TokenType::Semicolon, String::new(), 0)),
-                //
-                ('(', Token::new(TokenType::LParen, String::from("("), 0)),
-                (')', Token::new(TokenType::RParen, String::from(")"), 0)),
-                ('[', Token::new(TokenType::LBrack, String::from("["), 0)),
-                (']', Token::new(TokenType::RBrack, String::from("]"), 0)),
-                ('{', Token::new(TokenType::LBrace, String::from("{"), 0)),
-                ('}', Token::new(TokenType::RBrace, String::from("}"), 0)),
+                macros::std_symbol!('+', TokenType::Plus),
+                macros::std_symbol!('-', TokenType::Minus),
+                macros::std_symbol!('*', TokenType::Multiply),
+                macros::std_symbol!('/', TokenType::Divide),
+                macros::std_symbol!('=', TokenType::Equal),
+                macros::std_symbol!('!', TokenType::Not),
+
+                macros::std_symbol!('<', TokenType::Lt),
+                macros::std_symbol!('>', TokenType::Bt),
+
+                macros::std_symbol!('.', TokenType::Dot),
+                macros::std_symbol!(',', TokenType::Comma),
+                macros::std_symbol!('"', TokenType::Quote),
+                macros::std_symbol!(';', TokenType::Semicolon),
+
+                macros::std_symbol!('(', TokenType::LParen),
+                macros::std_symbol!(')', TokenType::RParen),
+                macros::std_symbol!('[', TokenType::LBrack),
+                macros::std_symbol!(']', TokenType::RBrack),
+                macros::std_symbol!('{', TokenType::LBrace),
+                macros::std_symbol!('}', TokenType::RBrace),
             ]),
             std_words: HashMap::from([
-                // NOTE: Built-in functions
-                (
-                    "print".to_string(),
-                    Token::new(TokenType::Function, String::from("print"), 0),
-                ),
-                // NOTE: Keywords
-                (
-                    "if".to_string(),
-                    Token::new(TokenType::Keyword, String::from("if"), 0),
-                ),
-                (
-                    "else".to_string(),
-                    Token::new(TokenType::Keyword, String::from("else"), 0),
-                ),
-                //
-                //
-                (
-                    "while".to_string(),
-                    Token::new(TokenType::Keyword, String::from("while"), 0),
-                ),
-                //
-                //
-                (
-                    "for".to_string(),
-                    Token::new(TokenType::Keyword, String::from("for"), 0),
-                ),
-                (
-                    "in".to_string(),
-                    Token::new(TokenType::Keyword, String::from("in"), 0),
-                ),
-                (
-                    "break".to_string(),
-                    Token::new(TokenType::Keyword, String::from("break"), 0),
-                ),
-                //
-                //
-                (
-                    "define".to_string(),
-                    Token::new(TokenType::Keyword, String::from("define"), 0),
-                ),
-                (
-                    "return".to_string(),
-                    Token::new(TokenType::Keyword, String::from("return"), 0),
-                ),
-                //
-                //
-                (
-                    "import".to_string(),
-                    Token::new(TokenType::Keyword, String::from("import"), 0),
-                ),
-                // NOTE: Datatypes
-                (
-                    "int".to_string(),
-                    Token::new(TokenType::Keyword, String::from("int"), 0),
-                ),
-                (
-                    "str".to_string(),
-                    Token::new(TokenType::Keyword, String::from("str"), 0),
-                ),
-                (
-                    "bool".to_string(),
-                    Token::new(TokenType::Keyword, String::from("bool"), 0),
-                ),
-                // NOTE: Boolean keywords
-                (
-                    "true".to_string(),
-                    Token::new(TokenType::Boolean, String::from("true"), 0),
-                ),
-                (
-                    "false".to_string(),
-                    Token::new(TokenType::Boolean, String::from("false"), 0),
-                ),
+                // Built-In Functions
+                macros::std_function!("print"),
+                macros::std_function!("concat"),
+
+                // Constructions
+                macros::std_keyword!("if"),
+                macros::std_keyword!("else"),
+                macros::std_keyword!("while"),
+                macros::std_keyword!("for"),
+                macros::std_keyword!("in"),
+                macros::std_keyword!("break"),
+
+                // Functions and Imports
+                macros::std_keyword!("define"),
+                macros::std_keyword!("return"),
+                macros::std_keyword!("import"),
+
+                // Datatypes
+                macros::std_keyword!("int"),
+                macros::std_keyword!("str"),
+                macros::std_keyword!("bool"),
+
+                // Boolean Values 
+                macros::std_keyword!("true"),
+                macros::std_keyword!("false"),
             ]),
             errors: LexerErrorHandler::new(),
 

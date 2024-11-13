@@ -4,6 +4,8 @@
 // Project licensed under the BSD-3 LICENSE.
 // Check the `LICENSE` file to more info.
 
+#![allow(unused)]
+
 mod error;
 mod function;
 mod import;
@@ -15,7 +17,7 @@ use inkwell::{
     context::Context,
     module::Module,
     types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue},
+    values::{AnyValue, BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue},
 };
 
 use std::collections::HashMap;
@@ -51,6 +53,7 @@ pub struct Compiler<'ctx> {
 
     // built-in functions
     printf_fn: FunctionValue<'ctx>,
+    strcat_fn: FunctionValue<'ctx>
 }
 
 #[allow(unused)]
@@ -65,11 +68,22 @@ impl<'a, 'ctx> Compiler<'ctx> {
         let builder = context.create_builder();
 
         // defining built-in functions
+        // printf
+
         let printf_type = context.i64_type().fn_type(
             &[context.ptr_type(inkwell::AddressSpace::default()).into()],
             true,
         );
         let printf_fn = module.add_function("printf", printf_type, None);
+
+        // strcat
+        let strcat_type = context.ptr_type(inkwell::AddressSpace::default()).fn_type(
+            &[
+                context.ptr_type(inkwell::AddressSpace::default()).into(),
+                context.ptr_type(inkwell::AddressSpace::default()).into()
+            ], true
+        );
+        let strcat_fn = module.add_function("strcat", strcat_type, None);
 
         // main function creation
         let i64_type = context.i64_type();
@@ -93,6 +107,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
             main_function: function,
 
             printf_fn,
+            strcat_fn
         }
     }
 
@@ -382,6 +397,9 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 match function_name.as_str() {
                     "print" => {
                         self.build_print_call(arguments, line, function);
+                    }
+                    "concat" => {
+                        self.build_concat_call(arguments, line, function);
                     }
                     _ => {
                         // user defined function
@@ -914,6 +932,8 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         );
                         std::process::exit(1);
                     });
+
+                str_val.set_constant(false);
                 ("str".to_string(), str_val.as_pointer_value().into())
             }
             Value::Identifier(id) => {
@@ -1140,14 +1160,21 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
             return (func.function_type.clone(), call_result);
         } else {
-            GenError::throw(
-                format!("Function `{}` is not defined here!", function_name),
-                ErrorType::NotDefined,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                line,
-            );
-            std::process::exit(1);
+            // Avaible for assignment built-in functions
+            match function_name.as_str() {
+                "concat" => self.build_concat_call(arguments, line, function),
+                _ => {
+                    GenError::throw(
+                        format!("Function `{}` is not defined!", function_name),
+                        ErrorType::NotDefined,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                }
+            }
+
         }
     }
 
@@ -1202,6 +1229,75 @@ impl<'a, 'ctx> Compiler<'ctx> {
     }
 
     // built-in functions
+
+    fn build_concat_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 2 {
+            GenError::throw(
+                "`concat` function takes 2 arguments!",
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+        }
+
+        let left_arg = self.compile_expression(arguments[0].clone(), line, function);
+        let right_arg = self.compile_expression(arguments[1].clone(), line, function);
+
+        dbg!(left_arg.1.print_to_string());
+
+
+        if !self.validate_types(&[left_arg.0, right_arg.0], "str".to_string()) {
+            GenError::throw(
+                "`concat` function takes only string types!",
+                ErrorType::TypeError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+        }
+
+        let val: BasicValueEnum<'ctx> = self.builder.build_direct_call(
+            self.strcat_fn,
+            &[
+                left_arg.1.into(),
+                right_arg.1.into()
+            ],
+            "concat"
+        ).unwrap_or_else(|_| {
+            GenError::throw(
+                    "An error occured while calling `concat` function!",
+                    ErrorType::BuildError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line
+            );
+            std::process::exit(1);
+        })
+        .try_as_basic_value()
+        .left()
+        .unwrap_or_else(|| {
+            GenError::throw(
+                "Unable to get basic value from `concat` function!",
+                ErrorType::BuildError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        });
+
+        (String::from("str"), val)
+
+        // `strcat` provides concatenating left and right values to left variable, which
+        // means that call `concat(a, b)` will insert result into variable 'a'.
+        // To fix it we need to copy both of values and use it in function (and try to free memory)
+    }
 
     fn build_print_call(
         &mut self,
@@ -1270,6 +1366,16 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 "printf",
             );
         }
+    }
+
+    fn validate_types(&self, types: &[String], expected_type: String) -> bool {
+        for typ in types {
+            if typ != &expected_type {
+                return false
+            }
+        }
+
+        return true;
     }
 
     pub fn get_module(&self) -> &Module<'ctx> {
