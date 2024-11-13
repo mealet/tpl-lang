@@ -8,7 +8,7 @@
 
  <img src="https://custom-icon-badges.demolab.com/badge/written_on-rust-blue?style=for-the-badge&logoColor=white" />
  <img src="https://custom-icon-badges.demolab.com/badge/based_on-llvm-blue?style=for-the-badge&logoColor=white" />
- <img src="https://custom-icon-badges.demolab.com/badge/version-0.3.2-blue?style=for-the-badge&logoColor=white" />
+ <img src="https://custom-icon-badges.demolab.com/badge/version-0.3.3-blue?style=for-the-badge&logoColor=white" />
 </div>
 
 ## 🧐 What is this?
