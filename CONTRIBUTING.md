@@ -2,12 +2,13 @@
 [Contacts]: https://mealet.vercel.app/contacts
 
 # Contributing to tpl-lang
-Hello! Thank you for you'r interest in `tpl-lang` project!
-Here's contribution guide for you:
+Hello! Thank you for you'r interest in `tpl-lang` project! <br/>
+All installation and building instructions are provided in [README.md](README.md) <br/>
+Here's contribution guide for you: <br/>
 
 ## Found a Bug?
-For creating bug report just open issue in Project's [Issues].
-Before that please ensure the bug wasn't already reported by another user.
+For creating bug report just open issue in Project's [Issues]. <br/>
+Before that please ensure the bug wasn't already reported by another user. <br/>
 
 ## Want to Submit a Pull Request?
 **Okay, here's some guidelines for you:**
