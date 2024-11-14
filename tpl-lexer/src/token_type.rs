@@ -5,7 +5,6 @@
 // Check the `LICENSE` file to more info.
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
-#[allow(unused)]
 pub enum TokenType {
     Identifier, // abc
 
@@ -45,9 +44,8 @@ pub enum TokenType {
     EOF,
 }
 
-#[allow(unused)]
-impl TokenType {
-    pub fn to_string(&self) -> String {
-        format!("{:?}", self.clone())
+impl std::fmt::Display for TokenType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }

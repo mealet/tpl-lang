@@ -3,7 +3,7 @@ RUN_COMMAND = run
 BUILD_COMMAND = build
 TEST_COMMAND = test
 FMT_COMMAND = fmt
-FIX_COMMAND = fix
+CLIPPY_COMMAND = clippy
 
 # Compile example and run
 TPL_FILE = example.tpl
@@ -27,6 +27,8 @@ FMT_ARGS = --emit=files
 fmt:
 	$(PACKAGE_MANAGER) $(FMT_COMMAND) -- $(FMT_ARGS)
 
-# Fix 
+# Clippy
+CLIPPY_ARGS = --fix --allow-dirty -- -D warnings
+
 clippy:
-	$(PACKAGE_MANAGER) $(FIX_COMMAND)
+	$(PACKAGE_MANAGER) $(CLIPPY_COMMAND) $(CLIPPY_ARGS)

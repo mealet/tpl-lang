@@ -104,8 +104,8 @@ impl Lexer {
             description.to_string(),
             source_lines[self.line].to_string(),
             self.line,
-            self.position.clone(),
-            self.char.clone(),
+            self.position,
+            self.char,
         ));
     }
 
@@ -121,7 +121,7 @@ impl Lexer {
     // filters
 
     fn is_eof(&self) -> bool {
-        return self.char == '\0';
+        self.char == '\0'
     }
 
     // helpful functions
@@ -129,14 +129,14 @@ impl Lexer {
     fn get_number(&mut self) -> i64 {
         let mut value = 0;
         // lexer will support numbers like 10_000_000 instead 10000000
-        while self.char.is_digit(10) || self.char == '_' {
+        while self.char.is_ascii_digit() || self.char == '_' {
             if self.char != '_' {
                 value = value * 10 + self.char.to_digit(10).unwrap() as i64;
             }
             self.getc();
         }
 
-        return value;
+        value
     }
 
     // main function
@@ -155,8 +155,8 @@ impl Lexer {
                 '-' => {
                     // possibly negative number
                     self.getc();
-                    if self.char.is_digit(10) {
-                        let value = self.get_number() * -1;
+                    if self.char.is_ascii_digit() {
+                        let value = -self.get_number();
 
                         // formatting value and matching stringify mode
                         let token_value = value.to_string();
@@ -234,7 +234,7 @@ impl Lexer {
                         }
                     }
                 }
-                _ if self.char.is_digit(10) => {
+                _ if self.char.is_ascii_digit() => {
                     let value = self.get_number();
 
                     output.push(Token::new(TokenType::Number, value.to_string(), self.line));
@@ -260,7 +260,7 @@ impl Lexer {
 
                 // undefined chars/symbols
                 _ => {
-                    let _ = self.error(format!("Undefined char found: {}", self.char));
+                    self.error(format!("Undefined char found: {}", self.char));
                     self.getc();
                 }
             }
@@ -273,6 +273,6 @@ impl Lexer {
         if !self.errors.is_empty() {
             return Err(self.errors.clone());
         }
-        return Ok(output);
+        Ok(output)
     }
 }

@@ -27,7 +27,7 @@ use variable::Variable;
 
 use tpl_parser::{expressions::Expressions, statements::Statements, value::Value};
 
-const TEST_OPERATORS: [&'static str; 4] = [">", "<", "==", "!="];
+const TEST_OPERATORS: [&str; 4] = [">", "<", "==", "!="];
 
 #[derive(Debug)]
 pub struct Compiler<'ctx> {
@@ -54,7 +54,7 @@ pub struct Compiler<'ctx> {
     strcat_fn: FunctionValue<'ctx>,
 }
 
-impl<'a, 'ctx> Compiler<'ctx> {
+impl<'ctx> Compiler<'ctx> {
     pub fn new(
         context: &'ctx Context,
         module_name: &str,
@@ -93,7 +93,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
             module_name: module_filename,
             module_source,
 
-            context: &context,
+            context,
             builder,
             module,
 
@@ -408,7 +408,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
             Statements::ReturnStatement { value, line } => {
                 let compiled_value = self.compile_expression(value, line, function);
-                self.builder.build_return(Some(&compiled_value.1));
+                let _ = self.builder.build_return(Some(&compiled_value.1));
             }
 
             // NOTE: Constructions
@@ -429,7 +429,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     let merge_basic_block = self.context.append_basic_block(function, "if_merge");
 
                     // building conditional branch to blocks
-                    self.builder.build_conditional_branch(
+                    let _ = self.builder.build_conditional_branch(
                         compiled_condition,
                         then_basic_block,
                         else_basic_block,
@@ -447,7 +447,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         if last_instruction.get_opcode()
                             != inkwell::values::InstructionOpcode::Return
                         {
-                            self.builder.build_unconditional_branch(merge_basic_block);
+                            let _ = self.builder.build_unconditional_branch(merge_basic_block);
                         }
                     }
 
@@ -464,7 +464,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         if last_instruction.get_opcode()
                             != inkwell::values::InstructionOpcode::Return
                         {
-                            self.builder.build_unconditional_branch(merge_basic_block);
+                            let _ = self.builder.build_unconditional_branch(merge_basic_block);
                         }
                     }
 
@@ -477,7 +477,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     let merge_basic_block = self.context.append_basic_block(function, "if_merge");
 
                     // building conditional branch to blocks
-                    self.builder.build_conditional_branch(
+                    let _ = self.builder.build_conditional_branch(
                         compiled_condition,
                         then_basic_block,
                         merge_basic_block,
@@ -495,7 +495,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         if last_instruction.get_opcode()
                             != inkwell::values::InstructionOpcode::Return
                         {
-                            self.builder.build_unconditional_branch(merge_basic_block);
+                            let _ = self.builder.build_unconditional_branch(merge_basic_block);
                         }
                     }
 
@@ -519,18 +519,18 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
                 if let Some(last_instruction) = self.current_block.get_last_instruction() {
                     if last_instruction.get_opcode() != inkwell::values::InstructionOpcode::Return {
-                        self.builder.build_unconditional_branch(before_basic_block);
+                        let _ = self.builder.build_unconditional_branch(before_basic_block);
                     }
                 }
 
-                self.builder.build_unconditional_branch(before_basic_block);
+                let _ = self.builder.build_unconditional_branch(before_basic_block);
                 self.switch_block(before_basic_block);
 
                 // compiling condition
                 let compiled_condition = self.compile_condition(condition, line, function);
 
                 // building conditional branch to blocks
-                self.builder.build_conditional_branch(
+                let _ = self.builder.build_conditional_branch(
                     compiled_condition,
                     then_basic_block,
                     after_basic_block,
@@ -546,7 +546,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 // returning to block `before` for comparing condition
                 if let Some(last_instruction) = then_basic_block.get_last_instruction() {
                     if last_instruction.get_opcode() != inkwell::values::InstructionOpcode::Return {
-                        self.builder.build_unconditional_branch(before_basic_block);
+                        let _ = self.builder.build_unconditional_branch(before_basic_block);
                     }
                 }
 
@@ -560,8 +560,6 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 block,
                 line,
             } => {
-                let curr_line = line;
-
                 // creating basic blocks
                 let before_basic_block = self.context.append_basic_block(function, "for_before");
                 let then_basic_block = self.context.append_basic_block(function, "for_then");
@@ -586,13 +584,14 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         std::process::exit(1);
                     });
 
-                self.builder
+                let _ = self
+                    .builder
                     .build_store(var_alloca, self.context.i64_type().const_zero());
 
                 // setting current position at block `before`
                 if let Some(last_instruction) = self.current_block.get_last_instruction() {
                     if last_instruction.get_opcode() != inkwell::values::InstructionOpcode::Return {
-                        self.builder.build_unconditional_branch(before_basic_block);
+                        let _ = self.builder.build_unconditional_branch(before_basic_block);
                     }
                 }
                 self.switch_block(before_basic_block);
@@ -616,7 +615,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 let compiled_condition = self.compile_condition(cond, line, function);
 
                 // doing conditional branch
-                self.builder.build_conditional_branch(
+                let _ = self.builder.build_conditional_branch(
                     compiled_condition,
                     then_basic_block,
                     after_basic_block,
@@ -662,15 +661,15 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     });
 
                 // and storing incremented value
-                self.builder.build_store(var_alloca, incremented_var);
+                let _ = self.builder.build_store(var_alloca, incremented_var);
 
                 // returning to block `before` for comparing condition
                 if let Some(last_instruction) = self.current_block.get_last_instruction() {
                     if last_instruction.get_opcode() != inkwell::values::InstructionOpcode::Return {
-                        self.builder.build_unconditional_branch(before_basic_block);
+                        let _ = self.builder.build_unconditional_branch(before_basic_block);
                     }
                 }
-                self.builder.build_unconditional_branch(before_basic_block);
+                let _ = self.builder.build_unconditional_branch(before_basic_block);
 
                 // setting builder position to `after` block
                 self.switch_block(after_basic_block);
@@ -801,7 +800,14 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     "int" => {
                         // checking if all sides are the same type
                         if right.0 != "int" {
-                            GenError::throw(format!("Left and Right sides must be the same types in Binary Expression!"), ErrorType::TypeError, self.module_name.clone(), self.module_source.clone(), line);
+                            GenError::throw(
+                                "Left and Right sides must be the same types in Binary Expression!"
+                                    .to_string(),
+                                ErrorType::TypeError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line,
+                            );
                             std::process::exit(1);
                         }
 
@@ -1010,7 +1016,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                             "int_condition",
                         );
 
-                        return condition.unwrap_or_else(|_| {
+                        condition.unwrap_or_else(|_| {
                             GenError::throw(
                                 format!(
                                     "An error occured while building condition `{} {} {}`!",
@@ -1022,7 +1028,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                                 line,
                             );
                             std::process::exit(1);
-                        });
+                        })
                     }
                     _ => {
                         GenError::throw(
@@ -1156,7 +1162,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 });
 
-            return (func.function_type.clone(), call_result);
+            (func.function_type.clone(), call_result)
         } else {
             // Avaible for assignment built-in functions
             match function_name.as_str() {
@@ -1306,7 +1312,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
         for arg in arguments {
             let compiled_arg = self.compile_expression(arg, line, function);
-            let mut basic_value = compiled_arg.1.clone();
+            let mut basic_value = compiled_arg.1;
 
             let format_string = match compiled_arg.0.as_str() {
                 "int" => "%lld",
@@ -1323,7 +1329,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                         .unwrap()
                         .as_pointer_value();
 
-                    if let BasicValueEnum::IntValue(int) = basic_value.clone() {
+                    if let BasicValueEnum::IntValue(int) = basic_value {
                         basic_value = self
                             .builder
                             .build_select(int, true_str, false_str, "bool_fmt_str")
@@ -1368,7 +1374,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
             .as_pointer_value();
 
         let mut printf_arguments = vec![complete_fmt_string.into()];
-        let _ = printf_arguments.append(&mut values);
+        printf_arguments.append(&mut values);
 
         let _ = self
             .builder
@@ -1382,7 +1388,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
             }
         }
 
-        return true;
+        true
     }
 
     pub fn get_module(&self) -> &Module<'ctx> {
