@@ -4,8 +4,6 @@
 // Project licensed under the BSD-3 LICENSE.
 // Check the `LICENSE` file to more info.
 
-#![allow(unused)]
-
 mod error;
 mod function;
 mod import;
@@ -53,10 +51,9 @@ pub struct Compiler<'ctx> {
 
     // built-in functions
     printf_fn: FunctionValue<'ctx>,
-    strcat_fn: FunctionValue<'ctx>
+    strcat_fn: FunctionValue<'ctx>,
 }
 
-#[allow(unused)]
 impl<'a, 'ctx> Compiler<'ctx> {
     pub fn new(
         context: &'ctx Context,
@@ -80,8 +77,9 @@ impl<'a, 'ctx> Compiler<'ctx> {
         let strcat_type = context.ptr_type(inkwell::AddressSpace::default()).fn_type(
             &[
                 context.ptr_type(inkwell::AddressSpace::default()).into(),
-                context.ptr_type(inkwell::AddressSpace::default()).into()
-            ], true
+                context.ptr_type(inkwell::AddressSpace::default()).into(),
+            ],
+            true,
         );
         let strcat_fn = module.add_function("strcat", strcat_type, None);
 
@@ -107,7 +105,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
             main_function: function,
 
             printf_fn,
-            strcat_fn
+            strcat_fn,
         }
     }
 
@@ -336,7 +334,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                             std::process::exit(1);
                         });
 
-                    self.builder.build_store(parameter_alloca, arg_value);
+                    let _ = self.builder.build_store(parameter_alloca, arg_value);
 
                     // and inserting variables pointers to main hashmap
                     self.variables.insert(
@@ -1174,7 +1172,6 @@ impl<'a, 'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
             }
-
         }
     }
 
@@ -1234,7 +1231,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
         &mut self,
         arguments: Vec<Expressions>,
         line: usize,
-        function: FunctionValue<'ctx>
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         if arguments.len() != 2 {
             GenError::throw(
@@ -1242,7 +1239,7 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 ErrorType::NotExpected,
                 self.module_name.clone(),
                 self.module_source.clone(),
-                line
+                line,
             );
         }
 
@@ -1251,46 +1248,45 @@ impl<'a, 'ctx> Compiler<'ctx> {
 
         dbg!(left_arg.1.print_to_string());
 
-
         if !self.validate_types(&[left_arg.0, right_arg.0], "str".to_string()) {
             GenError::throw(
                 "`concat` function takes only string types!",
                 ErrorType::TypeError,
                 self.module_name.clone(),
                 self.module_source.clone(),
-                line
+                line,
             );
         }
 
-        let val: BasicValueEnum<'ctx> = self.builder.build_direct_call(
-            self.strcat_fn,
-            &[
-                left_arg.1.into(),
-                right_arg.1.into()
-            ],
-            "concat"
-        ).unwrap_or_else(|_| {
-            GenError::throw(
+        let val: BasicValueEnum<'ctx> = self
+            .builder
+            .build_direct_call(
+                self.strcat_fn,
+                &[left_arg.1.into(), right_arg.1.into()],
+                "concat",
+            )
+            .unwrap_or_else(|_| {
+                GenError::throw(
                     "An error occured while calling `concat` function!",
                     ErrorType::BuildError,
                     self.module_name.clone(),
                     self.module_source.clone(),
-                    line
-            );
-            std::process::exit(1);
-        })
-        .try_as_basic_value()
-        .left()
-        .unwrap_or_else(|| {
-            GenError::throw(
-                "Unable to get basic value from `concat` function!",
-                ErrorType::BuildError,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                line
-            );
-            std::process::exit(1);
-        });
+                    line,
+                );
+                std::process::exit(1);
+            })
+            .try_as_basic_value()
+            .left()
+            .unwrap_or_else(|| {
+                GenError::throw(
+                    "Unable to get basic value from `concat` function!",
+                    ErrorType::BuildError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line,
+                );
+                std::process::exit(1);
+            });
 
         (String::from("str"), val)
 
@@ -1305,49 +1301,44 @@ impl<'a, 'ctx> Compiler<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>,
     ) {
+        let mut fmts: Vec<&str> = Vec::new();
+        let mut values: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
+
         for arg in arguments {
-            let value = self.compile_expression(arg, line, function);
-            let mut output_value = value.1.clone();
+            let compiled_arg = self.compile_expression(arg, line, function);
+            let mut basic_value = compiled_arg.1.clone();
 
-            let format_string = match value.1 {
-                BasicValueEnum::IntValue(int) => match value.0.as_str() {
-                    "int" => self.builder.build_global_string_ptr("%lld\n", "fmt"),
-                    "bool" => {
-                        let true_str = self
-                            .builder
-                            .build_global_string_ptr("true", "true_str")
-                            .unwrap()
-                            .as_pointer_value();
-                        let false_str = self
-                            .builder
-                            .build_global_string_ptr("false", "false_str")
-                            .unwrap()
-                            .as_pointer_value();
+            let format_string = match compiled_arg.0.as_str() {
+                "int" => "%lld",
+                "bool" => {
+                    let true_str = self
+                        .builder
+                        .build_global_string_ptr("true", "true_fmt")
+                        .unwrap()
+                        .as_pointer_value();
 
-                        output_value = self
+                    let false_str = self
+                        .builder
+                        .build_global_string_ptr("false", "false_str")
+                        .unwrap()
+                        .as_pointer_value();
+
+                    if let BasicValueEnum::IntValue(int) = basic_value.clone() {
+                        basic_value = self
                             .builder
-                            .build_select(int, true_str, false_str, "bool_str")
+                            .build_select(int, true_str, false_str, "bool_fmt_str")
                             .unwrap();
+                    }
 
-                        self.builder.build_global_string_ptr("%s\n", "fmt_bool")
-                    }
-                    _ => {
-                        GenError::throw(
-                            format!("Unsupported IntValue `{}`!", value.0),
-                            ErrorType::NotSupported,
-                            self.module_name.clone(),
-                            self.module_source.clone(),
-                            line,
-                        );
-                        std::process::exit(1);
-                    }
-                },
-                BasicValueEnum::PointerValue(_) => {
-                    self.builder.build_global_string_ptr("%s\n", "fmt_str")
+                    "%s"
                 }
+                "str" => "%s",
                 _ => {
                     GenError::throw(
-                        format!("Type `{}` is not supported for print function!", value.0),
+                        format!(
+                            "Type `{}` is not supported for 'print' function!",
+                            compiled_arg.0
+                        ),
                         ErrorType::NotSupported,
                         self.module_name.clone(),
                         self.module_source.clone(),
@@ -1357,21 +1348,37 @@ impl<'a, 'ctx> Compiler<'ctx> {
                 }
             };
 
-            let _ = self.builder.build_call(
-                self.printf_fn,
-                &[
-                    format_string.unwrap().as_pointer_value().into(),
-                    output_value.into(),
-                ],
-                "printf",
-            );
+            fmts.push(format_string);
+            values.push(basic_value.into());
         }
+
+        let complete_fmt_string = self
+            .builder
+            .build_global_string_ptr(format!("{}\n", fmts.join(" ")).as_str(), "printf_fmt_str")
+            .unwrap_or_else(|_| {
+                GenError::throw(
+                    "Unable to create format string for C function!",
+                    ErrorType::BuildError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line,
+                );
+                std::process::exit(1);
+            })
+            .as_pointer_value();
+
+        let mut printf_arguments = vec![complete_fmt_string.into()];
+        let _ = printf_arguments.append(&mut values);
+
+        let _ = self
+            .builder
+            .build_call(self.printf_fn, &printf_arguments, "printf_call");
     }
 
     fn validate_types(&self, types: &[String], expected_type: String) -> bool {
         for typ in types {
             if typ != &expected_type {
-                return false
+                return false;
             }
         }
 

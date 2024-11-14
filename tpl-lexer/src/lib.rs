@@ -5,9 +5,9 @@
 // Check the `LICENSE` file to more info.
 
 pub mod error;
+mod macros;
 pub mod token;
 pub mod token_type;
-mod macros;
 
 use std::collections::HashMap;
 //
@@ -45,15 +45,12 @@ impl Lexer {
                 macros::std_symbol!('/', TokenType::Divide),
                 macros::std_symbol!('=', TokenType::Equal),
                 macros::std_symbol!('!', TokenType::Not),
-
                 macros::std_symbol!('<', TokenType::Lt),
                 macros::std_symbol!('>', TokenType::Bt),
-
                 macros::std_symbol!('.', TokenType::Dot),
                 macros::std_symbol!(',', TokenType::Comma),
                 macros::std_symbol!('"', TokenType::Quote),
                 macros::std_symbol!(';', TokenType::Semicolon),
-
                 macros::std_symbol!('(', TokenType::LParen),
                 macros::std_symbol!(')', TokenType::RParen),
                 macros::std_symbol!('[', TokenType::LBrack),
@@ -65,7 +62,6 @@ impl Lexer {
                 // Built-In Functions
                 macros::std_function!("print"),
                 macros::std_function!("concat"),
-
                 // Constructions
                 macros::std_keyword!("if"),
                 macros::std_keyword!("else"),
@@ -73,18 +69,15 @@ impl Lexer {
                 macros::std_keyword!("for"),
                 macros::std_keyword!("in"),
                 macros::std_keyword!("break"),
-
                 // Functions and Imports
                 macros::std_keyword!("define"),
                 macros::std_keyword!("return"),
                 macros::std_keyword!("import"),
-
                 // Datatypes
                 macros::std_keyword!("int"),
                 macros::std_keyword!("str"),
                 macros::std_keyword!("bool"),
-
-                // Boolean Values 
+                // Boolean Values
                 macros::std_keyword!("true"),
                 macros::std_keyword!("false"),
             ]),

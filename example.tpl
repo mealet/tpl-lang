@@ -1,8 +1,3 @@
-str a = "Hello ";
-str b ="World!";
-
-str c = concat(a, b);
-
-print(c);
-print(a);
-print(b);
+int a = 5;
+int b = 13;
+print("The answer is: ", a + b, " but you can take another opinion :D");

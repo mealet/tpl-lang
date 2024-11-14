@@ -173,9 +173,7 @@ impl Parser {
                     _ => Statements::None,
                 }
             }
-            TokenType::Function => {
-                self.function_call_statement(current.value)
-            }
+            TokenType::Function => self.function_call_statement(current.value),
             TokenType::Identifier => {
                 let next = self.next();
 
@@ -409,8 +407,8 @@ impl Parser {
         };
     }
 
-    // statements 
-    
+    // statements
+
     fn function_call_statement(&mut self, function_name: String) -> Statements {
         let mut current = self.current();
         let line = current.line;
