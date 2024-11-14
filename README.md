@@ -123,8 +123,9 @@ tplc example.tpl output
 
 </details>
 
-## 🤔 Contributing
+## 🤔 Others
+#### Contributing
 Check out our [**Contribution Guide**](CONTRIBUTING.md)
 
-## 💀 License
+#### License
 Project licensed under the BSD-3 License. More information in [**LICENSE**](LICENSE) file
