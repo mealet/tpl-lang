@@ -25,4 +25,4 @@ Before that please ensure the bug wasn't already reported by another user.
 ## Any Questions?
 You can always follow contacts on my site: [Contacts]
 
-<sub>Thank you for your participation in the life of the project! - mealet<sub/>
+*Thank you for your participation in the life of the project! - @mealet*

@@ -123,5 +123,8 @@ tplc example.tpl output
 
 </details>
 
+## 🤔 Contributing
+Check out our [**Contribution Guide**](CONTRIBUTING.md)
+
 ## 💀 License
-Project licensed under the BSD-3 License. More information in [**LICENSE**](https://github.com/mealet/tpl-lang/blob/main/LICENSE) file
+Project licensed under the BSD-3 License. More information in [**LICENSE**](LICENSE) file
