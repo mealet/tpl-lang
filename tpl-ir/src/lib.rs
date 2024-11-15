@@ -15,7 +15,7 @@ use inkwell::{
     context::Context,
     module::Module,
     types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
-    values::{AnyValue, BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue},
+    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue},
 };
 
 use std::collections::HashMap;
@@ -50,8 +50,7 @@ pub struct Compiler<'ctx> {
     imports: HashMap<String, ImportObject>,
 
     // built-in functions
-    printf_fn: FunctionValue<'ctx>,
-    strcat_fn: FunctionValue<'ctx>,
+    built_functions: HashMap<String, FunctionValue<'ctx>>,   
 }
 
 impl<'ctx> Compiler<'ctx> {
@@ -67,7 +66,7 @@ impl<'ctx> Compiler<'ctx> {
         // defining built-in functions
         // printf
 
-        let printf_type = context.i64_type().fn_type(
+        let printf_type = context.void_type().fn_type(
             &[context.ptr_type(inkwell::AddressSpace::default()).into()],
             true,
         );
@@ -84,10 +83,16 @@ impl<'ctx> Compiler<'ctx> {
         let strcat_fn = module.add_function("strcat", strcat_type, None);
 
         // main function creation
-        let i64_type = context.i64_type();
-        let fn_type = i64_type.fn_type(&[], false);
+        let main_fn_type = context.i8_type();
+        let fn_type = main_fn_type.fn_type(&[], false);
         let function = module.add_function("main", fn_type, None);
         let basic_block = context.append_basic_block(function, "entry");
+
+        // collection of build-functions
+        let built_functions = HashMap::from([
+            ("print".to_string(), printf_fn),
+            ("concat".to_string(), strcat_fn)
+        ]);
 
         Compiler {
             module_name: module_filename,
@@ -104,8 +109,7 @@ impl<'ctx> Compiler<'ctx> {
             current_block: basic_block,
             main_function: function,
 
-            printf_fn,
-            strcat_fn,
+            built_functions,
         }
     }
 
@@ -119,7 +123,7 @@ impl<'ctx> Compiler<'ctx> {
         // returning 0
         let _ = self
             .builder
-            .build_return(Some(&self.context.i64_type().const_int(0, false)));
+            .build_return(Some(&self.context.i8_type().const_int(0, false)));
     }
 
     fn switch_block(&mut self, dest: BasicBlock<'ctx>) {
@@ -136,51 +140,87 @@ impl<'ctx> Compiler<'ctx> {
                 value,
                 line,
             } => {
-                let var_type = self.get_basic_type(&datatype, line);
-                let alloca = self
-                    .builder
-                    .build_alloca(var_type, &identifier)
-                    .unwrap_or_else(|_| {
+                if datatype == "auto".to_string() {
+                    let initial_value = value.unwrap_or_else(|| {
                         GenError::throw(
-                            format!(
-                                "Error with creating allocation with identifier `{}`",
-                                &identifier
-                            ),
-                            ErrorType::MemoryError,
-                            self.module_name.clone(),
-                            self.module_source.clone(),
-                            line,
-                        );
-                        std::process::exit(1);
-                    });
-                self.variables.insert(
-                    identifier.clone(),
-                    Variable::new(datatype.clone(), var_type, alloca),
-                );
-
-                if let Some(intial_value) = value {
-                    let compiled_expression =
-                        self.compile_expression(*intial_value, line, function);
-
-                    // matching datatypes
-
-                    if compiled_expression.0 != datatype {
-                        GenError::throw(
-                            format!(
-                                "Type `{}` expected for '{}' variable, but found `{}`!",
-                                datatype,
-                                identifier.clone(),
-                                compiled_expression.0
-                            ),
+                            "Variable with `auto` type cannot be empty!",
                             ErrorType::TypeError,
                             self.module_name.clone(),
                             self.module_source.clone(),
-                            line,
+                            line
                         );
                         std::process::exit(1);
-                    }
+                    });
+
+                    let compiled_expression = self.compile_expression(*initial_value, line, function);
+                    let var_type = self.get_basic_type(compiled_expression.0.as_str(), line);
+                    let alloca = self
+                        .builder
+                        .build_alloca(var_type, &identifier)
+                        .unwrap_or_else(|_| {
+                            GenError::throw(
+                                "Unable to create 'automated' type alloca!",
+                                ErrorType::BuildError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line
+                            );
+                            std::process::exit(1);
+                    });
+
+                    self.variables.insert(
+                        identifier.clone(),
+                        Variable::new(compiled_expression.0, var_type, alloca),
+                    );
 
                     let _ = self.builder.build_store(alloca, compiled_expression.1);
+                } else {
+                    let var_type = self.get_basic_type(&datatype, line);
+                    let alloca = self
+                        .builder
+                        .build_alloca(var_type, &identifier)
+                        .unwrap_or_else(|_| {
+                            GenError::throw(
+                                format!(
+                                    "Error with creating allocation with identifier `{}`",
+                                    &identifier
+                                ),
+                                ErrorType::MemoryError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line,
+                            );
+                            std::process::exit(1);
+                        });
+                    self.variables.insert(
+                        identifier.clone(),
+                        Variable::new(datatype.clone(), var_type, alloca),
+                    );
+
+                    if let Some(intial_value) = value {
+                        let compiled_expression =
+                            self.compile_expression(*intial_value, line, function);
+
+                        // matching datatypes
+
+                        if compiled_expression.0 != datatype {
+                            GenError::throw(
+                                format!(
+                                    "Type `{}` expected for '{}' variable, but found `{}`!",
+                                    datatype,
+                                    identifier.clone(),
+                                    compiled_expression.0
+                                ),
+                                ErrorType::TypeError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line,
+                            );
+                            std::process::exit(1);
+                        }
+
+                        let _ = self.builder.build_store(alloca, compiled_expression.1);
+                    }
                 }
             }
 
@@ -1167,6 +1207,16 @@ impl<'ctx> Compiler<'ctx> {
             // Avaible for assignment built-in functions
             match function_name.as_str() {
                 "concat" => self.build_concat_call(arguments, line, function),
+                "print" => {
+                    GenError::throw(
+                        "Function `print` is 'void' type!",
+                        ErrorType::TypeError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                }
                 _ => {
                     GenError::throw(
                         format!("Function `{}` is not defined!", function_name),
@@ -1191,6 +1241,7 @@ impl<'ctx> Compiler<'ctx> {
                 .context
                 .ptr_type(inkwell::AddressSpace::default())
                 .into(),
+            "auto" => self.context.i8_type().into(),
             _ => {
                 GenError::throw(
                     format!("Unsupported `{}` datatype!", datatype),
@@ -1252,7 +1303,17 @@ impl<'ctx> Compiler<'ctx> {
         let left_arg = self.compile_expression(arguments[0].clone(), line, function);
         let right_arg = self.compile_expression(arguments[1].clone(), line, function);
 
-        dbg!(left_arg.1.print_to_string());
+        let strcat_fn = self.built_functions.get("concat").unwrap_or_else(|| {
+            GenError::throw(
+                "Unable to load `concat` compiler function!",
+                ErrorType::BuildError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        })
+        .clone();
 
         if !self.validate_types(&[left_arg.0, right_arg.0], "str".to_string()) {
             GenError::throw(
@@ -1267,7 +1328,7 @@ impl<'ctx> Compiler<'ctx> {
         let val: BasicValueEnum<'ctx> = self
             .builder
             .build_direct_call(
-                self.strcat_fn,
+                strcat_fn,
                 &[left_arg.1.into(), right_arg.1.into()],
                 "concat",
             )
@@ -1309,6 +1370,17 @@ impl<'ctx> Compiler<'ctx> {
     ) {
         let mut fmts: Vec<&str> = Vec::new();
         let mut values: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
+        let printf_fn = self.built_functions.get("print").unwrap_or_else(|| {
+            GenError::throw(
+                "Unable to load `print` compiler function!",
+                ErrorType::BuildError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        })
+        .clone();
 
         for arg in arguments {
             let compiled_arg = self.compile_expression(arg, line, function);
@@ -1378,7 +1450,7 @@ impl<'ctx> Compiler<'ctx> {
 
         let _ = self
             .builder
-            .build_call(self.printf_fn, &printf_arguments, "printf_call");
+            .build_call(printf_fn, &printf_arguments, "printf_call");
     }
 
     fn validate_types(&self, types: &[String], expected_type: String) -> bool {

@@ -8,8 +8,10 @@ CLIPPY_COMMAND = clippy
 # Compile example and run
 TPL_FILE = example.tpl
 OUTPUT_FILE = out
+CODE_EDITOR = nvim
 
 run:
+	$(CODE_EDITOR) $(TPL_FILE)
 	$(PACKAGE_MANAGER) $(RUN_COMMAND) -- $(TPL_FILE) $(OUTPUT_FILE)
 	./$(OUTPUT_FILE)
 

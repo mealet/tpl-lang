@@ -21,7 +21,7 @@ use value::Value;
 // globals
 
 lazy_static! {
-    static ref DATATYPES: Vec<&'static str> = vec!["int", "str", "bool"];
+    static ref DATATYPES: Vec<&'static str> = vec!["int", "str", "bool", "auto"];
     static ref BINARY_OPERATORS: Vec<TokenType> = vec![
         TokenType::Plus, // +
         TokenType::Minus, // -
@@ -393,6 +393,7 @@ impl Parser {
         // parsing arguments
         let arguments =
             self.expressions_enum(TokenType::LParen, TokenType::RParen, TokenType::Comma);
+
         self.skip_eos();
 
         Expressions::Call {
@@ -942,7 +943,6 @@ impl Parser {
             if current.token_type == separator {
                 let _ = self.next();
             } else if current.token_type == end_token_type {
-                let _ = self.next();
                 break;
             } else {
                 let expression = self.expression();

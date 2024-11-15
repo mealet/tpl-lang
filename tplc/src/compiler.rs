@@ -66,7 +66,7 @@ impl ObjectLinker {
                 let message = format!(
                     "{} Compilation successful!\n{} {}",
                     module.green(),
-                    "|-> output:".green(),
+                    "|-> output binary:".green(),
                     output_file
                 );
 
@@ -78,7 +78,7 @@ impl ObjectLinker {
                     "{} Compilation error! Exit Status: {}. Please open issue at language repo's\n{} {}",
                     module.red(),
                     code,
-                    "|-> output:".red(),
+                    "|-> output binary:".red(),
                     output_file
                 );
 
