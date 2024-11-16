@@ -26,6 +26,18 @@ jobs:
         uses: ZhongRuoyu/setup-llvm@v0
         with:
           llvm-version: 18
+      - name: 📦 LIBXML2 Install (windows)
+        if: runner.os == 'windows-latest'
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          ./bootstrap-vcpkg.bat
+          .\vcpkg\vcpkg install libxml2:x64-windows
+
+      - name: 📦 ZSTD install (macos)
+        if: runner.os == 'macos-latest'
+        run: |
+          brew install zstd
 
       - name: 🦀 Rust Setup
         uses: dtolnay/rust-toolchain@stable
