@@ -8,8 +8,8 @@ env:
 
 jobs:
   build:
-    name: tpl-lang build
-    runs-on: ${{ matrix.os }}
+    name: ¿ Build ${{ matrix.target }} ?
+    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
