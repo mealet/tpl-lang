@@ -27,19 +27,16 @@ jobs:
         with:
           llvm-version: 18
 
-      - name: 📦 Install dependencies
+      - if: runner.os == 'Windows'
         run: |
-           if [ "$RUNNER_OS" == "Windows" ]; then
-                git clone https://github.com/microsoft/vcpkg.git
-                cd vcpkg
-                ./bootstrap-vcpkg.bat
-                .\vcpkg\vcpkg install libxml2:x64-windows
-           if [ "$RUNNER_OS" == "macOs" ]; then
-                brew install zstd
-           else
-             echo "No dependencies needed"
-           fi
-        shell: bash
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          ./bootstrap-vcpkg.bat
+          .\vcpkg\vcpkg install libxml2:x64-windows
+
+      - if: runner.os == "macOs"
+        run: |
+          brew install zstd
 
       - name: 🦀 Rust Setup
         uses: dtolnay/rust-toolchain@stable
