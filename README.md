@@ -28,6 +28,12 @@ Code separated to 4 modules:
 * LLVM Library: [Inkwell]
 * Colored Terminal Library: [Colored]
 
+## 💡 Installation
+1. Install any of these C compilers: `clang`, `gcc`, `cc`.
+2. Download latest version for you'r system from releases/
+3. Unpack it anywhere.
+4. Add to you'r PATH environment (optional).
+
 ## 🦛 Building
 1. Download or clone this repository to your computer.
 2. Install **[Rust]** language.
@@ -42,13 +48,22 @@ cargo build --release
 1. Create file `example.tpl` and open in any code editor
 2. Write code:
 ```c++
-int a = 2; // annotation
-int b = a * 2; // annotation using other variables
-int c = 2 + 2 * 2; // binary operations priority
+int8 a = 2; // annotation 8-bit number
+int16 a = 2; // 16 bit number
+int32 a = 2; // 32 bit number
+int64 a = 2; // 64 bit number
+int128 a = 2; // 128 bit number
+
+auto a = 2; // or auto annotation
+
+int8 b = a * 2; // annotation using other variables
+int8 c = 2 + 2 * 2; // binary operations priority
 
 print(a); // 2
 print(b); // 4
 print(c); // 6
+
+print(a,b,c) // 2 4 6
 
 a = 2 + 2; // assignment
 print(a); // 4
@@ -58,6 +73,10 @@ print(flag); // will print "true"
 
 str greeting = "Hello World!"; // string type
 print(greeting); // "Hello World!"
+
+str greeting_b = " Hello everyone!";
+str result = concat(greeting, greeting_b); // concatenation
+print(result);
 
 // if-else construction
 
@@ -72,7 +91,7 @@ if 2 != 2 {
 };
 
 // loops
-int a = 0;
+int8 a = 0;
 
 while a < 5 {
     a += 1;
@@ -89,7 +108,7 @@ for i in 5 {
 bool test = 1 + 1 == 2;
 
 // defining functions
-define int foo(int a, int b) {
+define int8 foo(int a, int b) {
     print("hello from foo function!");
     return a + b;
 };
@@ -98,7 +117,7 @@ define int foo(int a, int b) {
 foo(4, 2);
 
 // calling functions in variables annotation or assignment
-int a = foo(4, 2);
+int8 a = foo(4, 2);
 a = foo(5, 5);
 ```
 3. Compile it by command:

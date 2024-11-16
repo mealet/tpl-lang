@@ -140,7 +140,7 @@ impl<'ctx> Compiler<'ctx> {
                 value,
                 line,
             } => {
-                if datatype == "auto".to_string() {
+                if datatype == *"auto" {
                     let initial_value = value.unwrap_or_else(|| {
                         GenError::throw(
                             "Variable with `auto` type cannot be empty!",
@@ -152,7 +152,7 @@ impl<'ctx> Compiler<'ctx> {
                         std::process::exit(1);
                     });
 
-                    let compiled_expression = self.compile_expression(*initial_value, line, function);
+                    let compiled_expression = self.compile_expression(*initial_value, line, function, None);
                     let var_type = self.get_basic_type(compiled_expression.0.as_str(), line);
                     let alloca = self
                         .builder
@@ -199,7 +199,7 @@ impl<'ctx> Compiler<'ctx> {
 
                     if let Some(intial_value) = value {
                         let compiled_expression =
-                            self.compile_expression(*intial_value, line, function);
+                            self.compile_expression(*intial_value, line, function, Some(datatype.as_str()));
 
                         // matching datatypes
 
@@ -232,7 +232,7 @@ impl<'ctx> Compiler<'ctx> {
             } => {
                 if let Some(var_ptr) = self.variables.clone().get(&identifier) {
                     if let Some(expr) = value {
-                        let expr_value = self.compile_expression(*expr, line, function);
+                        let expr_value = self.compile_expression(*expr, line, function, Some(var_ptr.str_type.as_str()));
 
                         // matching datatypes
 
@@ -281,7 +281,7 @@ impl<'ctx> Compiler<'ctx> {
                             line,
                         };
 
-                        let expr_value = self.compile_expression(new_expression, line, function);
+                        let expr_value = self.compile_expression(new_expression, line, function, None);
 
                         // matching types
                         if expr_value.0 != var_ptr.str_type {
@@ -447,7 +447,7 @@ impl<'ctx> Compiler<'ctx> {
             }
 
             Statements::ReturnStatement { value, line } => {
-                let compiled_value = self.compile_expression(value, line, function);
+                let compiled_value = self.compile_expression(value, line, function, None);
                 let _ = self.builder.build_return(Some(&compiled_value.1));
             }
 
@@ -606,7 +606,11 @@ impl<'ctx> Compiler<'ctx> {
                 let after_basic_block = self.context.append_basic_block(function, "for_after");
 
                 // init iterable variable
-                let var_type = self.get_basic_type("int", line);
+
+                // getting iterable object type
+                let iterator_vartype = self.compile_expression(iterable_object.clone(), line, function, None).0;
+
+                let var_type = self.get_basic_type(iterator_vartype.as_str(), line);
                 let var_alloca = self
                     .builder
                     .build_alloca(var_type, &varname)
@@ -626,7 +630,7 @@ impl<'ctx> Compiler<'ctx> {
 
                 let _ = self
                     .builder
-                    .build_store(var_alloca, self.context.i64_type().const_zero());
+                    .build_store(var_alloca, var_type.const_zero());
 
                 // setting current position at block `before`
                 if let Some(last_instruction) = self.current_block.get_last_instruction() {
@@ -640,7 +644,7 @@ impl<'ctx> Compiler<'ctx> {
 
                 self.variables.insert(
                     varname.clone(),
-                    Variable::new("int".to_string(), var_type, var_alloca),
+                    Variable::new(iterator_vartype.to_string(), var_type, var_alloca),
                 );
 
                 // creating condition
@@ -814,9 +818,10 @@ impl<'ctx> Compiler<'ctx> {
         expr: Expressions,
         line: usize,
         function: FunctionValue<'ctx>,
+        expected_datatype: Option<&str>
     ) -> (String, BasicValueEnum<'ctx>) {
         match expr.clone() {
-            Expressions::Value(val) => self.compile_value(val, line),
+            Expressions::Value(val) => self.compile_value(val, line, expected_datatype),
             Expressions::Call {
                 function_name,
                 arguments,
@@ -831,15 +836,15 @@ impl<'ctx> Compiler<'ctx> {
                 rhs,
                 line,
             } => {
-                let left = self.compile_expression(*lhs, line, function);
-                let right = self.compile_expression(*rhs, line, function);
+                let left = self.compile_expression(*lhs, line, function, expected_datatype);
+                let right = self.compile_expression(*rhs, line, function, expected_datatype);
 
                 // matching types
                 match left.0.as_str() {
                     // int
-                    "int" => {
+                    "int8" | "int16" | "int32" | "int64" | "int128" => {
                         // checking if all sides are the same type
-                        if right.0 != "int" {
+                        if !["int8", "int16", "int32", "int64", "int128"].contains(&right.0.as_str()) {
                             GenError::throw(
                                 "Left and Right sides must be the same types in Binary Expression!"
                                     .to_string(),
@@ -952,12 +957,64 @@ impl<'ctx> Compiler<'ctx> {
         }
     }
 
-    fn compile_value(&self, value: Value, line: usize) -> (String, BasicValueEnum<'ctx>) {
+    fn compile_value(&self, value: Value, line: usize, expected: Option<&str>) -> (String, BasicValueEnum<'ctx>) {
         match value {
-            Value::Integer(i) => (
-                "int".to_string(),
-                self.context.i64_type().const_int(i as u64, true).into(),
-            ),
+            Value::Integer(i) => {
+                if let Some(exp) = expected {
+                    let basic_type = self.get_basic_type(exp, line).into_int_type();
+                    return (
+                        exp.to_string(),
+                        basic_type.const_int(i as u64, true).into()
+                    )
+                }
+
+                match i {
+                    -255..=255 => {
+                        return (
+                            "int8".to_string(),
+                            self.context.i8_type().const_int(i as u64, true).into(),
+                        )
+                    },
+                    -65_535..65_535 => {
+                        return (
+                            "int16".to_string(),
+                            self.context.i16_type().const_int(i as u64, true).into(),
+                        )
+                    },
+                    -2_147_483_648..2_147_483_648 => {
+                        return (
+                            "int32".to_string(),
+                            self.context.i32_type().const_int(i as u64, true).into(),
+                        )
+                    },
+                    -9_223_372_036_854_775_808..9_223_372_036_854_775_808 => {
+                        return (
+                            "int64".to_string(),
+                            self.context.i64_type().const_int(i as u64, true).into(),
+                        )
+                    },
+                    -170_141_183_460_469_231_731_687_303_715_884_105_728..=170_141_183_460_469_231_731_687_303_715_884_105_727 => {
+                        return (
+                            "int128".to_string(),
+                            self.context.i128_type().const_int(i as u64, true).into(),
+                        )
+                    },
+                    
+                    // Even the compiler says that number bigger 128-bits is unreachable. xD
+
+                    // _ => {
+                    //     GenError::throw(
+                    //         "Provided integer is too big! Max supported type is 128-bit number!",
+                    //         ErrorType::TypeError,
+                    //         self.module_name.clone(),
+                    //         self.module_source.clone(),
+                    //         line
+                    //     );
+                    //     std::process::exit(1);
+                    // }
+                }
+
+            },
             Value::Boolean(b) => (
                 "bool".to_string(),
                 self.context.bool_type().const_int(b as u64, false).into(),
@@ -1024,12 +1081,17 @@ impl<'ctx> Compiler<'ctx> {
                 rhs,
                 line,
             } => {
-                let left = self.compile_expression(*lhs, line, function);
-                let right = self.compile_expression(*rhs, line, function);
+                let left = self.compile_expression(*lhs, line, function, None);
+                let right = self.compile_expression(*rhs, line, function, None);
 
                 // matching same supported types
                 match (left.0.as_str(), right.0.as_str()) {
-                    ("int", "int") => {
+                    ("int8", "int8")
+                    | ("int16", "int16")
+                    | ("int32", "int32")
+                    | ("int64", "int64")
+                    | ("int128", "int128")
+                    => {
                         // matching operand
                         let predicate = match operand.as_str() {
                             ">" => inkwell::IntPredicate::SGT,
@@ -1083,7 +1145,7 @@ impl<'ctx> Compiler<'ctx> {
                 }
             }
             Expressions::Value(val) => {
-                let compiled_value = self.compile_value(val, line);
+                let compiled_value = self.compile_value(val, line, None);
 
                 if compiled_value.0 != "bool" {
                     GenError::throw(
@@ -1143,7 +1205,7 @@ impl<'ctx> Compiler<'ctx> {
             // compiling args
             let compiled_args: Vec<(String, BasicValueEnum<'ctx>)> = arguments
                 .iter()
-                .map(|x| self.compile_expression(x.clone(), line, function))
+                .map(|x| self.compile_expression(x.clone(), line, function, None))
                 .collect();
 
             // matching arguments types
@@ -1235,7 +1297,11 @@ impl<'ctx> Compiler<'ctx> {
 
     fn get_basic_type(&self, datatype: &str, line: usize) -> BasicTypeEnum<'ctx> {
         match datatype {
-            "int" => self.context.i64_type().into(),
+            "int8" => self.context.i8_type().into(),
+            "int16" => self.context.i16_type().into(),
+            "int32" => self.context.i32_type().into(),
+            "int64" => self.context.i64_type().into(),
+            "int128" => self.context.i128_type().into(),
             "bool" => self.context.bool_type().into(),
             "str" => self
                 .context
@@ -1263,7 +1329,11 @@ impl<'ctx> Compiler<'ctx> {
         line: usize,
     ) -> FunctionType<'ctx> {
         match datatype {
-            "int" => self.context.i64_type().fn_type(params, is_var_args),
+            "int8" => self.context.i8_type().fn_type(params, is_var_args),
+            "int16" => self.context.i32_type().fn_type(params, is_var_args),
+            "int32" => self.context.i64_type().fn_type(params, is_var_args),
+            "int64" => self.context.i64_type().fn_type(params, is_var_args),
+            "int128" => self.context.i128_type().fn_type(params, is_var_args),
             "bool" => self.context.bool_type().fn_type(params, is_var_args),
             "str" => self
                 .context
@@ -1300,10 +1370,10 @@ impl<'ctx> Compiler<'ctx> {
             );
         }
 
-        let left_arg = self.compile_expression(arguments[0].clone(), line, function);
-        let right_arg = self.compile_expression(arguments[1].clone(), line, function);
+        let left_arg = self.compile_expression(arguments[0].clone(), line, function, None);
+        let right_arg = self.compile_expression(arguments[1].clone(), line, function, None);
 
-        let strcat_fn = self.built_functions.get("concat").unwrap_or_else(|| {
+        let strcat_fn = *self.built_functions.get("concat").unwrap_or_else(|| {
             GenError::throw(
                 "Unable to load `concat` compiler function!",
                 ErrorType::BuildError,
@@ -1312,8 +1382,7 @@ impl<'ctx> Compiler<'ctx> {
                 line
             );
             std::process::exit(1);
-        })
-        .clone();
+        });
 
         if !self.validate_types(&[left_arg.0, right_arg.0], "str".to_string()) {
             GenError::throw(
@@ -1370,7 +1439,7 @@ impl<'ctx> Compiler<'ctx> {
     ) {
         let mut fmts: Vec<&str> = Vec::new();
         let mut values: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
-        let printf_fn = self.built_functions.get("print").unwrap_or_else(|| {
+        let printf_fn = *self.built_functions.get("print").unwrap_or_else(|| {
             GenError::throw(
                 "Unable to load `print` compiler function!",
                 ErrorType::BuildError,
@@ -1379,15 +1448,18 @@ impl<'ctx> Compiler<'ctx> {
                 line
             );
             std::process::exit(1);
-        })
-        .clone();
+        });
 
         for arg in arguments {
-            let compiled_arg = self.compile_expression(arg, line, function);
+            let compiled_arg = self.compile_expression(arg, line, function, None);
             let mut basic_value = compiled_arg.1;
 
             let format_string = match compiled_arg.0.as_str() {
-                "int" => "%lld",
+                "int8" => "%c",
+                "int16" => "%hd",
+                "int32" => "%d",
+                "int64" => "%lld",
+                "int128" => "%lld",
                 "bool" => {
                     let true_str = self
                         .builder

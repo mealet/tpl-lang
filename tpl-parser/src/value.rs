@@ -7,7 +7,7 @@
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(unused)]
 pub enum Value {
-    Integer(i64),
+    Integer(i128),
     String(String),
     Boolean(bool),
     Identifier(String),

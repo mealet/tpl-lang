@@ -74,8 +74,13 @@ impl Lexer {
                 macros::std_keyword!("return"),
                 macros::std_keyword!("import"),
                 // Datatypes
+                macros::std_keyword!("int8"),
+                macros::std_keyword!("int16"),
+                macros::std_keyword!("int32"),
+                macros::std_keyword!("int64"),
+                macros::std_keyword!("int128"),
+
                 macros::std_keyword!("auto"),
-                macros::std_keyword!("int"),
                 macros::std_keyword!("str"),
                 macros::std_keyword!("bool"),
                 // Boolean Values

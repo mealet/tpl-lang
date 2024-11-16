@@ -13,7 +13,7 @@ use colored::Colorize;
 mod compiler;
 mod greeting;
 
-const OPTIMIZATION_LEVEL: inkwell::OptimizationLevel = inkwell::OptimizationLevel::Default;
+const OPTIMIZATION_LEVEL: inkwell::OptimizationLevel = inkwell::OptimizationLevel::Aggressive;
 const RELOC_MODE: inkwell::targets::RelocMode = inkwell::targets::RelocMode::PIC;
 const CODE_MODEL: inkwell::targets::CodeModel = inkwell::targets::CodeModel::Default;
 

@@ -21,7 +21,17 @@ use value::Value;
 // globals
 
 lazy_static! {
-    static ref DATATYPES: Vec<&'static str> = vec!["int", "str", "bool", "auto"];
+    static ref DATATYPES: Vec<&'static str> = vec![
+        "int8",
+        "int16",
+        "int32",
+        "int64",
+        "int128",
+
+        "str",
+        "bool",
+        "auto"
+    ];
     static ref BINARY_OPERATORS: Vec<TokenType> = vec![
         TokenType::Plus, // +
         TokenType::Minus, // -
@@ -832,7 +842,7 @@ impl Parser {
                                 arguments_tuples.push((name, datatype));
                             }
                             _ => {
-                                self.error("All arguments in definition must be `type name` (example: `int a`)");
+                                self.error("All arguments in definition must be `type name` (example: `int32 a`)");
                                 return Statements::None;
                             }
                         }
