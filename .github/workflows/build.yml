@@ -1,0 +1,44 @@
+name: Build
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  LLVM_SYS_180_PREFIX: ${{ runner.temp }}/llvm
+
+jobs:
+  build:
+    name: tpl-lang build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: 👀 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🖱️ LLVM Install
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: "18.1.6"
+          directory: ${{ runner.temp }}/llvm
+
+      - name: 🦀 Rust Setup
+        uses: tolnay/rust-toolchain@stable
+
+      - name: ⚙️ Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './target'
+
+      - name: 🔨 Project Build
+        run: |
+          cargo build --release
+
+      - name: 📂 Publish Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}
+          path: target/release/tplc?
