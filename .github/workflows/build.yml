@@ -21,7 +21,7 @@ jobs:
       - name: 🖱️ LLVM Install
         uses: KyleMayes/install-llvm-action@v2
         with:
-        version: "18"
+          version: "18"
 
       - name: 🦀 Rust Setup
         uses: dtolnay/rust-toolchain@stable
