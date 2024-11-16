@@ -5,7 +5,6 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  LLVM_SYS_180_PREFIX: ${{ runner.temp }}/llvm
 
 jobs:
   build:
@@ -23,7 +22,6 @@ jobs:
         uses: KyleMayes/install-llvm-action@v2
         with:
           version: "18.1.6"
-          directory: ${{ runner.temp }}/llvm
 
       - name: 🦀 Rust Setup
         uses: tolnay/rust-toolchain@stable
