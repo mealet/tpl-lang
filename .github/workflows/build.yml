@@ -27,7 +27,7 @@ jobs:
         with:
           llvm-version: 18
       - name: 📦 LIBXML2 Install (windows)
-        if: runner.os == 'windows-latest'
+        if: runner.os == 'Windows'
         run: |
           git clone https://github.com/microsoft/vcpkg.git
           cd vcpkg
@@ -35,7 +35,7 @@ jobs:
           .\vcpkg\vcpkg install libxml2:x64-windows
 
       - name: 📦 ZSTD install (macos)
-        if: runner.os == 'macos-latest'
+        if: runner.os == 'macOs'
         run: |
           brew install zstd
 
