@@ -11,8 +11,15 @@ jobs:
     name: tpl-lang build
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - target: x86_64-pc-windows-gnu
+            archive: zip
+          - target: x86_64-unknown-linux-musl
+            archive: tar.gz tar.xz tar.zst
+          - target: x86_64-apple-darwin
+            archive: zip
 
     steps:
       - name: 👀 Checkout Repository
@@ -32,8 +39,12 @@ jobs:
           workspaces: './target'
 
       - name: 🔨 Project Build
-        run: |
-          cargo build --release
+        uses: rust-build/rust-build.action@v1.4.5
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          RUSTTARGET: ${{ matrix.target }}
+          ARCHIVE_TYPES: ${{ matrix.archive }}
 
       - name: 📂 Publish Artifacts
         uses: actions/upload-artifact@v4
