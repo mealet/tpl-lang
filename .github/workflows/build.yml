@@ -19,9 +19,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 🖱️ LLVM Install
-        uses: KyleMayes/install-llvm-action@v2
-        with:
-          version: "18.1.6"
+        uses: FreeMasen/llvm-install-action@v1.0.0
 
       - name: 🦀 Rust Setup
         uses: dtolnay/rust-toolchain@stable
