@@ -28,6 +28,7 @@ jobs:
           llvm-version: 18
 
       - if: runner.os == 'Windows'
+        continue-on-error: true
         run: |
           git clone https://github.com/microsoft/vcpkg.git
           cd vcpkg
@@ -35,6 +36,7 @@ jobs:
           .\vcpkg\vcpkg install libxml2:x64-windows
 
       - if: runner.os == 'macOs'
+        continue-on-error: true
         run: |
           brew install zstd
 
@@ -48,7 +50,7 @@ jobs:
 
       - name: 🔨 Project Build
         run: |
-          cargo build --release
+          RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo build --release
 
       - name: 📂 Publish Artifacts
         uses: actions/upload-artifact@v4
