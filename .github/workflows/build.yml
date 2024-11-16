@@ -24,7 +24,7 @@ jobs:
           version: "18.1.6"
 
       - name: 🦀 Rust Setup
-        uses: tolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@stable
 
       - name: ⚙️ Rust Cache
         uses: swatinem/rust-cache@v2
