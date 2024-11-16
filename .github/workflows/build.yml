@@ -26,18 +26,18 @@ jobs:
         uses: ZhongRuoyu/setup-llvm@v0
         with:
           llvm-version: 18
-      - name: 📦 LIBXML2 Install (windows)
-        if: runner.os == 'Windows'
-        run: |
-          git clone https://github.com/microsoft/vcpkg.git
-          cd vcpkg
-          ./bootstrap-vcpkg.bat
-          .\vcpkg\vcpkg install libxml2:x64-windows
 
-      - name: 📦 ZSTD install (macos)
-        if: runner.os == 'macOs'
+      - name: 📦 Install dependencies
         run: |
-          brew install zstd
+           if [ "$RUNNER_OS" == "Windows" ]; then
+                git clone https://github.com/microsoft/vcpkg.git
+                cd vcpkg
+                ./bootstrap-vcpkg.bat
+                .\vcpkg\vcpkg install libxml2:x64-windows
+           if [ "$RUNNER_OS" == "macOs" ]; then
+                brew install zstd
+           fi
+        shell: bash
 
       - name: 🦀 Rust Setup
         uses: dtolnay/rust-toolchain@stable
