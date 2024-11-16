@@ -36,6 +36,8 @@ jobs:
                 .\vcpkg\vcpkg install libxml2:x64-windows
            if [ "$RUNNER_OS" == "macOs" ]; then
                 brew install zstd
+           else
+             echo "No dependencies needed"
            fi
         shell: bash
 
