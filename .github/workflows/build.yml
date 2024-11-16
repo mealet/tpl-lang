@@ -34,7 +34,7 @@ jobs:
           ./bootstrap-vcpkg.bat
           .\vcpkg\vcpkg install libxml2:x64-windows
 
-      - if: runner.os == "macOs"
+      - if: runner.os == 'macOs'
         run: |
           brew install zstd
 
