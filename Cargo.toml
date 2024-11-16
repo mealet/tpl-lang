@@ -11,3 +11,6 @@ resolver = "2"
 version = "0.3.3"
 authors = ["mealet <workjason34@gmail.com>"]
 description = "Toy Programming Language - simple programming language written in Rust Lang"
+
+[profile.dev]
+opt-level = 3
