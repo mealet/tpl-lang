@@ -8,9 +8,12 @@ members = [
 resolver = "2"
 
 [workspace.package]
+name = "tpl-lang"
 version = "0.3.3"
 authors = ["mealet <workjason34@gmail.com>"]
 description = "Toy Programming Language - simple programming language written in Rust Lang"
+repository = "https://github.com/mealet/tpl-lang"
+license = "BSD-3-Clause"
 
 [profile.dev]
 opt-level = 3
