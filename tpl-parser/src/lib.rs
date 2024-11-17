@@ -10,9 +10,7 @@ pub mod statements;
 pub mod value;
 
 use lazy_static::lazy_static;
-
-use error::ParseErrorHandler;
-use tpl_lexer::{token::Token, token_type::TokenType};
+use error::ParseErrorHandler; use tpl_lexer::{token::Token, token_type::TokenType};
 
 use expressions::Expressions;
 use statements::Statements;
@@ -278,8 +276,7 @@ impl Parser {
                 let identifier = self.next();
 
                 if !self.expect(TokenType::Identifier) {
-                    self.error("Unexpected token found after data-type in expression!");
-                    return Expressions::None;
+                    return Expressions::Value(Value::Keyword(datatype));
                 }
 
                 let _ = self.next();
@@ -292,8 +289,11 @@ impl Parser {
             TokenType::Function => {
                 return self.call_expression(current.value);
             }
+            TokenType::Keyword => {
+                return Expressions::Value(Value::Keyword(current.value));
+            }
             _ => {
-                self.error(format!("Unexpected term {:?} found", self.current().value));
+                self.error(format!("Unexpected term '{:?}' found", self.current().value));
                 let _ = self.next();
                 return Expressions::None;
             }
@@ -311,10 +311,51 @@ impl Parser {
             _ if self.is_binary_operand(current.token_type) => {
                 node = self.binary_expression(node);
             }
+            TokenType::LParen => {
+                if let Expressions::Value(Value::Keyword(keyword)) = node.clone() {
+                    if !DATATYPES.contains(&keyword.as_str()) {
+                        self.error(format!("Unexpected keyword `{}` in expression", keyword));
+                        let _ = self.next();
+                        return Expressions::None;
+                    }
+
+                    let lambda_arguments = self.expressions_enum(TokenType::LParen, TokenType::RParen, TokenType::Comma);
+                    let mut function_statements: Vec<Statements> = Vec::new();
+
+                    if !self.expect(TokenType::LBrace) {
+                        self.error("Expected block after lambda function definition!");
+                        let _ = self.next();
+                        return Expressions::None;
+                    }
+
+                    let _ = self.next();
+
+                    while !self.expect(TokenType::RBrace) {
+                        if self.expect(TokenType::RBrace) {
+                            break;
+                        }
+
+                        function_statements.push(self.statement());
+                    }
+
+                    if self.expect(TokenType::RBrace) {
+                        let _ = self.next();
+                    }
+
+                    return Expressions::Lambda {
+                        arguments: lambda_arguments,
+                        statements: function_statements,
+                        line: current.line
+                    };
+                }
+
+                self.error(format!("Unexpected parentheses in expression found"));
+                let _ = self.next();
+                return Expressions::None;
+            }
             END_STATEMENT => {
                 self.next();
             }
-
             _ => {}
         }
 

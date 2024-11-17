@@ -109,12 +109,12 @@ fn main() {
     };
 
     // creating parser and getting Abstract Syntax Tree
-
+    
     let mut parser = Parser::new(tokens, config.input.clone(), config.source.clone());
     let ast = parser.parse();
 
     // catching errors
-
+    
     match ast {
         Ok(stmts) => {
             // compiling statements to module

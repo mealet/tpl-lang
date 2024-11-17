@@ -11,4 +11,5 @@ pub enum Value {
     String(String),
     Boolean(bool),
     Identifier(String),
+    Keyword(String)
 }

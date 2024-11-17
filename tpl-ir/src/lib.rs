@@ -855,6 +855,23 @@ impl<'ctx> Compiler<'ctx> {
                 // calling and taking value from user defined function
                 return self.fn_call(function_name, arguments, line, function);
             }
+            Expressions::Lambda {
+                arguments,
+                statements,
+                line
+            } => {
+                let _ = arguments;
+                let _ = statements;
+
+                GenError::throw(
+                    "Lambda functions isn't supported for now :(\nBut you can help to implement this on project's github:\nhttps://github.com/mealet/tpl-lang",
+                    ErrorType::NotSupported,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line
+                );
+                std::process::exit(1);
+            }
             Expressions::Binary {
                 operand,
                 lhs,
@@ -1093,6 +1110,7 @@ impl<'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
             }
+            _ => todo!()
         }
     }
 
