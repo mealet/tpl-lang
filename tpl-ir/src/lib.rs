@@ -124,6 +124,17 @@ impl<'ctx> Compiler<'ctx> {
         let _ = self
             .builder
             .build_return(Some(&self.context.i8_type().const_int(0, false)));
+
+        if !self.main_function.verify(true) {
+            GenError::throw(
+                "Verification failure for `main` function! Please remove all returns blocks outside definitions!",
+                ErrorType::VerificationFailure,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                0
+            );
+            std::process::exit(1);
+        }
     }
 
     fn switch_block(&mut self, dest: BasicBlock<'ctx>) {
@@ -394,7 +405,7 @@ impl<'ctx> Compiler<'ctx> {
                     function_name.clone(),
                     Function {
                         name: function_name.clone(),
-                        function_type,
+                        function_type: function_type.clone(),
                         function_value: function,
                         arguments_types,
                     },
@@ -406,14 +417,28 @@ impl<'ctx> Compiler<'ctx> {
                 }
 
                 if !function.verify(false) {
-                    GenError::throw(
-                        format!("Function `{}` failed verification! Here's the possible reasons:\n* Function doesn't returns value or returns wrong value's type.\n* Function have branches after returning a value.\n* Function doesn't matches types, or matches wrong.\nPlease check your code or open issue on github repo!", &function_name),
-                        ErrorType::VerificationFailure,
-                        self.module_name.clone(),
-                        self.module_source.clone(),
-                        line
-                    );
-                    std::process::exit(1);
+                    if function_type == "void" {
+                        self.builder.build_return(None)
+                            .unwrap_or_else(|_| {
+                                GenError::throw(
+                                    format!("An error occured with wrapping void '{}' function!\nPlease open an issue on project's repo!", function_name),
+                                    ErrorType::BuildError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line
+                                );
+                                std::process::exit(1);
+                            });
+                    } else {
+                        GenError::throw(
+                            format!("Function `{}` failed verification! Here's the possible reasons:\n* Function doesn't returns value or returns wrong value's type.\n* Function have branches after returning a value.\n* Function doesn't matches types, or matches wrong.\nPlease check your code or open issue on github repo!", &function_name),
+                            ErrorType::VerificationFailure,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line
+                        );
+                        std::process::exit(1);
+                    }
                 }
 
                 // and switching to old position
@@ -961,11 +986,14 @@ impl<'ctx> Compiler<'ctx> {
         match value {
             Value::Integer(i) => {
                 if let Some(exp) = expected {
-                    let basic_type = self.get_basic_type(exp, line).into_int_type();
-                    return (
-                        exp.to_string(),
-                        basic_type.const_int(i as u64, true).into()
-                    )
+                    if exp != "void" {
+                        let basic_type = self.get_basic_type(exp, line).into_int_type();
+
+                        return (
+                            exp.to_string(),
+                            basic_type.const_int(i as u64, true).into()
+                        );
+                    }
                 }
 
                 match i {
@@ -1260,8 +1288,12 @@ impl<'ctx> Compiler<'ctx> {
                 .try_as_basic_value()
                 .left()
                 .unwrap_or_else(|| {
-                    GenError::throw("Error with compiling function's returned value to basic datatype! Please open issue on github repo!", ErrorType::BuildError, self.module_name.clone(), self.module_source.clone(), line);
-                    std::process::exit(1);
+                    if func.function_type == "void" {
+                        self.context.i8_type().const_zero().into()
+                    } else {
+                        GenError::throw("Error with compiling function's returned value to basic datatype! Please open issue on github repo!", ErrorType::BuildError, self.module_name.clone(), self.module_source.clone(), line);
+                        std::process::exit(1);
+                    }
                 });
 
             (func.function_type.clone(), call_result)
@@ -1308,6 +1340,9 @@ impl<'ctx> Compiler<'ctx> {
                 .ptr_type(inkwell::AddressSpace::default())
                 .into(),
             "auto" => self.context.i8_type().into(),
+            "void" => self.context.i8_type().into(),
+            // Yep, this seems like a very bad idea, but
+            // `void` type requires AnyTypeEnum, which is not allowed for alloca
             _ => {
                 GenError::throw(
                     format!("Unsupported `{}` datatype!", datatype),
@@ -1335,6 +1370,7 @@ impl<'ctx> Compiler<'ctx> {
             "int64" => self.context.i64_type().fn_type(params, is_var_args),
             "int128" => self.context.i128_type().fn_type(params, is_var_args),
             "bool" => self.context.bool_type().fn_type(params, is_var_args),
+            "void" => self.context.void_type().fn_type(params, is_var_args),
             "str" => self
                 .context
                 .ptr_type(inkwell::AddressSpace::default())
@@ -1453,6 +1489,10 @@ impl<'ctx> Compiler<'ctx> {
         for arg in arguments {
             let compiled_arg = self.compile_expression(arg, line, function, None);
             let mut basic_value = compiled_arg.1;
+
+            if compiled_arg.0 == String::from("void") {
+                continue;
+            }
 
             let format_string = match compiled_arg.0.as_str() {
                 "int8" => "%c",

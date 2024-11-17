@@ -30,7 +30,9 @@ lazy_static! {
 
         "str",
         "bool",
-        "auto"
+
+        "auto",
+        "void"
     ];
     static ref BINARY_OPERATORS: Vec<TokenType> = vec![
         TokenType::Plus, // +

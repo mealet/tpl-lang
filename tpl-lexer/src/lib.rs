@@ -81,6 +81,8 @@ impl Lexer {
                 macros::std_keyword!("int128"),
 
                 macros::std_keyword!("auto"),
+                macros::std_keyword!("void"),
+
                 macros::std_keyword!("str"),
                 macros::std_keyword!("bool"),
                 // Boolean Values
