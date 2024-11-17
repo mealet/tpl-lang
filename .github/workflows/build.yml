@@ -39,6 +39,11 @@ jobs:
         continue-on-error: true
         run: |
           brew install zstd
+          
+      - if: runner.os == 'macOs'
+        continue-on-error: true
+        run: |
+          zstd
 
       - name: 🦀 Rust Setup
         uses: dtolnay/rust-toolchain@stable
@@ -50,7 +55,7 @@ jobs:
 
       - name: 🔨 Project Build
         run: |
-          RUSTFLAGS="-C link-arg=-fuse-ld=lld" cargo build --release
+          cargo build --release
 
       - name: 📂 Publish Artifacts
         uses: actions/upload-artifact@v4
