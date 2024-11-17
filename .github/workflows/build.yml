@@ -1,0 +1,59 @@
+name: Build
+
+on:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: • ${{ matrix.target }}
+    runs-on: ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: ubuntu-latest
+          - target: windows-latest
+          - target: macos-latest
+
+    steps:
+      - name: 👀 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🖱️ LLVM Install
+        uses: ZhongRuoyu/setup-llvm@v0
+        with:
+          llvm-version: 18
+
+      - if: runner.os == 'Windows'
+        continue-on-error: true
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          ./bootstrap-vcpkg.bat
+          ./vcpkg install libxml2:x64-windows
+
+      - if: runner.os == 'macOs'
+        continue-on-error: true
+        run: |
+          brew install zstd
+
+      - name: 🦀 Rust Setup
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: ⚙️ Rust Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: './target'
+
+      - name: 🔨 Project Build
+        run: |
+          cargo build --release
+
+      - name: 📂 Publish Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: ./target/release/
