@@ -49,22 +49,17 @@ impl GenError {
 
         let red_side_fmt = format!("[CodeGen][{}][{}]:", error_type, module_name).red();
         let line_fmt = format!(
-                "{}{}\n {} {} {}\n{}{}",
-                " ".repeat(line_number_len + 2),
-                "|".cyan(),
-                line + 1,
-                "|".cyan(),
-                fetched_line,
-                " ".repeat(line_number_len + 2),
-                "|".cyan()
+            "{}{}\n {} {} {}\n{}{}",
+            " ".repeat(line_number_len + 2),
+            "|".cyan(),
+            line + 1,
+            "|".cyan(),
+            fetched_line,
+            " ".repeat(line_number_len + 2),
+            "|".cyan()
         );
 
-        format!(
-            "{} {}\n{}",
-            red_side_fmt,
-            description,
-            line_fmt
-        )
+        format!("{} {}\n{}", red_side_fmt, description, line_fmt)
     }
 }
 

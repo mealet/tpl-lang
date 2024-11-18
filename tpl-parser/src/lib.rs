@@ -9,8 +9,9 @@ pub mod expressions;
 pub mod statements;
 pub mod value;
 
+use error::ParseErrorHandler;
 use lazy_static::lazy_static;
-use error::ParseErrorHandler; use tpl_lexer::{token::Token, token_type::TokenType};
+use tpl_lexer::{token::Token, token_type::TokenType};
 
 use expressions::Expressions;
 use statements::Statements;
@@ -294,7 +295,10 @@ impl Parser {
                 return Expressions::Value(Value::Keyword(current.value));
             }
             _ => {
-                self.error(format!("Unexpected term '{:?}' found", self.current().value));
+                self.error(format!(
+                    "Unexpected term '{:?}' found",
+                    self.current().value
+                ));
                 let _ = self.next();
                 return Expressions::None;
             }
@@ -320,7 +324,11 @@ impl Parser {
                         return Expressions::None;
                     }
 
-                    let lambda_arguments = self.expressions_enum(TokenType::LParen, TokenType::RParen, TokenType::Comma);
+                    let lambda_arguments = self.expressions_enum(
+                        TokenType::LParen,
+                        TokenType::RParen,
+                        TokenType::Comma,
+                    );
                     let lambda_type = keyword;
                     let mut function_statements: Vec<Statements> = Vec::new();
 
@@ -365,11 +373,11 @@ impl Parser {
                         arguments: arguments_tuples,
                         statements: function_statements,
                         ftype: lambda_type,
-                        line: current.line
+                        line: current.line,
                     };
                 }
 
-                self.error(format!("Unexpected parentheses in expression found"));
+                self.error("Unexpected parentheses in expression found".to_string());
                 let _ = self.next();
                 return Expressions::None;
             }
@@ -541,7 +549,7 @@ impl Parser {
 
                     return Statements::None;
                 }
-                
+
                 let _ = self.next();
                 datatype = format!("{}<{}>", datatype, subtype);
             }

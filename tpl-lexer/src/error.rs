@@ -101,17 +101,17 @@ impl LexerError {
         let line_number_length = self.line_number.to_string().len();
         let filename_fmt = format!("--> {}", self.filename).cyan();
         let lines_fmt = format!(
-                "{}{}\n {} {} {}\n{}{}",
-                // first line
-                " ".repeat(line_number_length + 2),
-                "|".cyan(),
-                // number + line data
-                self.line_number,
-                "|".cyan(),
-                self.line,
-                // last line
-                " ".repeat(line_number_length + 2),
-                "|".cyan(),
+            "{}{}\n {} {} {}\n{}{}",
+            // first line
+            " ".repeat(line_number_length + 2),
+            "|".cyan(),
+            // number + line data
+            self.line_number,
+            "|".cyan(),
+            self.line,
+            // last line
+            " ".repeat(line_number_length + 2),
+            "|".cyan(),
         );
 
         format!(

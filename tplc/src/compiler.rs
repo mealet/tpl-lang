@@ -59,7 +59,7 @@ impl ObjectLinker {
             }
         }
 
-        return Err(())
+        Err(())
     }
 
     pub fn compile(input_file: &String, output_file: &String) {

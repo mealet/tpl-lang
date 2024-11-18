@@ -35,7 +35,7 @@ pub enum Expressions {
         arguments: Vec<(String, String)>,
         statements: Vec<Statements>,
         ftype: String,
-        line: usize
+        line: usize,
     },
     Value(Value),
     None,
