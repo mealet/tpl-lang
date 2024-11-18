@@ -30,7 +30,8 @@ lazy_static! {
         "bool",
 
         "auto",
-        "void"
+        "void",
+        "fn"
     ];
     static ref BINARY_OPERATORS: Vec<TokenType> = vec![
         TokenType::Plus, // +
@@ -320,7 +321,25 @@ impl Parser {
                     }
 
                     let lambda_arguments = self.expressions_enum(TokenType::LParen, TokenType::RParen, TokenType::Comma);
+                    let lambda_type = keyword;
                     let mut function_statements: Vec<Statements> = Vec::new();
+
+                    let mut arguments_tuples = Vec::new();
+
+                    // checking for right arguments definition
+                    if !lambda_arguments.is_empty() {
+                        for arg in lambda_arguments {
+                            match arg {
+                                Expressions::Argument { name, datatype } => {
+                                    arguments_tuples.push((name, datatype));
+                                }
+                                _ => {
+                                    self.error("All arguments in definition must be `type name` (example: `int32 a`)");
+                                    return Expressions::None;
+                                }
+                            }
+                        }
+                    }
 
                     if !self.expect(TokenType::LBrace) {
                         self.error("Expected block after lambda function definition!");
@@ -343,8 +362,9 @@ impl Parser {
                     }
 
                     return Expressions::Lambda {
-                        arguments: lambda_arguments,
+                        arguments: arguments_tuples,
                         statements: function_statements,
+                        ftype: lambda_type,
                         line: current.line
                     };
                 }
@@ -495,8 +515,36 @@ impl Parser {
         let line = self.current().line;
 
         if DATATYPES.contains(&self.current().value.as_str()) {
-            let datatype = self.current().value;
+            let mut datatype = self.current().value;
             let _ = self.next();
+
+            if self.expect(TokenType::Lt) {
+                // example: fn<int32>
+
+                // In future there must be a special function for parsing nested datatypes
+
+                let _ = self.next();
+
+                if !self.expect(TokenType::Keyword) {
+                    self.error("Unexpected nested datatype found!");
+                    self.next();
+
+                    return Statements::None;
+                }
+
+                let subtype = self.current().value;
+                let _ = self.next();
+
+                if !self.expect(TokenType::Bt) {
+                    self.error("Wrong nested type definition! Must be like: fn<int32>");
+                    self.next();
+
+                    return Statements::None;
+                }
+                
+                let _ = self.next();
+                datatype = format!("{}<{}>", datatype, subtype);
+            }
 
             if !self.expect(TokenType::Identifier) {
                 self.error("Identifier expected after type keyword!");

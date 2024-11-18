@@ -10,6 +10,7 @@ mod import;
 mod variable;
 
 use inkwell::{
+    AddressSpace,
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
@@ -28,6 +29,7 @@ use variable::Variable;
 use tpl_parser::{expressions::Expressions, statements::Statements, value::Value};
 
 const TEST_OPERATORS: [&str; 4] = [">", "<", "==", "!="];
+const LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
 
 #[derive(Debug)]
 pub struct Compiler<'ctx> {
@@ -51,6 +53,10 @@ pub struct Compiler<'ctx> {
 
     // built-in functions
     built_functions: HashMap<String, FunctionValue<'ctx>>,   
+
+    // tech
+    current_expectation_value: Option<String>,
+    current_assign_function: Option<Function<'ctx>>
 }
 
 impl<'ctx> Compiler<'ctx> {
@@ -67,16 +73,16 @@ impl<'ctx> Compiler<'ctx> {
         // printf
 
         let printf_type = context.void_type().fn_type(
-            &[context.ptr_type(inkwell::AddressSpace::default()).into()],
+            &[context.ptr_type(AddressSpace::default()).into()],
             true,
         );
         let printf_fn = module.add_function("printf", printf_type, None);
 
         // strcat
-        let strcat_type = context.ptr_type(inkwell::AddressSpace::default()).fn_type(
+        let strcat_type = context.ptr_type(AddressSpace::default()).fn_type(
             &[
-                context.ptr_type(inkwell::AddressSpace::default()).into(),
-                context.ptr_type(inkwell::AddressSpace::default()).into(),
+                context.ptr_type(AddressSpace::default()).into(),
+                context.ptr_type(AddressSpace::default()).into(),
             ],
             true,
         );
@@ -110,6 +116,8 @@ impl<'ctx> Compiler<'ctx> {
             main_function: function,
 
             built_functions,
+            current_expectation_value: None,
+            current_assign_function: None
         }
     }
 
@@ -163,7 +171,7 @@ impl<'ctx> Compiler<'ctx> {
                         std::process::exit(1);
                     });
 
-                    let compiled_expression = self.compile_expression(*initial_value, line, function, None);
+                    let compiled_expression = self.compile_expression(*initial_value, line, function, self.current_expectation_value.clone());
                     let var_type = self.get_basic_type(compiled_expression.0.as_str(), line);
                     let alloca = self
                         .builder
@@ -179,9 +187,10 @@ impl<'ctx> Compiler<'ctx> {
                             std::process::exit(1);
                     });
 
+
                     self.variables.insert(
                         identifier.clone(),
-                        Variable::new(compiled_expression.0, var_type, alloca),
+                        Variable::new(compiled_expression.0, var_type, alloca, None),
                     );
 
                     let _ = self.builder.build_store(alloca, compiled_expression.1);
@@ -202,15 +211,18 @@ impl<'ctx> Compiler<'ctx> {
                                 line,
                             );
                             std::process::exit(1);
-                        });
+                    });
+
+                    let assigned_function = self.current_assign_function.clone();
+
                     self.variables.insert(
                         identifier.clone(),
-                        Variable::new(datatype.clone(), var_type, alloca),
+                        Variable::new(datatype.clone(), var_type, alloca, assigned_function),
                     );
 
                     if let Some(intial_value) = value {
                         let compiled_expression =
-                            self.compile_expression(*intial_value, line, function, Some(datatype.as_str()));
+                            self.compile_expression(*intial_value, line, function, Some(datatype.clone()));
 
                         // matching datatypes
 
@@ -231,6 +243,15 @@ impl<'ctx> Compiler<'ctx> {
                         }
 
                         let _ = self.builder.build_store(alloca, compiled_expression.1);
+
+                        // rewriting variable for assigning function
+
+                        if datatype.starts_with("fn") {
+                            self.variables.insert(
+                                identifier.clone(),
+                                Variable::new(datatype.clone(), var_type, alloca, self.current_assign_function.clone()),
+                            );
+                        }
                     }
                 }
             }
@@ -243,7 +264,7 @@ impl<'ctx> Compiler<'ctx> {
             } => {
                 if let Some(var_ptr) = self.variables.clone().get(&identifier) {
                     if let Some(expr) = value {
-                        let expr_value = self.compile_expression(*expr, line, function, Some(var_ptr.str_type.as_str()));
+                        let expr_value = self.compile_expression(*expr, line, function, Some(var_ptr.str_type.clone()));
 
                         // matching datatypes
 
@@ -292,7 +313,7 @@ impl<'ctx> Compiler<'ctx> {
                             line,
                         };
 
-                        let expr_value = self.compile_expression(new_expression, line, function, None);
+                        let expr_value = self.compile_expression(new_expression, line, function, self.current_expectation_value.clone());
 
                         // matching types
                         if expr_value.0 != var_ptr.str_type {
@@ -323,133 +344,13 @@ impl<'ctx> Compiler<'ctx> {
                 block,
                 line,
             } => {
-                // compiling args types
-                let mut args: Vec<BasicMetadataTypeEnum<'ctx>> = Vec::new();
-                for item in arguments.clone() {
-                    let arg = self.get_basic_type(item.1.as_str(), line);
-                    args.push(arg.into())
-                }
-
-                // creating function type
-                let fn_type = self.get_fn_type(function_type.as_str(), &args, false, line);
-
-                // adding function
-                let function = self
-                    .module
-                    .add_function(function_name.as_str(), fn_type, None);
-
-                // creating entry point into function
-                let entry = self.context.append_basic_block(function, "entry");
-
-                // storing old builder position and switching to new
-                let old_position = self.current_block;
-                self.builder.position_at_end(entry);
-
-                // storing arguments values to variables
-                let mut old_variables = HashMap::new();
-
-                for (index, arg) in arguments.iter().enumerate() {
-                    let varname = arg.0.clone();
-                    let arg_value = function.get_nth_param(index as u32).unwrap_or_else(|| {
-                        GenError::throw(
-                            format!("An error occured with fetching parameter while defining `{}` function!", function_name),
-                            ErrorType::BuildError,
-                            self.module_name.clone(),
-                            self.module_source.clone(),
-                            line
-                        );
-                        std::process::exit(1);
-                    });
-                    let old_value = self.variables.remove(&varname);
-                    old_variables.insert(varname.clone(), old_value);
-
-                    // storing value
-                    let parameter_type = self.get_basic_type(arg.1.as_str(), line);
-                    let parameter_alloca = self
-                        .builder
-                        .build_alloca(
-                            parameter_type,
-                            format!("{}_param_{}", function_name, index).as_str(),
-                        )
-                        .unwrap_or_else(|_| {
-                            GenError::throw(
-                                format!(
-                                    "An error occured with creating alloca for parameter `{}`!",
-                                    varname.clone()
-                                ),
-                                ErrorType::BuildError,
-                                self.module_name.clone(),
-                                self.module_source.clone(),
-                                line,
-                            );
-                            std::process::exit(1);
-                        });
-
-                    let _ = self.builder.build_store(parameter_alloca, arg_value);
-
-                    // and inserting variables pointers to main hashmap
-                    self.variables.insert(
-                        varname,
-                        Variable::new(arg.1.clone(), parameter_type, parameter_alloca),
-                    );
-                }
-
-                // storing function to compiler
-                // NOTE: Storing function moved before statements to correct recursion work
-                let mut arguments_types = Vec::new();
-                for arg in arguments {
-                    arguments_types.push(arg.1);
-                }
-
-                self.functions.insert(
-                    function_name.clone(),
-                    Function {
-                        name: function_name.clone(),
-                        function_type: function_type.clone(),
-                        function_value: function,
-                        arguments_types,
-                    },
+                self.define_user_function(
+                    function_name,
+                    function_type,
+                    arguments,
+                    block,
+                    line
                 );
-
-                // compiling statements
-                for stmt in block {
-                    self.compile_statement(stmt, function);
-                }
-
-                if !function.verify(false) {
-                    if function_type == "void" {
-                        self.builder.build_return(None)
-                            .unwrap_or_else(|_| {
-                                GenError::throw(
-                                    format!("An error occured with wrapping void '{}' function!\nPlease open an issue on project's repo!", function_name),
-                                    ErrorType::BuildError,
-                                    self.module_name.clone(),
-                                    self.module_source.clone(),
-                                    line
-                                );
-                                std::process::exit(1);
-                            });
-                    } else {
-                        GenError::throw(
-                            format!("Function `{}` failed verification! Here's the possible reasons:\n* Function doesn't returns value or returns wrong value's type.\n* Function have branches after returning a value.\n* Function doesn't matches types, or matches wrong.\nPlease check your code or open issue on github repo!", &function_name),
-                            ErrorType::VerificationFailure,
-                            self.module_name.clone(),
-                            self.module_source.clone(),
-                            line
-                        );
-                        std::process::exit(1);
-                    }
-                }
-
-                // and switching to old position
-                self.builder.position_at_end(old_position);
-
-                // returning old variables
-                for opt in old_variables {
-                    if let Some(value) = opt.1 {
-                        self.variables.insert(opt.0, value);
-                    }
-                }
             }
 
             Statements::FunctionCallStatement {
@@ -472,7 +373,7 @@ impl<'ctx> Compiler<'ctx> {
             }
 
             Statements::ReturnStatement { value, line } => {
-                let compiled_value = self.compile_expression(value, line, function, None);
+                let compiled_value = self.compile_expression(value, line, function, self.current_expectation_value.clone());
                 let _ = self.builder.build_return(Some(&compiled_value.1));
             }
 
@@ -633,7 +534,7 @@ impl<'ctx> Compiler<'ctx> {
                 // init iterable variable
 
                 // getting iterable object type
-                let iterator_vartype = self.compile_expression(iterable_object.clone(), line, function, None).0;
+                let iterator_vartype = self.compile_expression(iterable_object.clone(), line, function, self.current_expectation_value.clone()).0;
 
                 let var_type = self.get_basic_type(iterator_vartype.as_str(), line);
                 let var_alloca = self
@@ -669,7 +570,7 @@ impl<'ctx> Compiler<'ctx> {
 
                 self.variables.insert(
                     varname.clone(),
-                    Variable::new(iterator_vartype.to_string(), var_type, var_alloca),
+                    Variable::new(iterator_vartype.to_string(), var_type, var_alloca, None),
                 );
 
                 // creating condition
@@ -843,7 +744,7 @@ impl<'ctx> Compiler<'ctx> {
         expr: Expressions,
         line: usize,
         function: FunctionValue<'ctx>,
-        expected_datatype: Option<&str>
+        expected_datatype: Option<String>
     ) -> (String, BasicValueEnum<'ctx>) {
         match expr.clone() {
             Expressions::Value(val) => self.compile_value(val, line, expected_datatype),
@@ -858,19 +759,23 @@ impl<'ctx> Compiler<'ctx> {
             Expressions::Lambda {
                 arguments,
                 statements,
+                ftype,
                 line
             } => {
-                let _ = arguments;
-                let _ = statements;
-
-                GenError::throw(
-                    "Lambda functions isn't supported for now :(\nBut you can help to implement this on project's github:\nhttps://github.com/mealet/tpl-lang",
-                    ErrorType::NotSupported,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
+                let func = self.define_user_function(
+                    LAMBDA_NAME.to_string(),
+                    ftype.clone(),
+                    arguments,
+                    statements,
                     line
                 );
-                std::process::exit(1);
+
+                self.current_assign_function = Some(func);
+
+                (
+                    format!("fn<{}>", ftype),
+                    self.context.i8_type().const_zero().into()
+                )
             }
             Expressions::Binary {
                 operand,
@@ -878,7 +783,7 @@ impl<'ctx> Compiler<'ctx> {
                 rhs,
                 line,
             } => {
-                let left = self.compile_expression(*lhs, line, function, expected_datatype);
+                let left = self.compile_expression(*lhs, line, function, expected_datatype.clone());
                 let right = self.compile_expression(*rhs, line, function, expected_datatype);
 
                 // matching types
@@ -999,12 +904,12 @@ impl<'ctx> Compiler<'ctx> {
         }
     }
 
-    fn compile_value(&self, value: Value, line: usize, expected: Option<&str>) -> (String, BasicValueEnum<'ctx>) {
+    fn compile_value(&self, value: Value, line: usize, expected: Option<String>) -> (String, BasicValueEnum<'ctx>) {
         match value {
             Value::Integer(i) => {
                 if let Some(exp) = expected {
                     if exp != "void" {
-                        let basic_type = self.get_basic_type(exp, line).into_int_type();
+                        let basic_type = self.get_basic_type(exp.as_str(), line).into_int_type();
 
                         return (
                             exp.to_string(),
@@ -1127,8 +1032,8 @@ impl<'ctx> Compiler<'ctx> {
                 rhs,
                 line,
             } => {
-                let left = self.compile_expression(*lhs, line, function, None);
-                let right = self.compile_expression(*rhs, line, function, None);
+                let left = self.compile_expression(*lhs, line, function, self.current_expectation_value.clone());
+                let right = self.compile_expression(*rhs, line, function, self.current_expectation_value.clone());
 
                 // matching same supported types
                 match (left.0.as_str(), right.0.as_str()) {
@@ -1230,95 +1135,11 @@ impl<'ctx> Compiler<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
-        if let Some(func) = self.functions.clone().get(&function_name) {
-            // compiling args len
-            if arguments.len() != func.arguments_types.len() {
-                GenError::throw(
-                    format!(
-                        "Function `{}` has {} arguments, but {} found!",
-                        function_name,
-                        func.arguments_types.len(),
-                        arguments.len()
-                    ),
-                    ErrorType::NotExpected,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
-            }
+        let mut is_var_stored = false;
 
-            // compiling args
-            let compiled_args: Vec<(String, BasicValueEnum<'ctx>)> = arguments
-                .iter()
-                .map(|x| self.compile_expression(x.clone(), line, function, None))
-                .collect();
-
-            // matching arguments types
-            let mut arguments_error = false;
-            let mut arguments_types = Vec::new();
-
-            let mut values: Vec<BasicMetadataValueEnum> = Vec::new();
-
-            for (index, arg) in compiled_args.iter().enumerate() {
-                if arg.0 != func.arguments_types[index] {
-                    arguments_error = true;
-                } else {
-                    values.push(arg.1.into());
-                }
-
-                arguments_types.push(arg.0.clone());
-            }
-
-            if arguments_error {
-                GenError::throw(
-                    format!(
-                        "Function `{}` expected arguments types [{}], but found [{}]!",
-                        func.name,
-                        func.arguments_types.clone().join(", "),
-                        arguments_types.join(", "),
-                    ),
-                    ErrorType::TypeError,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
-            }
-
-            // calling function
-            let call_result = self.builder
-                .build_call(
-                    func.function_value,
-                    &values,
-                    format!("{}_call", &func.name).as_str(),
-                )
-                .unwrap_or_else(|_| {
-                    GenError::throw(
-                        format!("An error occured while calling `{}` function!", &func.name),
-                        ErrorType::BuildError,
-                        self.module_name.clone(),
-                        self.module_source.clone(),
-                        line,
-                    );
-                    std::process::exit(1);
-                })
-                .try_as_basic_value()
-                .left()
-                .unwrap_or_else(|| {
-                    if func.function_type == "void" {
-                        self.context.i8_type().const_zero().into()
-                    } else {
-                        GenError::throw("Error with compiling function's returned value to basic datatype! Please open issue on github repo!", ErrorType::BuildError, self.module_name.clone(), self.module_source.clone(), line);
-                        std::process::exit(1);
-                    }
-                });
-
-            (func.function_type.clone(), call_result)
-        } else {
-            // Avaible for assignment built-in functions
+        if !self.functions.contains_key(&function_name) {
             match function_name.as_str() {
-                "concat" => self.build_concat_call(arguments, line, function),
+                "concat" => return self.build_concat_call(arguments, line, function),
                 "print" => {
                     GenError::throw(
                         "Function `print` is 'void' type!",
@@ -1330,23 +1151,141 @@ impl<'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
                 _ => {
-                    GenError::throw(
-                        format!("Function `{}` is not defined!", function_name),
-                        ErrorType::NotDefined,
-                        self.module_name.clone(),
-                        self.module_source.clone(),
-                        line,
-                    );
+                    if let Some(var) = self.variables.get(&function_name) {
+                        if var.assigned_function.is_some() {
+                            is_var_stored = true;
+                        } else {
+                            GenError::throw(
+                                format!("Variable `{}` is not a function!", function_name),
+                                ErrorType::TypeError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line
+                            );
+                            std::process::exit(1);
+                        }
+                    } else {
+                        GenError::throw(
+                            format!("Function `{}` is not defined!", function_name),
+                            ErrorType::NotDefined,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            };
+        }
+
+        let func = if is_var_stored {
+            self.variables.get(&function_name).unwrap().clone().assigned_function.unwrap()
+        } else { self.functions.get(&function_name).unwrap().clone() };
+
+        // compiling args len
+        if arguments.len() != func.arguments_types.len() {
+            GenError::throw(
+                format!(
+                    "Function `{}` has {} arguments, but {} found!",
+                    function_name,
+                    func.arguments_types.len(),
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        // matching arguments types
+        let mut arguments_error = false;
+        let mut arguments_types = Vec::new();
+
+        let mut values: Vec<BasicMetadataValueEnum> = Vec::new();
+
+        for (index, arg) in arguments.iter().enumerate() {
+            let compiled_arg = self.compile_expression(arg.clone(), line, function, Some(func.arguments_types[index].clone()));
+
+            if compiled_arg.0 != func.arguments_types[index] {
+                arguments_error = true;
+            } else {
+                values.push(compiled_arg.1.into());
+            }
+
+            arguments_types.push(compiled_arg.0.clone());
+        }
+
+        if arguments_error {
+            if func.name == LAMBDA_NAME {
+                GenError::throw(
+                    format!(
+                        "Lambda function expected arguments types [{}], but found [{}]!",
+                        func.arguments_types.clone().join(", "),
+                        arguments_types.join(", "),
+                    ),
+                    ErrorType::TypeError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line,
+                );
+                std::process::exit(1);
+            }
+            GenError::throw(
+                format!(
+                    "Function `{}` expected arguments types [{}], but found [{}]!",
+                    func.name,
+                    func.arguments_types.clone().join(", "),
+                    arguments_types.join(", "),
+                ),
+                ErrorType::TypeError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        // calling function
+        let call_result = self.builder
+            .build_call(
+                func.function_value,
+                &values,
+                format!("{}_call", &func.name).as_str(),
+            )
+            .unwrap_or_else(|_| {
+                GenError::throw(
+                    format!("An error occured while calling `{}` function!", &func.name),
+                    ErrorType::BuildError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line,
+                );
+                std::process::exit(1);
+            })
+            .try_as_basic_value()
+            .left()
+            .unwrap_or_else(|| {
+                if func.function_type == "void" {
+                    self.context.i8_type().const_zero().into()
+                } else {
+                    GenError::throw("Error with compiling function's returned value to basic datatype! Please open issue on github repo!", ErrorType::BuildError, self.module_name.clone(), self.module_source.clone(), line);
                     std::process::exit(1);
                 }
-            }
-        }
+            });
+
+        (func.function_type.clone(), call_result)
     }
 
     // getting types
 
     fn get_basic_type(&self, datatype: &str, line: usize) -> BasicTypeEnum<'ctx> {
         match datatype {
+            _ if datatype.starts_with("fn<") => {
+                let fn_type = datatype.replace("fn<", "").replace(">", "");
+                self.get_basic_type(fn_type.as_str(), line)
+            },
             "int8" => self.context.i8_type().into(),
             "int16" => self.context.i16_type().into(),
             "int32" => self.context.i32_type().into(),
@@ -1355,12 +1294,13 @@ impl<'ctx> Compiler<'ctx> {
             "bool" => self.context.bool_type().into(),
             "str" => self
                 .context
-                .ptr_type(inkwell::AddressSpace::default())
+                .ptr_type(AddressSpace::default())
                 .into(),
             "auto" => self.context.i8_type().into(),
-            "void" => self.context.i8_type().into(),
+            "void" => self.context.ptr_type(AddressSpace::default()).into(),
             // Yep, this seems like a very bad idea, but
-            // `void` type requires AnyTypeEnum, which is not allowed for alloca
+            // `void` type requires AnyTypeEnum, which is not allowed for the whole builder's
+            // functions
             _ => {
                 GenError::throw(
                     format!("Unsupported `{}` datatype!", datatype),
@@ -1383,15 +1323,15 @@ impl<'ctx> Compiler<'ctx> {
     ) -> FunctionType<'ctx> {
         match datatype {
             "int8" => self.context.i8_type().fn_type(params, is_var_args),
-            "int16" => self.context.i32_type().fn_type(params, is_var_args),
-            "int32" => self.context.i64_type().fn_type(params, is_var_args),
+            "int16" => self.context.i16_type().fn_type(params, is_var_args),
+            "int32" => self.context.i32_type().fn_type(params, is_var_args),
             "int64" => self.context.i64_type().fn_type(params, is_var_args),
             "int128" => self.context.i128_type().fn_type(params, is_var_args),
             "bool" => self.context.bool_type().fn_type(params, is_var_args),
             "void" => self.context.void_type().fn_type(params, is_var_args),
             "str" => self
                 .context
-                .ptr_type(inkwell::AddressSpace::default())
+                .ptr_type(AddressSpace::default())
                 .fn_type(params, is_var_args),
             _ => {
                 GenError::throw(
@@ -1424,8 +1364,8 @@ impl<'ctx> Compiler<'ctx> {
             );
         }
 
-        let left_arg = self.compile_expression(arguments[0].clone(), line, function, None);
-        let right_arg = self.compile_expression(arguments[1].clone(), line, function, None);
+        let left_arg = self.compile_expression(arguments[0].clone(), line, function, self.current_expectation_value.clone());
+        let right_arg = self.compile_expression(arguments[1].clone(), line, function, self.current_expectation_value.clone());
 
         let strcat_fn = *self.built_functions.get("concat").unwrap_or_else(|| {
             GenError::throw(
@@ -1505,7 +1445,7 @@ impl<'ctx> Compiler<'ctx> {
         });
 
         for arg in arguments {
-            let compiled_arg = self.compile_expression(arg, line, function, None);
+            let compiled_arg = self.compile_expression(arg, line, function, self.current_expectation_value.clone());
             let mut basic_value = compiled_arg.1;
 
             if compiled_arg.0 == String::from("void") {
@@ -1581,6 +1521,166 @@ impl<'ctx> Compiler<'ctx> {
         let _ = self
             .builder
             .build_call(printf_fn, &printf_arguments, "printf_call");
+    }
+
+    pub fn define_user_function(
+        &mut self,
+        function_name: String,
+        function_type: String,
+        arguments: Vec<(String, String)>,
+        block: Vec<Statements>,
+        line: usize
+    ) -> Function<'ctx> {
+        // setting function expected return value
+        let old_expectation_value = self.current_expectation_value.clone();
+        self.current_expectation_value = Some(function_type.clone());
+
+        // compiling args types
+        let mut args: Vec<BasicMetadataTypeEnum<'ctx>> = Vec::new();
+        for item in arguments.clone() {
+            let arg = self.get_basic_type(item.1.as_str(), line);
+            args.push(arg.into())
+        }
+
+        // creating function type
+        let fn_type = self.get_fn_type(function_type.as_str(), &args, false, line);
+
+        // adding function
+        let function = self
+            .module
+            .add_function(function_name.as_str(), fn_type, None);
+
+        // creating entry point into function
+        let entry = self.context.append_basic_block(function, "entry");
+
+        // storing old builder position and switching to new
+        let old_position = self.current_block;
+        self.builder.position_at_end(entry);
+
+        // storing arguments values to variables
+        let mut old_variables = HashMap::new();
+
+        for (index, arg) in arguments.iter().enumerate() {
+            let varname = arg.0.clone();
+            let arg_value = function.get_nth_param(index as u32).unwrap_or_else(|| {
+                GenError::throw(
+                    format!("An error occured with fetching parameter while defining `{}` function!", function_name),
+                    ErrorType::BuildError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line
+                );
+                std::process::exit(1);
+            });
+            let old_value = self.variables.remove(&varname);
+            old_variables.insert(varname.clone(), old_value);
+
+            // storing value
+            let parameter_type = self.get_basic_type(arg.1.as_str(), line);
+            let parameter_alloca = self
+                .builder
+                .build_alloca(
+                    parameter_type,
+                    format!("{}_param_{}", function_name, index).as_str(),
+                )
+                .unwrap_or_else(|_| {
+                    GenError::throw(
+                        format!(
+                            "An error occured with creating alloca for parameter `{}`!",
+                            varname.clone()
+                        ),
+                        ErrorType::BuildError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                });
+
+            let _ = self.builder.build_store(parameter_alloca, arg_value);
+
+            // and inserting variables pointers to main hashmap
+            self.variables.insert(
+                varname,
+                Variable::new(arg.1.clone(), parameter_type, parameter_alloca, None),
+            );
+        }
+
+        // Storing function moved before statements to correct recursion work
+        let mut arguments_types = Vec::new();
+        for arg in arguments {
+            arguments_types.push(arg.1);
+        }
+
+        let function_object = Function {
+                name: function_name.clone(),
+                function_type: function_type.clone(),
+                function_value: function,
+                arguments_types,
+        };
+
+        self.functions.insert(
+            function_name.clone(),
+            function_object.clone()
+        );
+
+        // compiling statements
+        for stmt in block {
+            self.compile_statement(stmt, function);
+        }
+
+        if !function.verify(false) {
+            if function_type == "void" {
+                self.builder.build_return(None)
+                    .unwrap_or_else(|_| {
+                        GenError::throw(
+                            format!("An error occured with wrapping void '{}' function!\nPlease open an issue on project's repo!", function_name),
+                            ErrorType::BuildError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line
+                        );
+                        std::process::exit(1);
+                    });
+            } else {
+                if &function_name == LAMBDA_NAME {
+                    function.print_to_stderr();
+
+                    GenError::throw(
+                        format!("Lambda failed verification! Here's the possible reasons:\n* Function doesn't returns value or returns wrong value's type.\n* Function have branches after returning a value.\n* Function doesn't matches types, or matches wrong.\nPlease check your code or open issue on github repo!"),
+                        ErrorType::VerificationFailure,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line
+                    );
+                    std::process::exit(1);
+
+                }
+                GenError::throw(
+                    format!("Function `{}` failed verification! Here's the possible reasons:\n* Function doesn't returns value or returns wrong value's type.\n* Function have branches after returning a value.\n* Function doesn't matches types, or matches wrong.\nPlease check your code or open issue on github repo!", &function_name),
+                    ErrorType::VerificationFailure,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line
+                );
+                std::process::exit(1);
+            }
+        }
+
+        // and switching to old position
+        self.builder.position_at_end(old_position);
+
+        // returning old variables
+        for opt in old_variables {
+            if let Some(value) = opt.1 {
+                self.variables.insert(opt.0, value);
+            }
+        }
+
+        // returning expectation value
+        self.current_expectation_value = old_expectation_value;
+
+        function_object
     }
 
     fn validate_types(&self, types: &[String], expected_type: String) -> bool {
