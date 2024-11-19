@@ -22,6 +22,16 @@ macro_rules! std_keyword {
     };
 }
 
+macro_rules! std_token {
+    ($name: literal, $value: expr) => {
+        (
+            $name.to_string(),
+            Token::new($value, $name.to_string(), 0)
+        )
+    };
+}
+
 pub(crate) use std_function;
 pub(crate) use std_keyword;
 pub(crate) use std_symbol;
+pub(crate) use std_token;

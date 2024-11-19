@@ -133,6 +133,8 @@ impl<'ctx> Compiler<'ctx> {
             .build_return(Some(&self.context.i8_type().const_int(0, false)));
 
         if !self.main_function.verify(true) {
+            self.module.print_to_stderr();
+
             GenError::throw(
                 "Verification failure for `main` function! Please remove all returns blocks outside definitions!",
                 ErrorType::VerificationFailure,
@@ -642,7 +644,7 @@ impl<'ctx> Compiler<'ctx> {
                     .builder
                     .build_int_add(
                         current_value.into_int_value(),
-                        self.context.i64_type().const_int(1, false),
+                        var_type.into_int_type().const_int(1, false),
                         "iter_increment_tmp",
                     )
                     .unwrap_or_else(|_| {
@@ -665,7 +667,6 @@ impl<'ctx> Compiler<'ctx> {
                         let _ = self.builder.build_unconditional_branch(before_basic_block);
                     }
                 }
-                let _ = self.builder.build_unconditional_branch(before_basic_block);
 
                 // setting builder position to `after` block
                 self.switch_block(after_basic_block);
@@ -1067,6 +1068,11 @@ impl<'ctx> Compiler<'ctx> {
                     function,
                     self.current_expectation_value.clone(),
                 );
+
+                // fix different size type comparison
+                let old_exp_value = self.current_expectation_value.clone();
+                self.current_expectation_value = Some(left.0.clone());
+                
                 let right = self.compile_expression(
                     *rhs,
                     line,
@@ -1515,11 +1521,11 @@ impl<'ctx> Compiler<'ctx> {
             }
 
             let format_string = match compiled_arg.0.as_str() {
-                "int8" => "%c",
+                "int8" => "%d",
                 "int16" => "%hd",
                 "int32" => "%d",
                 "int64" => "%lld",
-                "int128" => "%lld",
+                "int128" => "%lld", // now int128 isn't supported for print
                 "bool" => {
                     let true_str = self
                         .builder

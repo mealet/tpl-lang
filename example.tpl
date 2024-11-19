@@ -1,11 +1,16 @@
-fn<int32> foo = int32 (int32 a, int32 b) {
-  return a + b;
+fn<int64> fib = int64 ( int64 index ) {
+  int64 left = 0;
+  int64 right = 1;
+  int64 result = 0;
+
+  for i in index {
+    result = left + right;
+    left = right;
+    right = result;
+  };
+
+  return result;
 };
 
-fn<int64> foo2 = int64 (int64 a, int64 b) {
-  return a + b;
-};
-
-fn<int128> foo3 = int128 (int128 a, int128 b) {
-  return a + b;
-};
+int64 result = fib(1000);
+print(result);

@@ -258,7 +258,7 @@ impl Parser {
             }
             TokenType::String => output = Expressions::Value(Value::String(current.value)),
             TokenType::Boolean => {
-                output = Expressions::Value(Value::Boolean(current.value == *"true"))
+                output = Expressions::Value(Value::Boolean(current.value == "true"))
             }
             TokenType::Identifier => {
                 output = Expressions::Value(Value::Identifier(current.value.clone()));

@@ -85,8 +85,8 @@ impl Lexer {
                 macros::std_keyword!("str"),
                 macros::std_keyword!("bool"),
                 // Boolean Values
-                macros::std_keyword!("true"),
-                macros::std_keyword!("false"),
+                macros::std_token!("true", TokenType::Boolean),
+                macros::std_token!("false", TokenType::Boolean),
             ]),
             errors: LexerErrorHandler::new(),
 
