@@ -31,7 +31,8 @@ Code separated to 4 modules:
 
 ## 💡 Installation
 1. Install any of these C compilers: `clang`, `gcc`, `cc`.
-2. Install the compiler by:
+2. Install [LLVM]
+3. Install the compiler by:
 ```
 cargo install --git https://github.com/mealet/tpl-lang
 ```
