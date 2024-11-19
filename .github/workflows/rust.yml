@@ -1,0 +1,28 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: 1️ `tpl-lexer` test
+      run: |
+        cargo test --package tpl-lexer --verbose -- --show-output
+
+    - name: 2️ `tpl-parser` test
+      run: |
+        cargo test --package tpl-parser --verbose -- --show-output
+
+    # tpl-ir module cannot be tested because of LLVM
