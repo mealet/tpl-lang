@@ -21,14 +21,14 @@ jobs:
       with:
         llvm-version: 18
 
-    - name: 🔧 **Packages** test
+    - name: 🔧 Packages test
       run: |
         cargo test -- --show-output
 
-    - name: 🌐 **Cargo** check
+    - name: 🌐 Cargo check
       run: |
         cargo check --workspace --all
 
-    - name: ☁️ **Clippy** check
+    - name: ☁️ Clippy check
       run: |
         cargo clippy --workspace -- -D warnings
