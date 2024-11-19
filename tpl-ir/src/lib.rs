@@ -980,19 +980,18 @@ impl<'ctx> Compiler<'ctx> {
                             "int128".to_string(),
                             self.context.i128_type().const_int(i as u64, true).into(),
                         )
-                    }
-                    // Even the compiler says that number bigger 128-bits is unreachable. xD
+                    } // Even the compiler says that number bigger 128-bits is unreachable. xD
 
-                    // _ => {
-                    //     GenError::throw(
-                    //         "Provided integer is too big! Max supported type is 128-bit number!",
-                    //         ErrorType::TypeError,
-                    //         self.module_name.clone(),
-                    //         self.module_source.clone(),
-                    //         line
-                    //     );
-                    //     std::process::exit(1);
-                    // }
+                      // _ => {
+                      //     GenError::throw(
+                      //         "Provided integer is too big! Max supported type is 128-bit number!",
+                      //         ErrorType::TypeError,
+                      //         self.module_name.clone(),
+                      //         self.module_source.clone(),
+                      //         line
+                      //     );
+                      //     std::process::exit(1);
+                      // }
                 }
             }
             Value::Boolean(b) => (
@@ -1070,9 +1069,9 @@ impl<'ctx> Compiler<'ctx> {
                 );
 
                 // fix different size type comparison
-                let old_exp_value = self.current_expectation_value.clone();
+                let _old_exp_value = self.current_expectation_value.clone();
                 self.current_expectation_value = Some(left.0.clone());
-                
+
                 let right = self.compile_expression(
                     *rhs,
                     line,

@@ -24,10 +24,7 @@ macro_rules! std_keyword {
 
 macro_rules! std_token {
     ($name: literal, $value: expr) => {
-        (
-            $name.to_string(),
-            Token::new($value, $name.to_string(), 0)
-        )
+        ($name.to_string(), Token::new($value, $name.to_string(), 0))
     };
 }
 
