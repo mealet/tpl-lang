@@ -19,9 +19,9 @@ jobs:
     - uses: actions/checkout@v4 
     
     - name: 📣 Test Lexer
-      run: cargo test —p tpl_lexer 
+      run: cargo test —-package tpl_lexer 
 
     - name: 📣 Test Parser
-      run: cargo test —p tpl_parser 
+      run: cargo test —-package tpl_parser 
 
       # your requires LLVM and separated functions for tests
