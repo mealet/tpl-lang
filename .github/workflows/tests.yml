@@ -10,31 +10,25 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  Tests:
+  tests:
 
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
 
-    - name: 🔧 **tpl-lexer** test
+    - name: 🖱️ LLVM Install
+      uses: ZhongRuoyu/setup-llvm@v0
+      with:
+        llvm-version: 18
+
+    - name: 🔧 **Packages** test
       run: |
-        cargo test --package tpl-lexer --verbose -- --show-output
+        cargo test -- --show-output
 
-    - name: ⚙️ **tpl-parser** test
+    - name: 🌐 **Cargo** check
       run: |
-        cargo test --package tpl-parser --verbose -- --show-output
+        cargo check --workspace --all
 
-    # tpl-ir module cannot be tested because of LLVM
-
-  Checks:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: ⚙️ Check
-        run: |
-          cargo check --workspace --exclude tpl-ir
-
-      - name: 🚀 Clippy
-        run: |
-          cargo clippy --no-deps --workspace -- -D warnings
+    - name: ☁️ **Clippy** check
+      run: |
+        cargo clippy --workspace -- -D warnings
