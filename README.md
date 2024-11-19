@@ -2,6 +2,7 @@
 [LLVM]: https://llvm.org/
 [Inkwell]: https://github.com/TheDan64/inkwell
 [Colored]: https://crates.io/crates/colored
+[Examples]: ./examples
 
 <div align="center">
  <img src="https://github.com/user-attachments/assets/291c4d80-e255-4c17-8543-8528e1a4ddda" /> </br>
@@ -44,101 +45,79 @@ cargo build --release
 ```
 4. Binary file of compiler will be at `target/release` directory under the name: _**tplc**_ (or _**tplc.exe**_ on Windows)
 
-## 👾 Example
-1. Create file `example.tpl` and open in any code editor
-2. Write code:
-```c++
-int8 a = 2; // annotation 8-bit number
-int16 a = 2; // 16 bit number
-int32 a = 2; // 32 bit number
-int64 a = 2; // 64 bit number
-int128 a = 2; // 128 bit number
-
-auto a = 2; // or auto annotation
-
-int8 b = a * 2; // annotation using other variables
-int8 c = 2 + 2 * 2; // binary operations priority
-
-print(a); // 2
-print(b); // 4
-print(c); // 6
-
-print(a,b,c) // 2 4 6
-
-a = 2 + 2; // assignment
-print(a); // 4
-
-bool flag = true; // boolean type
-print(flag); // will print "true"
-
-str greeting = "Hello World!"; // string type
-print(greeting); // "Hello World!"
-
-str greeting_b = " Hello everyone!";
-str result = concat(greeting, greeting_b); // concatenation
-print(result);
-
-// if-else construction
-
-if 1 < 2 {
-    print("1 is less than 2");
-};
-
-if 2 != 2 {
-    // code
-} else {
-    print("2 = 2");
-};
-
-// loops
-int8 a = 0;
-
-while a < 5 {
-    a += 1;
-    // or
-    a++;
-    print(a);
-};
-
-for i in 5 {
-    print(i);
-};
-
-// tests in variables
-bool test = 1 + 1 == 2;
-
-// defining functions
-define int8 foo(int a, int b) {
-    print("hello from foo function!");
-    return a + b;
-};
-
-// calling functions
-foo(4, 2);
-
-// calling functions in variables annotation or assignment
-int8 a = foo(4, 2);
-a = foo(5, 5);
-```
-3. Compile it by command:
-```sh
-tplc example.tpl output
-```
-4. And run like binary file:
-```sh
-./output
-```
-
 <details>
- <summary><h2>😵 Errors Examples</h2></summary>
+ <summary><h2>👾 Examples</h2></summary>
+ You can also check snapped code in <a href="./examples">Examples</a>
 
- ![image](https://github.com/user-attachments/assets/dca42b0f-dc68-4192-82d0-ae7523248b43) </br>
- ![image](https://github.com/user-attachments/assets/ca948e3d-8398-4d82-b923-8d01e89a5b5b) </br>
- ![image](https://github.com/user-attachments/assets/523264db-ae4f-4c2f-b7a4-b13076461cf5) </br>
- ![image](https://github.com/user-attachments/assets/68531892-8f89-42db-8831-2158ecbedc1a) </br>
- ![image](https://github.com/user-attachments/assets/82bb95e9-a342-447b-9b84-a9b31bfe636d) </br>
- ![image](https://github.com/user-attachments/assets/8f95565c-7ca2-4728-986f-c1eb990b3602) </br>
- ![image](https://github.com/user-attachments/assets/815b7acb-917d-49a8-995a-85e02035b5f2) </br>
+ ### Boolean Operations
+```c
+int32 a = 10;
+int32 b = 2;
+
+print(a + b); // 12
+print(a - b); // 8
+print(a * b); // 20
+```
+
+### Defining Functions
+```c
+define int32 foo(int32 a, int32 b) {
+ return a * b;
+};
+
+print(foo(5, 10)) // 50
+```
+
+### Compares
+```c
+int32 a = 5;
+int32 b = 10;
+
+if a < b {
+ print("less!");
+} else {
+ print("bigger");
+};
+
+// "less"
+```
+
+### Strings
+```c
+str a = "Hello";
+str b = ", World!";
+
+print(concat(a, b)); // Hello, World!
+print(a, b); // Same as previous
+```
+
+### Lambda functions
+```c
+fn<int64> fib = int64 ( int64 index ) {
+ int64 left = 0;
+ int64 right = 1;
+ int64 result = 0;
+
+ for i index {
+  result = left + right;
+  left = right;
+  right = result;
+ };
+
+ return result;
+};
+
+int64 result = fib(1000);
+print(result) // 9079565065540428013
+```
+
+### Boolean types
+```c
+bool a = true;
+bool b = false;
+
+print(a, b) // true false
+```
 
 </details>
 
