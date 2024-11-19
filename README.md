@@ -31,9 +31,10 @@ Code separated to 4 modules:
 
 ## 💡 Installation
 1. Install any of these C compilers: `clang`, `gcc`, `cc`.
-2. Download latest version for you'r system from releases/
-3. Unpack it anywhere.
-4. Add to you'r PATH environment (optional).
+2. Install the compiler by:
+```
+cargo install --git https://github.com/mealet/tpl-lang
+```
 
 ## 🦛 Building
 1. Download or clone this repository to your computer.
