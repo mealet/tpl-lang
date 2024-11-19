@@ -13,7 +13,7 @@ use colored::Colorize;
 mod compiler;
 mod greeting;
 
-const OPTIMIZATION_LEVEL: inkwell::OptimizationLevel = inkwell::OptimizationLevel::Default;
+const OPTIMIZATION_LEVEL: inkwell::OptimizationLevel = inkwell::OptimizationLevel::Aggressive;
 const RELOC_MODE: inkwell::targets::RelocMode = inkwell::targets::RelocMode::PIC;
 const CODE_MODEL: inkwell::targets::CodeModel = inkwell::targets::CodeModel::Default;
 
@@ -118,17 +118,17 @@ fn main() {
     match ast {
         Ok(stmts) => {
             // compiling statements to module
-            let _ = compiler.generate(stmts);
+            compiler.generate(stmts);
             let module = compiler.get_module();
 
-            // // debug
-            // let _ = module.print_to_stderr();
+            // debug
+            module.print_to_stderr();
 
             // compiling module to object file
 
             let object_file = format!("{}.o", config.output.clone());
 
-            let _ = compiler::ObjectCompiler::compile(
+            compiler::ObjectCompiler::compile(
                 OPTIMIZATION_LEVEL,
                 RELOC_MODE,
                 CODE_MODEL,
@@ -138,7 +138,7 @@ fn main() {
 
             // linking and deleting object file
 
-            let _ = compiler::ObjectLinker::compile(&object_file, &config.output);
+            compiler::ObjectLinker::compile(&object_file, &config.output);
 
             let _ = std::fs::remove_file(object_file);
         }

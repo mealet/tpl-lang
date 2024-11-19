@@ -8,7 +8,7 @@ use crate::error::{ImportError, ImportErrorType};
 use std::convert::From;
 use std::path::PathBuf;
 
-const COMMENTS_START: &'static str = "//";
+const COMMENTS_START: &str = "//";
 
 #[allow(unused)]
 #[derive(Debug, Clone)]

@@ -14,6 +14,8 @@ use inkwell::OptimizationLevel;
 pub struct ObjectCompiler;
 pub struct ObjectLinker;
 
+const LINKERS: [&str; 3] = ["clang", "gcc", "cc"];
+
 impl ObjectCompiler {
     pub fn compile(
         opt_level: OptimizationLevel,
@@ -42,19 +44,22 @@ impl ObjectCompiler {
 }
 
 impl ObjectLinker {
-    pub fn link(input_file: &String, output_file: &String) -> Result<(), i32> {
-        let gcc = Command::new("gcc")
-            .arg(input_file)
-            .arg("-o")
-            .arg(output_file)
-            .output()
-            .expect("Unable to run `gcc` command");
+    pub fn link(input_file: &String, output_file: &String) -> Result<(), ()> {
+        for linker in LINKERS {
+            let linker_cmd = Command::new(linker)
+                .arg(input_file)
+                .arg("-o")
+                .arg(output_file)
+                .output();
 
-        if !gcc.status.success() {
-            return Err(gcc.status.code().unwrap());
+            if let Ok(output) = linker_cmd {
+                if output.status.success() {
+                    return Ok(());
+                }
+            }
         }
 
-        Ok(())
+        Err(())
     }
 
     pub fn compile(input_file: &String, output_file: &String) {
@@ -66,20 +71,19 @@ impl ObjectLinker {
                 let message = format!(
                     "{} Compilation successful!\n{} {}",
                     module.green(),
-                    "|-> output:".green(),
+                    "|-> output binary:".green(),
                     output_file
                 );
 
                 println!("{}", message);
             }
-            Err(code) => {
+            Err(_) => {
                 let module = "[CompilerError]";
                 let message = format!(
-                    "{} Compilation error! Exit Status: {}. Please open issue at language repo's\n{} {}",
+                    "{} Compilation error!\n{} Maybe you forgot to install clang/gcc/cc or any other C compiler?\n{} Otherwise, please open issue at language repo's.",
                     module.red(),
-                    code,
-                    "|-> output:".red(),
-                    output_file
+                    " ".repeat(module.len()),
+                    " ".repeat(module.len()),
                 );
 
                 println!("{}", message);

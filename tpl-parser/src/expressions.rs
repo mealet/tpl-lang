@@ -6,7 +6,7 @@
 
 // NOTE: `line` field added for error handling on IR stage
 
-use crate::value::Value;
+use crate::{statements::Statements, value::Value};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[allow(unused)]
@@ -29,6 +29,12 @@ pub enum Expressions {
     Call {
         function_name: String,
         arguments: Vec<Expressions>,
+        line: usize,
+    },
+    Lambda {
+        arguments: Vec<(String, String)>,
+        statements: Vec<Statements>,
+        ftype: String,
         line: usize,
     },
     Value(Value),

@@ -10,7 +10,7 @@ use colored::Colorize;
 
 #[derive(Debug, Clone)]
 pub struct LexerErrorHandler {
-    data: Vec<Box<LexerError>>,
+    data: Vec<LexerError>,
 }
 
 // error type
@@ -30,13 +30,19 @@ pub struct LexerError {
 // implementations
 
 #[allow(unused)]
+impl Default for LexerErrorHandler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LexerErrorHandler {
     pub fn new() -> Self {
         LexerErrorHandler { data: Vec::new() }
     }
 
     pub fn attach(&mut self, lexer_error: LexerError) {
-        self.data.push(Box::new(lexer_error));
+        self.data.push(lexer_error);
     }
 
     pub fn format_all(&self) -> String {
@@ -47,11 +53,11 @@ impl LexerErrorHandler {
             .map(|err| err.format_error())
             .collect();
 
-        return output;
+        output
     }
 
     pub fn is_empty(&self) -> bool {
-        return self.data.is_empty();
+        self.data.is_empty()
     }
 
     pub fn informate(&self) -> String {
@@ -93,27 +99,29 @@ impl LexerError {
 
     pub fn format_error(&self) -> String {
         let line_number_length = self.line_number.to_string().len();
+        let filename_fmt = format!("--> {}", self.filename).cyan();
+        let lines_fmt = format!(
+            "{}{}\n {} {} {}\n{}{}",
+            // first line
+            " ".repeat(line_number_length + 2),
+            "|".cyan(),
+            // number + line data
+            self.line_number,
+            "|".cyan(),
+            self.line,
+            // last line
+            " ".repeat(line_number_length + 2),
+            "|".cyan(),
+        );
 
         format!(
             "{} {}\n{}\n{}\n",
             "[LexerError]:".red(),
             self.description.clone(),
             // filename
-            format!("--> {}", self.filename).cyan(),
+            filename_fmt,
             // lines
-            format!(
-                "{}{}\n {} {} {}\n{}{}",
-                // first line
-                " ".repeat(line_number_length + 2),
-                "|".cyan(),
-                // number + line data
-                self.line_number,
-                "|".cyan(),
-                self.line,
-                // last line
-                " ".repeat(line_number_length + 2),
-                "|".cyan(),
-            )
+            lines_fmt
         )
     }
 

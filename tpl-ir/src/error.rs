@@ -47,21 +47,19 @@ impl GenError {
         let line_number_len = line.to_string().len();
         let fetched_line = source.lines().collect::<Vec<&str>>()[line];
 
-        format!(
-            "{} {}\n{}",
-            format!("[CodeGen][{}][{}]", error_type, module_name).red(),
-            description,
-            format!(
-                "{}{}\n {} {} {}\n{}{}",
-                " ".repeat(line_number_len + 2),
-                "|".cyan(),
-                line + 1,
-                "|".cyan(),
-                fetched_line,
-                " ".repeat(line_number_len + 2),
-                "|".cyan()
-            )
-        )
+        let red_side_fmt = format!("[CodeGen][{}][{}]:", error_type, module_name).red();
+        let line_fmt = format!(
+            "{}{}\n {} {} {}\n{}{}",
+            " ".repeat(line_number_len + 2),
+            "|".cyan(),
+            line + 1,
+            "|".cyan(),
+            fetched_line,
+            " ".repeat(line_number_len + 2),
+            "|".cyan()
+        );
+
+        format!("{} {}\n{}", red_side_fmt, description, line_fmt)
     }
 }
 
@@ -88,7 +86,7 @@ impl ImportError {
     pub fn format<T: std::fmt::Display>(description: T, error_type: String) -> String {
         format!(
             "{} {}",
-            format!("[ImportError][{}]", error_type).red(),
+            format!("[ImportError][{}]:", error_type).red(),
             description
         )
     }
