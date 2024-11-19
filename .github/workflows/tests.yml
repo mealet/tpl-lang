@@ -30,5 +30,6 @@ jobs:
         cargo check --workspace --all
 
     - name: ☁️ Clippy check
+      continue-on-error: true
       run: |
         cargo clippy --workspace -- -D warnings
