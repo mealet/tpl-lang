@@ -869,12 +869,10 @@ impl<'ctx> Compiler<'ctx> {
                                         .into(),
                                 )
                             }
-                            _ if TEST_OPERATORS.contains(&operand.as_str()) => {
-                                (
-                                    "bool".to_string(),
-                                    self.compile_condition(expr.clone(), line, function).into(),
-                                )
-                            }
+                            _ if TEST_OPERATORS.contains(&operand.as_str()) => (
+                                "bool".to_string(),
+                                self.compile_condition(expr.clone(), line, function).into(),
+                            ),
                             _ => {
                                 GenError::throw(
                                     format!("Unsupported binary operation found: `{}`", operand),
@@ -929,48 +927,38 @@ impl<'ctx> Compiler<'ctx> {
                 }
 
                 match i {
-                    -255..=255 => {
-                        (
-                            "int8".to_string(),
-                            self.context.i8_type().const_int(i as u64, true).into(),
-                        )
-                    }
-                    -65_535..65_535 => {
-                        (
-                            "int16".to_string(),
-                            self.context.i16_type().const_int(i as u64, true).into(),
-                        )
-                    }
-                    -2_147_483_648..2_147_483_648 => {
-                        (
-                            "int32".to_string(),
-                            self.context.i32_type().const_int(i as u64, true).into(),
-                        )
-                    }
-                    -9_223_372_036_854_775_808..9_223_372_036_854_775_808 => {
-                        (
-                            "int64".to_string(),
-                            self.context.i64_type().const_int(i as u64, true).into(),
-                        )
-                    }
+                    -255..=255 => (
+                        "int8".to_string(),
+                        self.context.i8_type().const_int(i as u64, true).into(),
+                    ),
+                    -65_535..65_535 => (
+                        "int16".to_string(),
+                        self.context.i16_type().const_int(i as u64, true).into(),
+                    ),
+                    -2_147_483_648..2_147_483_648 => (
+                        "int32".to_string(),
+                        self.context.i32_type().const_int(i as u64, true).into(),
+                    ),
+                    -9_223_372_036_854_775_808..9_223_372_036_854_775_808 => (
+                        "int64".to_string(),
+                        self.context.i64_type().const_int(i as u64, true).into(),
+                    ),
                     -170_141_183_460_469_231_731_687_303_715_884_105_728
-                        ..=170_141_183_460_469_231_731_687_303_715_884_105_727 => {
-                        (
-                            "int128".to_string(),
-                            self.context.i128_type().const_int(i as u64, true).into(),
-                        )
-                    } // Even the compiler says that number bigger 128-bits is unreachable. xD
+                        ..=170_141_183_460_469_231_731_687_303_715_884_105_727 => (
+                        "int128".to_string(),
+                        self.context.i128_type().const_int(i as u64, true).into(),
+                    ), // Even the compiler says that number bigger 128-bits is unreachable. xD
 
-                      // _ => {
-                      //     GenError::throw(
-                      //         "Provided integer is too big! Max supported type is 128-bit number!",
-                      //         ErrorType::TypeError,
-                      //         self.module_name.clone(),
-                      //         self.module_source.clone(),
-                      //         line
-                      //     );
-                      //     std::process::exit(1);
-                      // }
+                       // _ => {
+                       //     GenError::throw(
+                       //         "Provided integer is too big! Max supported type is 128-bit number!",
+                       //         ErrorType::TypeError,
+                       //         self.module_name.clone(),
+                       //         self.module_source.clone(),
+                       //         line
+                       //     );
+                       //     std::process::exit(1);
+                       // }
                 }
             }
             Value::Boolean(b) => (

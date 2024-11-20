@@ -283,3 +283,290 @@ impl Lexer {
         Ok(output)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn std_symbols_lexing() {
+        let input = String::from("+ - * / = ! < > . , ; ( ) [ ] { }");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                macros::std_symbol!('+', TokenType::Plus).1,
+                macros::std_symbol!('-', TokenType::Minus).1,
+                macros::std_symbol!('*', TokenType::Multiply).1,
+                macros::std_symbol!('/', TokenType::Divide).1,
+                macros::std_symbol!('=', TokenType::Equal).1,
+                macros::std_symbol!('!', TokenType::Not).1,
+                macros::std_symbol!('<', TokenType::Lt).1,
+                macros::std_symbol!('>', TokenType::Bt).1,
+                macros::std_symbol!('.', TokenType::Dot).1,
+                macros::std_symbol!(',', TokenType::Comma).1,
+                macros::std_symbol!(';', TokenType::Semicolon).1,
+                macros::std_symbol!('(', TokenType::LParen).1,
+                macros::std_symbol!(')', TokenType::RParen).1,
+                macros::std_symbol!('[', TokenType::LBrack).1,
+                macros::std_symbol!(']', TokenType::RBrack).1,
+                macros::std_symbol!('{', TokenType::LBrace).1,
+                macros::std_symbol!('}', TokenType::RBrace).1,
+                Token::new(TokenType::EOF, "".to_string(), 0)
+            ]
+        );
+    }
+
+    #[test]
+    fn strings_lexing() {
+        let input = String::from(" \"This is an interesting string\" ");
+        let expected = String::from("This is an interesting string");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize().unwrap();
+
+        assert_eq!(result[0].value, expected);
+    }
+
+    #[test]
+    fn test_std_functions_lexing() {
+        let input = String::from("print concat");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                Token::new(TokenType::Function, String::from("print"), 0),
+                Token::new(TokenType::Function, String::from("concat"), 0),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_constructions() {
+        let input = String::from("if else while for in break");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                Token::new(TokenType::Keyword, String::from("if"), 0),
+                Token::new(TokenType::Keyword, String::from("else"), 0),
+                Token::new(TokenType::Keyword, String::from("while"), 0),
+                Token::new(TokenType::Keyword, String::from("for"), 0),
+                Token::new(TokenType::Keyword, String::from("in"), 0),
+                Token::new(TokenType::Keyword, String::from("break"), 0),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_functional_keywords() {
+        let input = String::from("define return import");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                Token::new(TokenType::Keyword, String::from("define"), 0),
+                Token::new(TokenType::Keyword, String::from("return"), 0),
+                Token::new(TokenType::Keyword, String::from("import"), 0),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_datatypes() {
+        let input = String::from("int8 int16 int32 int64 int128 auto void bool str fn");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                Token::new(TokenType::Keyword, String::from("int8"), 0),
+                Token::new(TokenType::Keyword, String::from("int16"), 0),
+                Token::new(TokenType::Keyword, String::from("int32"), 0),
+                Token::new(TokenType::Keyword, String::from("int64"), 0),
+                Token::new(TokenType::Keyword, String::from("int128"), 0),
+                Token::new(TokenType::Keyword, String::from("auto"), 0),
+                Token::new(TokenType::Keyword, String::from("void"), 0),
+                Token::new(TokenType::Keyword, String::from("bool"), 0),
+                Token::new(TokenType::Keyword, String::from("str"), 0),
+                Token::new(TokenType::Keyword, String::from("fn"), 0),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_identifiers() {
+        let input = String::from("id1 id2 a b c abc camel_case");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                Token::new(TokenType::Identifier, String::from("id1"), 0),
+                Token::new(TokenType::Identifier, String::from("id2"), 0),
+                Token::new(TokenType::Identifier, String::from("a"), 0),
+                Token::new(TokenType::Identifier, String::from("b"), 0),
+                Token::new(TokenType::Identifier, String::from("c"), 0),
+                Token::new(TokenType::Identifier, String::from("abc"), 0),
+                Token::new(TokenType::Identifier, String::from("camel_case"), 0),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_numbers() {
+        let input = String::from("1 2 3 1000 1_000_000");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                Token::new(TokenType::Number, String::from("1"), 0),
+                Token::new(TokenType::Number, String::from("2"), 0),
+                Token::new(TokenType::Number, String::from("3"), 0),
+                Token::new(TokenType::Number, String::from("1000"), 0),
+                Token::new(TokenType::Number, String::from("1000000"), 0),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_negative_numbers() {
+        let input = String::from("-1 -2 -3 -1000 -1_000_000");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                Token::new(TokenType::Number, String::from("-1"), 0),
+                Token::new(TokenType::Number, String::from("-2"), 0),
+                Token::new(TokenType::Number, String::from("-3"), 0),
+                Token::new(TokenType::Number, String::from("-1000"), 0),
+                Token::new(TokenType::Number, String::from("-1000000"), 0),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_lines() {
+        let input = String::from("line0 \n line1 \n line2");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                Token::new(TokenType::Identifier, String::from("line0"), 0),
+                Token::new(TokenType::Identifier, String::from("line1"), 1),
+                Token::new(TokenType::Identifier, String::from("line2"), 2),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_booleans() {
+        let input = String::from("true false");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                Token::new(TokenType::Boolean, String::from("true"), 0),
+                Token::new(TokenType::Boolean, String::from("false"), 0),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_compare_operators() {
+        let input = String::from("> < == !=");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            result,
+            vec![
+                Token::new(TokenType::Bt, String::from(">"), 0),
+                Token::new(TokenType::Lt, String::from("<"), 0),
+                Token::new(TokenType::Eq, String::from("=="), 0),
+                Token::new(TokenType::Ne, String::from("!="), 0),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_undefined_char() {
+        let input = String::from("😃");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let result = lexer.tokenize();
+
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn get_number_test() {
+        let input = String::from("50");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let num = lexer.get_number();
+
+        assert_eq!(num, 50i64);
+    }
+
+    #[test]
+    fn is_eof_test() {
+        let input = String::from("\0");
+        let lexer = Lexer::new(input, "tests".to_string());
+
+        let is_eof = lexer.is_eof();
+
+        assert!(is_eof);
+    }
+
+    #[test]
+    fn getc_test() {
+        let input = String::from("50");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        assert_eq!(lexer.char, '5');
+
+        lexer.getc();
+
+        assert_eq!(lexer.char, '0');
+    }
+}
