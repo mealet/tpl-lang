@@ -11,6 +11,3 @@ tpl-lexer = { path = "../tpl-lexer" }
 tpl-parser = { path = "../tpl-parser" }
 tpl-ir = { path = "../tpl-ir" }
 colored = "2.1.0"
-
-[build-dependencies]
-llvm-sys = "180.0.0"
