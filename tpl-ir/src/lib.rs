@@ -13,7 +13,7 @@ use inkwell::{
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
-    module::{Module, Linkage},
+    module::{Linkage, Module},
     types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
     values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
     AddressSpace,
@@ -95,7 +95,7 @@ impl<'ctx> Compiler<'ctx> {
             built_functions,
             current_expectation_value: None,
             current_assign_function: None,
-            boolean_strings_ptr: None
+            boolean_strings_ptr: None,
         }
     }
 
@@ -760,7 +760,7 @@ impl<'ctx> Compiler<'ctx> {
                 line,
             } => {
                 // calling and taking value from user defined function
-                return self.fn_call(function_name, arguments, line, function);
+                self.fn_call(function_name, arguments, line, function)
             }
             Expressions::Lambda {
                 arguments,
@@ -815,7 +815,7 @@ impl<'ctx> Compiler<'ctx> {
                             // NOTE: Basic Binary Operations
                             "+" => {
                                 // add
-                                return (
+                                (
                                     right.0,
                                     self.builder
                                         .build_int_add(
@@ -825,11 +825,11 @@ impl<'ctx> Compiler<'ctx> {
                                         )
                                         .unwrap()
                                         .into(),
-                                );
+                                )
                             }
                             "-" => {
                                 // substract
-                                return (
+                                (
                                     right.0,
                                     self.builder
                                         .build_int_sub(
@@ -839,11 +839,11 @@ impl<'ctx> Compiler<'ctx> {
                                         )
                                         .unwrap()
                                         .into(),
-                                );
+                                )
                             }
                             "*" => {
                                 // multiply
-                                return (
+                                (
                                     right.0,
                                     self.builder
                                         .build_int_mul(
@@ -853,11 +853,11 @@ impl<'ctx> Compiler<'ctx> {
                                         )
                                         .unwrap()
                                         .into(),
-                                );
+                                )
                             }
                             "/" => {
                                 // divide
-                                return (
+                                (
                                     right.0,
                                     self.builder
                                         .build_int_signed_div(
@@ -867,10 +867,10 @@ impl<'ctx> Compiler<'ctx> {
                                         )
                                         .unwrap()
                                         .into(),
-                                );
+                                )
                             }
                             _ if TEST_OPERATORS.contains(&operand.as_str()) => {
-                                return (
+                                (
                                     "bool".to_string(),
                                     self.compile_condition(expr.clone(), line, function).into(),
                                 )
@@ -930,32 +930,32 @@ impl<'ctx> Compiler<'ctx> {
 
                 match i {
                     -255..=255 => {
-                        return (
+                        (
                             "int8".to_string(),
                             self.context.i8_type().const_int(i as u64, true).into(),
                         )
                     }
                     -65_535..65_535 => {
-                        return (
+                        (
                             "int16".to_string(),
                             self.context.i16_type().const_int(i as u64, true).into(),
                         )
                     }
                     -2_147_483_648..2_147_483_648 => {
-                        return (
+                        (
                             "int32".to_string(),
                             self.context.i32_type().const_int(i as u64, true).into(),
                         )
                     }
                     -9_223_372_036_854_775_808..9_223_372_036_854_775_808 => {
-                        return (
+                        (
                             "int64".to_string(),
                             self.context.i64_type().const_int(i as u64, true).into(),
                         )
                     }
                     -170_141_183_460_469_231_731_687_303_715_884_105_728
                         ..=170_141_183_460_469_231_731_687_303_715_884_105_727 => {
-                        return (
+                        (
                             "int128".to_string(),
                             self.context.i128_type().const_int(i as u64, true).into(),
                         )
@@ -1134,7 +1134,7 @@ impl<'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
 
-                return compiled_value.1.into_int_value();
+                compiled_value.1.into_int_value()
             }
             _ => {
                 GenError::throw(
@@ -1719,13 +1719,16 @@ impl<'ctx> Compiler<'ctx> {
             return *function_value;
         }
 
-        let printf_type = self.context
-            .void_type()
-            .fn_type(&[self.context.ptr_type(AddressSpace::default()).into()], true);
-        let printf_fn = self.module.add_function("printf", printf_type, Some(Linkage::External));
+        let printf_type = self.context.void_type().fn_type(
+            &[self.context.ptr_type(AddressSpace::default()).into()],
+            true,
+        );
+        let printf_fn = self
+            .module
+            .add_function("printf", printf_type, Some(Linkage::External));
         let _ = self.built_functions.insert("printf".to_string(), printf_fn);
-        
-        return printf_fn;
+
+        printf_fn
     }
 
     #[allow(non_snake_case)]
@@ -1741,34 +1744,33 @@ impl<'ctx> Compiler<'ctx> {
             ],
             true,
         );
-        let strcat_fn = self.module.add_function("strcat", strcat_type, Some(Linkage::External));
+        let strcat_fn = self
+            .module
+            .add_function("strcat", strcat_type, Some(Linkage::External));
         let _ = self.built_functions.insert("strcat".to_string(), strcat_fn);
 
-        return strcat_fn;
+        strcat_fn
     }
 
     #[allow(non_snake_case)]
     fn __boolean_strings(&mut self) -> (PointerValue<'ctx>, PointerValue<'ctx>) {
-        if let Some(allocated_values) = self.boolean_strings_ptr.clone() {
+        if let Some(allocated_values) = self.boolean_strings_ptr {
             return allocated_values;
         }
 
         let fmts = (
-            self
-            .builder
-            .build_global_string_ptr("true", "true_fmt")
-            .unwrap()
-            .as_pointer_value(),
-
-            self
-            .builder
-            .build_global_string_ptr("false", "false_str")
-            .unwrap()
-            .as_pointer_value()
+            self.builder
+                .build_global_string_ptr("true", "true_fmt")
+                .unwrap()
+                .as_pointer_value(),
+            self.builder
+                .build_global_string_ptr("false", "false_str")
+                .unwrap()
+                .as_pointer_value(),
         );
 
-        self.boolean_strings_ptr = Some(fmts.clone());
-        return fmts;
+        self.boolean_strings_ptr = Some(fmts);
+        fmts
     }
 
     pub fn get_module(&self) -> &Module<'ctx> {
