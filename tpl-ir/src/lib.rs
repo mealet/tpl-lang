@@ -13,9 +13,9 @@ use inkwell::{
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
-    module::Module,
+    module::{Module, Linkage},
     types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue},
+    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
     AddressSpace,
 };
 
@@ -51,12 +51,11 @@ pub struct Compiler<'ctx> {
     functions: HashMap<String, Function<'ctx>>,
     imports: HashMap<String, ImportObject>,
 
-    // built-in functions
-    built_functions: HashMap<String, FunctionValue<'ctx>>,
-
     // tech
+    built_functions: HashMap<String, FunctionValue<'ctx>>,
     current_expectation_value: Option<String>,
     current_assign_function: Option<Function<'ctx>>,
+    boolean_strings_ptr: Option<(PointerValue<'ctx>, PointerValue<'ctx>)>,
 }
 
 impl<'ctx> Compiler<'ctx> {
@@ -69,24 +68,6 @@ impl<'ctx> Compiler<'ctx> {
         let module = context.create_module(module_name);
         let builder = context.create_builder();
 
-        // defining built-in functions
-        // printf
-
-        let printf_type = context
-            .void_type()
-            .fn_type(&[context.ptr_type(AddressSpace::default()).into()], true);
-        let printf_fn = module.add_function("printf", printf_type, None);
-
-        // strcat
-        let strcat_type = context.ptr_type(AddressSpace::default()).fn_type(
-            &[
-                context.ptr_type(AddressSpace::default()).into(),
-                context.ptr_type(AddressSpace::default()).into(),
-            ],
-            true,
-        );
-        let strcat_fn = module.add_function("strcat", strcat_type, None);
-
         // main function creation
         let main_fn_type = context.i8_type();
         let fn_type = main_fn_type.fn_type(&[], false);
@@ -94,10 +75,7 @@ impl<'ctx> Compiler<'ctx> {
         let basic_block = context.append_basic_block(function, "entry");
 
         // collection of build-functions
-        let built_functions = HashMap::from([
-            ("print".to_string(), printf_fn),
-            ("concat".to_string(), strcat_fn),
-        ]);
+        let built_functions = HashMap::new();
 
         Compiler {
             module_name: module_filename,
@@ -117,6 +95,7 @@ impl<'ctx> Compiler<'ctx> {
             built_functions,
             current_expectation_value: None,
             current_assign_function: None,
+            boolean_strings_ptr: None
         }
     }
 
@@ -1429,16 +1408,7 @@ impl<'ctx> Compiler<'ctx> {
             self.current_expectation_value.clone(),
         );
 
-        let strcat_fn = *self.built_functions.get("concat").unwrap_or_else(|| {
-            GenError::throw(
-                "Unable to load `concat` compiler function!",
-                ErrorType::BuildError,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                line,
-            );
-            std::process::exit(1);
-        });
+        let strcat_fn = self.__c_strcat();
 
         if !self.validate_types(&[left_arg.0, right_arg.0], "str".to_string()) {
             GenError::throw(
@@ -1495,16 +1465,7 @@ impl<'ctx> Compiler<'ctx> {
     ) {
         let mut fmts: Vec<&str> = Vec::new();
         let mut values: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
-        let printf_fn = *self.built_functions.get("print").unwrap_or_else(|| {
-            GenError::throw(
-                "Unable to load `print` compiler function!",
-                ErrorType::BuildError,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                line,
-            );
-            std::process::exit(1);
-        });
+        let printf_fn = self.__c_printf();
 
         for arg in arguments {
             let compiled_arg = self.compile_expression(
@@ -1526,22 +1487,12 @@ impl<'ctx> Compiler<'ctx> {
                 "int64" => "%lld",
                 "int128" => "%lld", // now int128 isn't supported for print
                 "bool" => {
-                    let true_str = self
-                        .builder
-                        .build_global_string_ptr("true", "true_fmt")
-                        .unwrap()
-                        .as_pointer_value();
-
-                    let false_str = self
-                        .builder
-                        .build_global_string_ptr("false", "false_str")
-                        .unwrap()
-                        .as_pointer_value();
+                    let (_true, _false) = self.__boolean_strings();
 
                     if let BasicValueEnum::IntValue(int) = basic_value {
                         basic_value = self
                             .builder
-                            .build_select(int, true_str, false_str, "bool_fmt_str")
+                            .build_select(int, _true, _false, "bool_fmt_str")
                             .unwrap();
                     }
 
@@ -1569,7 +1520,7 @@ impl<'ctx> Compiler<'ctx> {
 
         let complete_fmt_string = self
             .builder
-            .build_global_string_ptr(format!("{}\n", fmts.join(" ")).as_str(), "printf_fmt_str")
+            .build_global_string_ptr(format!("{}\n", fmts.join(" ")).as_str(), "printf_fmt")
             .unwrap_or_else(|_| {
                 GenError::throw(
                     "Unable to create format string for C function!",
@@ -1758,6 +1709,66 @@ impl<'ctx> Compiler<'ctx> {
         }
 
         true
+    }
+
+    // built-in C functions
+
+    #[allow(non_snake_case)]
+    fn __c_printf(&mut self) -> FunctionValue<'ctx> {
+        if let Some(function_value) = self.built_functions.get("printf") {
+            return *function_value;
+        }
+
+        let printf_type = self.context
+            .void_type()
+            .fn_type(&[self.context.ptr_type(AddressSpace::default()).into()], true);
+        let printf_fn = self.module.add_function("printf", printf_type, Some(Linkage::External));
+        let _ = self.built_functions.insert("printf".to_string(), printf_fn);
+        
+        return printf_fn;
+    }
+
+    #[allow(non_snake_case)]
+    fn __c_strcat(&mut self) -> FunctionValue<'ctx> {
+        if let Some(function_value) = self.built_functions.get("strcat") {
+            return *function_value;
+        }
+
+        let strcat_type = self.context.ptr_type(AddressSpace::default()).fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            true,
+        );
+        let strcat_fn = self.module.add_function("strcat", strcat_type, Some(Linkage::External));
+        let _ = self.built_functions.insert("strcat".to_string(), strcat_fn);
+
+        return strcat_fn;
+    }
+
+    #[allow(non_snake_case)]
+    fn __boolean_strings(&mut self) -> (PointerValue<'ctx>, PointerValue<'ctx>) {
+        if let Some(allocated_values) = self.boolean_strings_ptr.clone() {
+            return allocated_values;
+        }
+
+        let fmts = (
+            self
+            .builder
+            .build_global_string_ptr("true", "true_fmt")
+            .unwrap()
+            .as_pointer_value(),
+
+            self
+            .builder
+            .build_global_string_ptr("false", "false_str")
+            .unwrap()
+            .as_pointer_value()
+        );
+
+        self.boolean_strings_ptr = Some(fmts.clone());
+        return fmts;
     }
 
     pub fn get_module(&self) -> &Module<'ctx> {
