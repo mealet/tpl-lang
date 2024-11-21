@@ -19,9 +19,10 @@ Before that please ensure the bug wasn't already reported by another user. <br/>
 > * you've written readable code
 >
 > ### Please do...
-> * Please fix all 'clippy' warnings. To see it run: `make clippy`
+> * Fix all 'clippy' warnings. To see it run: `make clippy`
 > * Format code by 'rustfmt'. To dot it run: `make fmt`
-> * Provide an example for new feature or fix
+> * Provide unit tests for the new feature or fix
+> * Provide an example for the new feature or fix
 
 ## Any Questions?
 You can always follow contacts on my site: [Contacts]
