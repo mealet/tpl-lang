@@ -20,8 +20,10 @@ build:
 	$(PACKAGE_MANAGER) $(BUILD_COMMAND) --release
 
 # Unit tests
+TEST_ARGS = -- --show-output
+
 test:
-	$(PACKAGE_MANAGER) $(TEST_COMMAND)
+	$(PACKAGE_MANAGER) $(TEST_COMMAND) $(TEST_ARGS)
 
 # Formatting
 FMT_ARGS = --emit=files

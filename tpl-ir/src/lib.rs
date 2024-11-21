@@ -454,12 +454,8 @@ impl<'ctx> Compiler<'ctx> {
                     }
 
                     // building branch to merge point
-                    if let Some(last_instruction) = then_basic_block.get_last_instruction() {
-                        if last_instruction.get_opcode()
-                            != inkwell::values::InstructionOpcode::Return
-                        {
-                            let _ = self.builder.build_unconditional_branch(merge_basic_block);
-                        }
+                    if then_basic_block.get_terminator().is_none() {
+                        let _ = self.builder.build_unconditional_branch(merge_basic_block);
                     }
 
                     // filling `else` block
@@ -1441,7 +1437,7 @@ impl<'ctx> Compiler<'ctx> {
 
         let strcat_fn = self.__c_strcat();
 
-        if !self.validate_types(&[left_arg.0, right_arg.0], "str".to_string()) {
+        if !Compiler::validate_types(&[left_arg.0, right_arg.0], "str".to_string()) {
             GenError::throw(
                 "`concat` function takes only string types!",
                 ErrorType::TypeError,
@@ -1732,7 +1728,7 @@ impl<'ctx> Compiler<'ctx> {
         function_object
     }
 
-    fn validate_types(&self, types: &[String], expected_type: String) -> bool {
+    fn validate_types(types: &[String], expected_type: String) -> bool {
         for typ in types {
             if typ != &expected_type {
                 return false;
@@ -1754,7 +1750,7 @@ impl<'ctx> Compiler<'ctx> {
                 .unwrap()
                 .as_pointer_value(),
             self.builder
-                .build_global_string_ptr("false", "false_str")
+                .build_global_string_ptr("false", "false_fmt")
                 .unwrap()
                 .as_pointer_value(),
         );
@@ -1765,5 +1761,293 @@ impl<'ctx> Compiler<'ctx> {
 
     pub fn get_module(&self) -> &Module<'ctx> {
         &self.module
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn validate_types_test() {
+        let types_array = [
+            "int8".to_string(),
+            "int8".to_string(),
+            "int8".to_string(),
+            "int8".to_string()
+        ];
+        let expected_type = "int8".to_string();
+
+        assert!(
+            Compiler::validate_types(&types_array, expected_type)
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn validate_types_test_2() {
+        let types_array = [
+            "int8".to_string(),
+            "int8".to_string(),
+            "int32".to_string(),
+            "int8".to_string()
+        ];
+        let expected_type = "int8".to_string();
+
+        assert!(
+            Compiler::validate_types(&types_array, expected_type)
+        );
+    }
+
+    #[test]
+    fn boolean_strings_alloca_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler = Compiler::new(
+            &ctx,
+            "test",
+            String::from("none"),
+            String::from("test.tpl"),
+        );
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let ptrs = compiler.__boolean_strings();
+
+        assert_eq!(
+            (ptrs.0.get_name().to_string_lossy().to_string(), ptrs.1.get_name().to_string_lossy().to_string()),
+            (String::from("true_fmt"), String::from("false_fmt"))
+        );
+
+        assert_eq!(
+            (ptrs.0.is_null(), ptrs.1.is_null()),
+            (false, false)
+        );
+
+        assert_eq!(
+            (ptrs.0.is_undef(), ptrs.1.is_undef()),
+            (false, false)
+        );
+
+        assert_eq!(
+            (ptrs.0.is_const(), ptrs.1.is_const()),
+            (true, true)
+        );
+    }
+
+    #[test]
+    fn __c_printf_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler = Compiler::new(
+            &ctx,
+            "test",
+            String::from("none"),
+            String::from("test.tpl"),
+        );
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let printf_function = compiler.__c_printf();
+
+        assert_eq!(
+            printf_function.get_linkage(),
+            Linkage::External
+        );
+        assert_eq!(
+            printf_function.is_null(),
+            false
+        );
+        assert_eq!(
+            printf_function.is_undef(),
+            false
+        );
+        assert_eq!(
+            printf_function.verify(true),
+            true
+        );
+        assert_eq!(
+            printf_function.get_name().to_string_lossy().to_string(),
+            String::from("printf")
+        );
+        assert_eq!(
+            printf_function.get_type(),
+            compiler.context.void_type().fn_type(
+                &[compiler.context.ptr_type(AddressSpace::default()).into()],
+                true
+            )
+        );
+    }
+
+    #[test]
+    fn __c_strcat_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler = Compiler::new(
+            &ctx,
+            "test",
+            String::from("none"),
+            String::from("test.tpl"),
+        );
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let printf_function = compiler.__c_strcat();
+
+        assert_eq!(
+            printf_function.get_linkage(),
+            Linkage::External
+        );
+        assert_eq!(
+            printf_function.is_null(),
+            false
+        );
+        assert_eq!(
+            printf_function.is_undef(),
+            false
+        );
+        assert_eq!(
+            printf_function.verify(true),
+            true
+        );
+        assert_eq!(
+            printf_function.get_name().to_string_lossy().to_string(),
+            String::from("strcat")
+        );
+        assert_eq!(
+            printf_function.get_type(),
+            compiler.context.ptr_type(AddressSpace::default()).fn_type(
+                &[
+                    compiler.context.ptr_type(AddressSpace::default()).into(),
+                    compiler.context.ptr_type(AddressSpace::default()).into(),
+                ],
+                true
+            )
+        );
+    }
+
+    #[test]
+    fn switch_block_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler = Compiler::new(
+            &ctx,
+            "test",
+            String::from("none"),
+            String::from("test.tpl"),
+        );
+        compiler.builder.position_at_end(compiler.current_block);
+        let main_block = compiler.current_block.clone();
+        let block = compiler.context.append_basic_block(compiler.main_function, "test_block");
+
+        compiler.switch_block(block);
+
+        assert_eq!(
+            compiler.builder.get_insert_block().unwrap(),
+            block
+        );
+        assert_eq!(
+            block.get_previous_basic_block().unwrap(),
+            main_block
+        );
+
+        assert_eq!(
+            compiler.builder.get_insert_block().unwrap().get_name(),
+            block.get_name()
+        );
+
+        compiler.switch_block(main_block);
+
+        assert_eq!(
+            compiler.builder.get_insert_block().unwrap(),
+            main_block
+        );
+    }
+
+    #[test]
+    fn compile_value_test() {
+        let ctx = inkwell::context::Context::create();
+        let compiler = Compiler::new(
+            &ctx,
+            "test",
+            String::from("none"),
+            String::from("test.tpl"),
+        );
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let int8 = compiler.compile_value(Value::Integer(15), 0, None);
+        let int16 = compiler.compile_value(Value::Integer(256), 0, None);
+        let int32 = compiler.compile_value(Value::Integer(65_535), 0, None);
+        let int64 = compiler.compile_value(Value::Integer(2_147_483_648), 0, None);
+        let int128 = compiler.compile_value(Value::Integer(9_223_372_036_854_775_808), 0, None);
+
+        let boolean_true = compiler.compile_value(Value::Boolean(true), 0, None);
+        let boolean_false = compiler.compile_value(Value::Boolean(false), 0, None);
+
+        let str = compiler.compile_value(Value::String(String::from("some")), 0, None);
+
+        assert_eq!(
+            (
+                int8.0,
+                int16.0,
+                int32.0,
+                int64.0,
+                int128.0,
+                boolean_true.0,
+                boolean_false.0,
+                str.0
+            ),
+            (
+                String::from("int8"),
+                String::from("int16"),
+                String::from("int32"),
+                String::from("int64"),
+                String::from("int128"),
+                String::from("bool"),
+                String::from("bool"),
+                String::from("str"),
+            )
+        );
+
+        assert!(int8.1.is_int_value());
+        assert!(int16.1.is_int_value());
+        assert!(int32.1.is_int_value());
+        assert!(int64.1.is_int_value());
+        assert!(int128.1.is_int_value());
+        assert!(boolean_true.1.is_int_value());
+        assert!(boolean_false.1.is_int_value());
+        assert!(str.1.is_pointer_value());
+    }
+
+    #[test]
+    fn compile_condition_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler = Compiler::new(
+            &ctx,
+            "test",
+            String::from("none"),
+            String::from("test.tpl"),
+        );
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let condition_true = Expressions::Binary {
+            operand: String::from("=="),
+            lhs: Box::new(Expressions::Value(Value::Integer(123))),
+            rhs: Box::new(Expressions::Value(Value::Integer(123))),
+            line: 0
+        };
+
+        let condition_false = Expressions::Binary {
+            operand: String::from("=="),
+            lhs: Box::new(Expressions::Value(Value::Integer(0))),
+            rhs: Box::new(Expressions::Value(Value::Integer(123))),
+            line: 0
+        };
+
+        let compiled_true_condition = compiler.compile_condition(condition_true, 0, compiler.main_function);
+        let compiled_false_condition = compiler.compile_condition(condition_false, 0, compiler.main_function);
+
+        assert_eq!(
+            compiled_true_condition.get_zero_extended_constant().unwrap(),
+            1
+        );
+
+        assert_eq!(
+            compiled_false_condition.get_zero_extended_constant().unwrap(),
+            0
+        );
     }
 }
