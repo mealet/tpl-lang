@@ -7,9 +7,8 @@
 <div align="center">
  <img src="https://github.com/user-attachments/assets/291c4d80-e255-4c17-8543-8528e1a4ddda" /> </br>
 
- <img src="https://custom-icon-badges.demolab.com/badge/written_on-rust-blue?style=for-the-badge&logoColor=white" />
- <img src="https://custom-icon-badges.demolab.com/badge/based_on-llvm-blue?style=for-the-badge&logoColor=white" />
- <img src="https://custom-icon-badges.demolab.com/badge/version-0.3.3-blue?style=for-the-badge&logoColor=white" />
+ <img src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmealet%2Ftpl-lang%2Frefs%2Fheads%2Fmain%2FCargo.toml%3Fraw%3Dtrue&query=workspace.package.version&style=for-the-badge&label=Version&color=%230389f5" />
+ <img src="https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.codetabs.com%2Fv1%2Floc%2F%3Fgithub%3Dmealet%2Ftpl-lang&query=%24%5B-1%3A%5D.linesOfCode&style=for-the-badge&logoColor=white&label=Lines&color=%230389f5" />
 </div>
 
 ## 🧐 What is this?
