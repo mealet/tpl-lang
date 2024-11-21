@@ -24,8 +24,6 @@ jobs:
 
       - name: 🖱️ LLVM Install
         uses: ZhongRuoyu/setup-llvm@v0
-        with:
-          llvm-version: 18
 
       - if: runner.os == 'Windows'
         continue-on-error: true
