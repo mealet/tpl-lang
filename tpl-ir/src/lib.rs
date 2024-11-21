@@ -7,6 +7,7 @@
 mod error;
 mod function;
 mod import;
+mod libc;
 mod variable;
 
 use inkwell::{
@@ -19,6 +20,7 @@ use inkwell::{
     AddressSpace,
 };
 
+use libc::Libc;
 use std::collections::HashMap;
 
 use error::{ErrorType, GenError};
@@ -31,6 +33,47 @@ use tpl_parser::{expressions::Expressions, statements::Statements, value::Value}
 const TEST_OPERATORS: [&str; 4] = [">", "<", "==", "!="];
 const LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
 
+impl<'ctx> Libc for Compiler<'ctx> {
+    type Function = FunctionValue<'ctx>;
+
+    fn __c_printf(&mut self) -> FunctionValue<'ctx> {
+        if let Some(function_value) = self.built_functions.get("printf") {
+            return *function_value;
+        }
+
+        let printf_type = self.context.void_type().fn_type(
+            &[self.context.ptr_type(AddressSpace::default()).into()],
+            true,
+        );
+        let printf_fn = self
+            .module
+            .add_function("printf", printf_type, Some(Linkage::External));
+        let _ = self.built_functions.insert("printf".to_string(), printf_fn);
+
+        printf_fn
+    }
+
+    fn __c_strcat(&mut self) -> FunctionValue<'ctx> {
+        if let Some(function_value) = self.built_functions.get("strcat") {
+            return *function_value;
+        }
+
+        let strcat_type = self.context.ptr_type(AddressSpace::default()).fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            true,
+        );
+        let strcat_fn = self
+            .module
+            .add_function("strcat", strcat_type, Some(Linkage::External));
+        let _ = self.built_functions.insert("strcat".to_string(), strcat_fn);
+
+        strcat_fn
+    }
+}
+
 #[derive(Debug)]
 pub struct Compiler<'ctx> {
     // module info
@@ -38,9 +81,9 @@ pub struct Compiler<'ctx> {
     module_source: String,
 
     // important
-    pub context: &'ctx Context,
-    pub builder: Builder<'ctx>,
-    pub module: Module<'ctx>,
+    context: &'ctx Context,
+    builder: Builder<'ctx>,
+    module: Module<'ctx>,
 
     // function and block
     main_function: FunctionValue<'ctx>,
@@ -1697,47 +1740,6 @@ impl<'ctx> Compiler<'ctx> {
         }
 
         true
-    }
-
-    // built-in C functions
-
-    #[allow(non_snake_case)]
-    fn __c_printf(&mut self) -> FunctionValue<'ctx> {
-        if let Some(function_value) = self.built_functions.get("printf") {
-            return *function_value;
-        }
-
-        let printf_type = self.context.void_type().fn_type(
-            &[self.context.ptr_type(AddressSpace::default()).into()],
-            true,
-        );
-        let printf_fn = self
-            .module
-            .add_function("printf", printf_type, Some(Linkage::External));
-        let _ = self.built_functions.insert("printf".to_string(), printf_fn);
-
-        printf_fn
-    }
-
-    #[allow(non_snake_case)]
-    fn __c_strcat(&mut self) -> FunctionValue<'ctx> {
-        if let Some(function_value) = self.built_functions.get("strcat") {
-            return *function_value;
-        }
-
-        let strcat_type = self.context.ptr_type(AddressSpace::default()).fn_type(
-            &[
-                self.context.ptr_type(AddressSpace::default()).into(),
-                self.context.ptr_type(AddressSpace::default()).into(),
-            ],
-            true,
-        );
-        let strcat_fn = self
-            .module
-            .add_function("strcat", strcat_type, Some(Linkage::External));
-        let _ = self.built_functions.insert("strcat".to_string(), strcat_fn);
-
-        strcat_fn
     }
 
     #[allow(non_snake_case)]
