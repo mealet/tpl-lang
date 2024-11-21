@@ -1086,3 +1086,994 @@ impl Parser {
         Ok(output)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tpl_lexer::{token::Token, token_type::TokenType, Lexer};
+
+    #[test]
+    fn peek_fn_test() {
+        let input = String::from("a b");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+
+        assert_eq!(
+            parser.peek(0),
+            Token::new(TokenType::Identifier, String::from("a"), 0)
+        );
+
+        assert_eq!(
+            parser.peek(1),
+            Token::new(TokenType::Identifier, String::from("b"), 0)
+        );
+
+        assert_eq!(
+            parser.peek(1),
+            Token::new(TokenType::EOF, String::from(""), 0)
+        );
+    }
+
+    #[test]
+    fn next_fn_test() {
+        let input = String::from("a b");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+
+        assert_eq!(
+            parser.next(),
+            Token::new(TokenType::Identifier, String::from("b"), 0)
+        );
+
+        assert_eq!(
+            parser.next(),
+            Token::new(TokenType::EOF, String::from(""), 0)
+        );
+    }
+
+    #[test]
+    fn current_fn_test() {
+        let input = String::from("a b");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+
+        assert_eq!(
+            parser.current(),
+            Token::new(TokenType::Identifier, String::from("a"), 0)
+        );
+
+        let _ = parser.next();
+
+        assert_eq!(
+            parser.current(),
+            Token::new(TokenType::Identifier, String::from("b"), 0)
+        );
+
+        let _ = parser.next();
+
+        assert_eq!(
+            parser.current(),
+            Token::new(TokenType::EOF, String::from(""), 0)
+        );
+    }
+
+    #[test]
+    fn expect_fn_test() {
+        let input = String::from("a b");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+
+        assert!(parser.expect(TokenType::Identifier));
+
+        let _ = parser.next();
+
+        assert!(parser.expect(TokenType::Identifier));
+
+        let _ = parser.next();
+
+        assert!(parser.expect(TokenType::EOF));
+    }
+
+    #[test]
+    fn is_bin_operand_test() {
+        let input = String::from("a b");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let parser = Parser::new(tokens, "test".to_string(), input);
+
+        assert!(parser.is_binary_operand(TokenType::Plus));
+        assert!(parser.is_binary_operand(TokenType::Minus));
+        assert!(parser.is_binary_operand(TokenType::Multiply));
+        assert!(parser.is_binary_operand(TokenType::Divide));
+        assert!(parser.is_binary_operand(TokenType::Eq));
+        assert!(parser.is_binary_operand(TokenType::Ne));
+        assert!(parser.is_binary_operand(TokenType::Lt));
+        assert!(parser.is_binary_operand(TokenType::Bt));
+    }
+
+    #[test]
+    fn is_priority_bin_operand_test() {
+        let input = String::from("a b");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let parser = Parser::new(tokens, "test".to_string(), input);
+
+        assert!(parser.is_priority_binary_operand("/".to_string()));
+        assert!(parser.is_priority_binary_operand("*".to_string()));
+        assert!(!parser.is_priority_binary_operand("+".to_string()));
+        assert!(!parser.is_priority_binary_operand("-".to_string()));
+    }
+
+    #[test]
+    fn skip_eos_fn_test() {
+        let input = String::from("a; b");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+
+        assert!(parser.expect(TokenType::Identifier));
+        let _ = parser.next();
+
+        assert!(parser.expect(TokenType::Semicolon));
+        parser.skip_eos();
+
+        assert!(parser.expect(TokenType::Identifier));
+        parser.skip_eos();
+
+        assert!(parser.expect(TokenType::Identifier));
+    }
+
+    #[test]
+    fn annotation_stmt_test() {
+        let input = String::from("int32 a = 5;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32"),
+                value: Some(Box::new(Expressions::Value(Value::Integer(5)))),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn assign_stmt_test() {
+        let input = String::from("a = 5;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AssignStatement {
+                identifier: String::from("a"),
+                value: Some(Box::new(Expressions::Value(Value::Integer(5)))),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn binary_assign_stmt_test() {
+        let input = String::from("a += 5;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::BinaryAssignStatement {
+                identifier: String::from("a"),
+                value: Some(Box::new(Expressions::Value(Value::Integer(5)))),
+                operand: String::from("+"),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn function_define_stmt_test() {
+        let input = String::from("define int8 foo() {};");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::FunctionDefineStatement {
+                function_name: String::from("foo"),
+                function_type: String::from("int8"),
+                arguments: Vec::new(),
+                block: Vec::new(),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn function_define_with_args_stmt_test() {
+        let input = String::from("define int8 foo(int8 a, int8 b) {};");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::FunctionDefineStatement {
+                function_name: String::from("foo"),
+                function_type: String::from("int8"),
+                arguments: vec![
+                    ("a".to_string(), "int8".to_string()),
+                    ("b".to_string(), "int8".to_string()),
+                ],
+                block: Vec::new(),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn function_define_with_block_stmt_test() {
+        let input = String::from("define int8 foo() { a = 5 };");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::FunctionDefineStatement {
+                function_name: String::from("foo"),
+                function_type: String::from("int8"),
+                arguments: Vec::new(),
+                block: vec![Statements::AssignStatement {
+                    identifier: "a".to_string(),
+                    value: Some(Box::new(Expressions::Value(Value::Integer(5)))),
+                    line: 0
+                }],
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn function_define_with_block_and_args_stmt_test() {
+        let input = String::from("define int8 foo(int8 a, int8 b) { a = 5 };");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::FunctionDefineStatement {
+                function_name: String::from("foo"),
+                function_type: String::from("int8"),
+                arguments: vec![
+                    ("a".to_string(), "int8".to_string()),
+                    ("b".to_string(), "int8".to_string()),
+                ],
+                block: vec![Statements::AssignStatement {
+                    identifier: "a".to_string(),
+                    value: Some(Box::new(Expressions::Value(Value::Integer(5)))),
+                    line: 0
+                }],
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn function_call_stmt_test() {
+        let input = String::from("foo()");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::FunctionCallStatement {
+                function_name: String::from("foo"),
+                arguments: Vec::new(),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn function_call_with_args_stmt() {
+        let input = String::from("foo(5, 1, 4)");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::FunctionCallStatement {
+                function_name: String::from("foo"),
+                arguments: vec![
+                    Expressions::Value(Value::Integer(5)),
+                    Expressions::Value(Value::Integer(1)),
+                    Expressions::Value(Value::Integer(4))
+                ],
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn function_call_with_advanced_args_stmt() {
+        let input = String::from("foo(5 + 6, 2 * 2)");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::FunctionCallStatement {
+                function_name: String::from("foo"),
+                arguments: vec![
+                    Expressions::Binary {
+                        operand: String::from("+"),
+                        lhs: Box::new(Expressions::Value(Value::Integer(5))),
+                        rhs: Box::new(Expressions::Value(Value::Integer(6))),
+                        line: 0
+                    },
+                    Expressions::Binary {
+                        operand: String::from("*"),
+                        lhs: Box::new(Expressions::Value(Value::Integer(2))),
+                        rhs: Box::new(Expressions::Value(Value::Integer(2))),
+                        line: 0
+                    },
+                ],
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn function_call_expr_test() {
+        let input = String::from("int32 a = foo(5 + 6, 2 * 2);");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32"),
+                value: Some(Box::new(Expressions::Call {
+                    function_name: String::from("foo"),
+                    arguments: vec![
+                        Expressions::Binary {
+                            operand: String::from("+"),
+                            lhs: Box::new(Expressions::Value(Value::Integer(5))),
+                            rhs: Box::new(Expressions::Value(Value::Integer(6))),
+                            line: 0
+                        },
+                        Expressions::Binary {
+                            operand: String::from("*"),
+                            lhs: Box::new(Expressions::Value(Value::Integer(2))),
+                            rhs: Box::new(Expressions::Value(Value::Integer(2))),
+                            line: 0
+                        },
+                    ],
+                    line: 0
+                })),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn if_stmt_test() {
+        let input = String::from("if 1 < 2 {};");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::IfStatement {
+                condition: Expressions::Binary {
+                    operand: String::from("<"),
+                    lhs: Box::new(
+                        Expressions::Value(Value::Integer(1))
+                    ),
+                    rhs: Box::new(
+                        Expressions::Value(Value::Integer(2))
+                    ),
+                    line: 0
+                },
+                then_block: Vec::new(),
+                else_block: None,
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn if_else_stmt_test() {
+        let input = String::from("if 1 < 2 {} else {};");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::IfStatement {
+                condition: Expressions::Binary {
+                    operand: String::from("<"),
+                    lhs: Box::new(
+                        Expressions::Value(Value::Integer(1))
+                    ),
+                    rhs: Box::new(
+                        Expressions::Value(Value::Integer(2))
+                    ),
+                    line: 0
+                },
+                then_block: Vec::new(),
+                else_block: Some(Vec::new()),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn if_else_with_blocks_stmt_test() {
+        let input = String::from("if 1 < 2 { return 1; } else { return 2 };");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!( ast[0],
+            Statements::IfStatement {
+                condition: Expressions::Binary {
+                    operand: String::from("<"),
+                    lhs: Box::new(
+                        Expressions::Value(Value::Integer(1))
+                    ),
+                    rhs: Box::new(
+                        Expressions::Value(Value::Integer(2))
+                    ),
+                    line: 0
+                },
+                then_block: vec![
+                    Statements::ReturnStatement {
+                        value: Expressions::Value(Value::Integer(1)),
+                        line: 0
+                    }
+                ],
+                else_block: Some(vec![
+                    Statements::ReturnStatement {
+                        value: Expressions::Value(Value::Integer(2)),
+                        line: 0
+                }]),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn return_stmt_test() {
+        let input = String::from("return 0;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::ReturnStatement {
+                value: Expressions::Value(Value::Integer(0)),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn return_advanced_stmt_test() {
+        let input = String::from("return 2 + 2;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::ReturnStatement {
+                value: Expressions::Binary {
+                    operand: String::from("+"),
+                    lhs: Box::new(
+                        Expressions::Value(Value::Integer(2))
+                    ),
+                    rhs: Box::new(
+                        Expressions::Value(Value::Integer(2))
+                    ),
+                    line: 0
+                },
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn binary_operations_test() {
+        let input = String::from("2 + 2;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::Expression (
+                Expressions::Binary {
+                    operand: String::from("+"),
+                    lhs: Box::new(
+                        Expressions::Value(Value::Integer(2))
+                    ),
+                    rhs: Box::new(
+                        Expressions::Value(Value::Integer(2))
+                    ),
+                    line: 0
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn binary_operations_advanced_test() {
+        let input = String::from("2 + 2 * 2;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::Expression (
+                Expressions::Binary {
+                    operand: String::from("+"),
+                    lhs: Box::new(
+                        Expressions::Value(Value::Integer(2))
+                    ),
+                    rhs: Box::new(
+                        Expressions::Binary {
+                            operand: String::from("*"),
+                            lhs: Box::new(
+                                Expressions::Value(Value::Integer(2))
+                            ),
+                            rhs: Box::new(
+                                Expressions::Value(Value::Integer(2))
+                            ),
+                            line: 0
+                        }
+                    ),
+                    line: 0
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn while_stmt_test() {
+        let input = String::from("while 1 < 2 {};");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::WhileStatement {
+                condition: Expressions::Binary {
+                    operand: String::from("<"),
+                    lhs: Box::new(
+                        Expressions::Value(Value::Integer(1))
+                    ),
+                    rhs: Box::new(
+                        Expressions::Value(Value::Integer(2))
+                    ),
+                    line: 0
+                },
+                block: Vec::new(),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn while_with_block_stmt_test() {
+        let input = String::from("while 1 < 2 { break };");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::WhileStatement {
+                condition: Expressions::Binary {
+                    operand: String::from("<"),
+                    lhs: Box::new(
+                        Expressions::Value(Value::Integer(1))
+                    ),
+                    rhs: Box::new(
+                        Expressions::Value(Value::Integer(2))
+                    ),
+                    line: 0
+                },
+                block: vec![
+                    Statements::BreakStatement { line: 0 }
+                ],
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn break_stmt_test() {
+        let input = String::from("break");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::BreakStatement {
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn for_stmt_test() {
+        let input = String::from("for i in 10 {};");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t, Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::ForStatement {
+                varname: String::from("i"),
+                iterable_object: Expressions::Value(Value::Integer(10)),
+                block: Vec::new(),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn for_with_block_stmt_test() {
+        let input = String::from("for i in 10 { break };");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::ForStatement {
+                varname: String::from("i"),
+                iterable_object: Expressions::Value(Value::Integer(10)),
+                block: vec![
+                    Statements::BreakStatement { line: 0 }
+                ],
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn import_statement() {
+        let input = String::from("import \"std.tpl\"");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::ImportStatement {
+                path: Expressions::Value(Value::String("std.tpl".to_string())),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn lambda_expr_test() {
+        let input = String::from("fn<int8> a = int8 (int8 a, int8 b) { return 0 };");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("fn<int8>"),
+                value: Some(Box::new(
+                    Expressions::Lambda {
+                        arguments: vec![
+                            ("a".to_string(), "int8".to_string()),
+                            ("b".to_string(), "int8".to_string()),
+                        ],
+                        statements: vec![
+                            Statements::ReturnStatement {
+                                value: Expressions::Value(Value::Integer(0)),
+                                line: 0
+                            }
+                        ],
+                        ftype: String::from("int8"),
+                        line: 0
+                    }
+                )),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn expressions_enum_test() {
+        let input = String::from("(1, true, \"a\")");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.expressions_enum(TokenType::LParen, TokenType::RParen, TokenType::Comma);
+
+        assert_eq!(
+            ast,
+            vec![
+                Expressions::Value(Value::Integer(1)),
+                Expressions::Value(Value::Boolean(true)),
+                Expressions::Value(Value::String("a".to_string())),
+            ]
+        );
+    }
+
+    #[test]
+    fn expressions_enum_test_2() {
+        let input = String::from("[1; true; \"a\"]");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.expressions_enum(TokenType::LBrack, TokenType::RBrack, TokenType::Semicolon);
+
+        assert_eq!(
+            ast,
+            vec![
+                Expressions::Value(Value::Integer(1)),
+                Expressions::Value(Value::Boolean(true)),
+                Expressions::Value(Value::String("a".to_string())),
+            ]
+        );
+    }
+
+    #[test]
+    fn error_test() {
+        let input = String::from("int0 a;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse();
+
+        assert!(ast.is_err());
+    }
+
+    #[test]
+    #[should_panic]
+    fn should_panic_test() {
+        let input = String::from("int0 a;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let _ = parser.parse().unwrap();
+    }
+}
