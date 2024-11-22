@@ -1,7 +1,7 @@
 name: Update Plan
 description: Create a report to help project development.
 title: "[UPDATE] Update v0.0.0"
-labels: ["bug"]
+labels: ["update"]
 body:
   - type: textarea
     id: update-plan
