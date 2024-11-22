@@ -1592,12 +1592,8 @@ mod tests {
             Statements::IfStatement {
                 condition: Expressions::Binary {
                     operand: String::from("<"),
-                    lhs: Box::new(
-                        Expressions::Value(Value::Integer(1))
-                    ),
-                    rhs: Box::new(
-                        Expressions::Value(Value::Integer(2))
-                    ),
+                    lhs: Box::new(Expressions::Value(Value::Integer(1))),
+                    rhs: Box::new(Expressions::Value(Value::Integer(2))),
                     line: 0
                 },
                 then_block: Vec::new(),
@@ -1625,12 +1621,8 @@ mod tests {
             Statements::IfStatement {
                 condition: Expressions::Binary {
                     operand: String::from("<"),
-                    lhs: Box::new(
-                        Expressions::Value(Value::Integer(1))
-                    ),
-                    rhs: Box::new(
-                        Expressions::Value(Value::Integer(2))
-                    ),
+                    lhs: Box::new(Expressions::Value(Value::Integer(1))),
+                    rhs: Box::new(Expressions::Value(Value::Integer(2))),
                     line: 0
                 },
                 then_block: Vec::new(),
@@ -1653,28 +1645,22 @@ mod tests {
         let mut parser = Parser::new(tokens, "test".to_string(), input);
         let ast = parser.parse().unwrap();
 
-        assert_eq!( ast[0],
+        assert_eq!(
+            ast[0],
             Statements::IfStatement {
                 condition: Expressions::Binary {
                     operand: String::from("<"),
-                    lhs: Box::new(
-                        Expressions::Value(Value::Integer(1))
-                    ),
-                    rhs: Box::new(
-                        Expressions::Value(Value::Integer(2))
-                    ),
+                    lhs: Box::new(Expressions::Value(Value::Integer(1))),
+                    rhs: Box::new(Expressions::Value(Value::Integer(2))),
                     line: 0
                 },
-                then_block: vec![
-                    Statements::ReturnStatement {
-                        value: Expressions::Value(Value::Integer(1)),
-                        line: 0
-                    }
-                ],
-                else_block: Some(vec![
-                    Statements::ReturnStatement {
-                        value: Expressions::Value(Value::Integer(2)),
-                        line: 0
+                then_block: vec![Statements::ReturnStatement {
+                    value: Expressions::Value(Value::Integer(1)),
+                    line: 0
+                }],
+                else_block: Some(vec![Statements::ReturnStatement {
+                    value: Expressions::Value(Value::Integer(2)),
+                    line: 0
                 }]),
                 line: 0
             }
@@ -1721,12 +1707,8 @@ mod tests {
             Statements::ReturnStatement {
                 value: Expressions::Binary {
                     operand: String::from("+"),
-                    lhs: Box::new(
-                        Expressions::Value(Value::Integer(2))
-                    ),
-                    rhs: Box::new(
-                        Expressions::Value(Value::Integer(2))
-                    ),
+                    lhs: Box::new(Expressions::Value(Value::Integer(2))),
+                    rhs: Box::new(Expressions::Value(Value::Integer(2))),
                     line: 0
                 },
                 line: 0
@@ -1749,18 +1731,12 @@ mod tests {
 
         assert_eq!(
             ast[0],
-            Statements::Expression (
-                Expressions::Binary {
-                    operand: String::from("+"),
-                    lhs: Box::new(
-                        Expressions::Value(Value::Integer(2))
-                    ),
-                    rhs: Box::new(
-                        Expressions::Value(Value::Integer(2))
-                    ),
-                    line: 0
-                }
-            )
+            Statements::Expression(Expressions::Binary {
+                operand: String::from("+"),
+                lhs: Box::new(Expressions::Value(Value::Integer(2))),
+                rhs: Box::new(Expressions::Value(Value::Integer(2))),
+                line: 0
+            })
         );
     }
 
@@ -1779,27 +1755,17 @@ mod tests {
 
         assert_eq!(
             ast[0],
-            Statements::Expression (
-                Expressions::Binary {
-                    operand: String::from("+"),
-                    lhs: Box::new(
-                        Expressions::Value(Value::Integer(2))
-                    ),
-                    rhs: Box::new(
-                        Expressions::Binary {
-                            operand: String::from("*"),
-                            lhs: Box::new(
-                                Expressions::Value(Value::Integer(2))
-                            ),
-                            rhs: Box::new(
-                                Expressions::Value(Value::Integer(2))
-                            ),
-                            line: 0
-                        }
-                    ),
+            Statements::Expression(Expressions::Binary {
+                operand: String::from("+"),
+                lhs: Box::new(Expressions::Value(Value::Integer(2))),
+                rhs: Box::new(Expressions::Binary {
+                    operand: String::from("*"),
+                    lhs: Box::new(Expressions::Value(Value::Integer(2))),
+                    rhs: Box::new(Expressions::Value(Value::Integer(2))),
                     line: 0
-                }
-            )
+                }),
+                line: 0
+            })
         );
     }
 
@@ -1821,12 +1787,8 @@ mod tests {
             Statements::WhileStatement {
                 condition: Expressions::Binary {
                     operand: String::from("<"),
-                    lhs: Box::new(
-                        Expressions::Value(Value::Integer(1))
-                    ),
-                    rhs: Box::new(
-                        Expressions::Value(Value::Integer(2))
-                    ),
+                    lhs: Box::new(Expressions::Value(Value::Integer(1))),
+                    rhs: Box::new(Expressions::Value(Value::Integer(2))),
                     line: 0
                 },
                 block: Vec::new(),
@@ -1853,17 +1815,11 @@ mod tests {
             Statements::WhileStatement {
                 condition: Expressions::Binary {
                     operand: String::from("<"),
-                    lhs: Box::new(
-                        Expressions::Value(Value::Integer(1))
-                    ),
-                    rhs: Box::new(
-                        Expressions::Value(Value::Integer(2))
-                    ),
+                    lhs: Box::new(Expressions::Value(Value::Integer(1))),
+                    rhs: Box::new(Expressions::Value(Value::Integer(2))),
                     line: 0
                 },
-                block: vec![
-                    Statements::BreakStatement { line: 0 }
-                ],
+                block: vec![Statements::BreakStatement { line: 0 }],
                 line: 0
             }
         );
@@ -1882,12 +1838,7 @@ mod tests {
         let mut parser = Parser::new(tokens, "test".to_string(), input);
         let ast = parser.parse().unwrap();
 
-        assert_eq!(
-            ast[0],
-            Statements::BreakStatement {
-                line: 0
-            }
-        );
+        assert_eq!(ast[0], Statements::BreakStatement { line: 0 });
     }
 
     #[test]
@@ -1896,7 +1847,8 @@ mod tests {
         let mut lexer = Lexer::new(input.clone(), "test".to_string());
 
         let tokens = match lexer.tokenize() {
-            Ok(t) => t, Err(_) => panic!("Lexer side error occured!"),
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
         };
 
         let mut parser = Parser::new(tokens, "test".to_string(), input);
@@ -1931,9 +1883,7 @@ mod tests {
             Statements::ForStatement {
                 varname: String::from("i"),
                 iterable_object: Expressions::Value(Value::Integer(10)),
-                block: vec![
-                    Statements::BreakStatement { line: 0 }
-                ],
+                block: vec![Statements::BreakStatement { line: 0 }],
                 line: 0
             }
         );
@@ -1979,22 +1929,18 @@ mod tests {
             Statements::AnnotationStatement {
                 identifier: String::from("a"),
                 datatype: String::from("fn<int8>"),
-                value: Some(Box::new(
-                    Expressions::Lambda {
-                        arguments: vec![
-                            ("a".to_string(), "int8".to_string()),
-                            ("b".to_string(), "int8".to_string()),
-                        ],
-                        statements: vec![
-                            Statements::ReturnStatement {
-                                value: Expressions::Value(Value::Integer(0)),
-                                line: 0
-                            }
-                        ],
-                        ftype: String::from("int8"),
+                value: Some(Box::new(Expressions::Lambda {
+                    arguments: vec![
+                        ("a".to_string(), "int8".to_string()),
+                        ("b".to_string(), "int8".to_string()),
+                    ],
+                    statements: vec![Statements::ReturnStatement {
+                        value: Expressions::Value(Value::Integer(0)),
                         line: 0
-                    }
-                )),
+                    }],
+                    ftype: String::from("int8"),
+                    line: 0
+                })),
                 line: 0
             }
         );
@@ -2034,7 +1980,8 @@ mod tests {
         };
 
         let mut parser = Parser::new(tokens, "test".to_string(), input);
-        let ast = parser.expressions_enum(TokenType::LBrack, TokenType::RBrack, TokenType::Semicolon);
+        let ast =
+            parser.expressions_enum(TokenType::LBrack, TokenType::RBrack, TokenType::Semicolon);
 
         assert_eq!(
             ast,
