@@ -1,0 +1,28 @@
+name: Enhancement
+description: Provide a new feature or enhancement
+title: "[ENHANCEMENT] Some feature"
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: Detailed description about you'r enhancement
+    validations:
+      required: true
+      
+  - type: textarea
+    id: integration
+    attributes:
+      label: How to integrate it
+      description: Describe how to integrate the proposed thing
+    validations:
+      required: true
+      
+  - type: textarea
+    id: example
+    attributes:
+      label: Example (optional)
+      description: Any example for you'r feature
+    validations:
+      required: false
