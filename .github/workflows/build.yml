@@ -8,20 +8,14 @@ env:
 
 jobs:
   build:
-    name: • ${{ matrix.os }}
+    name: • ${{ matrix.target }}
     runs-on: ${{ matrix.target }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - target: ubuntu-latest
-            os: "x86_64-unknown-linux-gnu"
-          
           - target: macos-latest
-            os: "x86_64-apple-darwin"
-
-          - target: macos-latest
-            os: "aarch64-apple-darwin"
 
     steps:
       - name: 👀 Checkout Repository
@@ -41,11 +35,11 @@ jobs:
       - name: 🔨 Project Build
         run: |
           rustup target add x86_64-apple-darwin
-          cargo build --release --target ${{ matrix.os }}
+          cargo build --release
 
       - name: 📂 Publish Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.os }}
+          name: ${{ matrix.target }}
           path: |
-            ./target/${{ matrix.os }}/release/tplc
+            ./target/release/tplc
