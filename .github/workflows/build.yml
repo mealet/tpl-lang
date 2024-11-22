@@ -25,31 +25,19 @@ jobs:
       - name: 🖱️ LLVM Install
         uses: ZhongRuoyu/setup-llvm@v0
 
-      - if: runner.os == 'Windows'
-        continue-on-error: true
-        run: |
-          git clone https://github.com/microsoft/vcpkg.git
-          cd vcpkg
-          ./bootstrap-vcpkg.bat
-          ./vcpkg install libxml2:x64-windows
-
-      - if: runner.os == 'macOs'
-        continue-on-error: true
-        run: |
-          brew install zstd
-          
-      - if: runner.os == 'macOs'
-        continue-on-error: true
-        run: |
-          zstd
-
       - name: 🦀 Rust Setup
         uses: dtolnay/rust-toolchain@stable
 
-      - name: ⚙️ Rust Cache
+      - name: 🕐 Rust Cache
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './target'
+
+      - name: 📦 VCPKG Dependencies
+        run: |
+          cargo install cargo-vcpkg
+          cd tplc
+          cargo vcpkg build
 
       - name: 🔨 Project Build
         run: |
