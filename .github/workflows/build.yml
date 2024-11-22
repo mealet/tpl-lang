@@ -8,15 +8,20 @@ env:
 
 jobs:
   build:
-    name: • ${{ matrix.target }}
+    name: • ${{ matrix.os }}
     runs-on: ${{ matrix.target }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - target: ubuntu-latest
-          - target: windows-2019
+            os: "x86_64-unknown-linux-gnu"
+          
           - target: macos-latest
+            os: "x86_64-apple-darwin"
+
+          - target: macos-latest
+            os: "aarch64-apple-darwin"
 
     steps:
       - name: 👀 Checkout Repository
@@ -33,23 +38,13 @@ jobs:
         with:
           workspaces: './target'
 
-      - if: runner.os == 'Windows'
-        uses: microsoft/setup-msbuild@v2
-
-      - if: runner.os == 'Windows'
-        run: |
-          cargo install cargo-vcpkg
-          cd tplc
-          cargo vcpkg build
-
       - name: 🔨 Project Build
         run: |
-          cargo build --release
+          cargo build --release --target ${{ matrix.os }}
 
       - name: 📂 Publish Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.target }}
+          name: ${{ matrix.os }}
           path: |
-            ./target/release/tplc
-            ./target/release/tplc.exe
+            ./target/${{ matrix.os }}/release/tplc
