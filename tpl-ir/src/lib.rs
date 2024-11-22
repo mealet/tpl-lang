@@ -1341,6 +1341,7 @@ impl<'ctx> Compiler<'ctx> {
 
     // getting types
 
+    #[inline]
     fn get_basic_type(&self, datatype: &str, line: usize) -> BasicTypeEnum<'ctx> {
         match datatype {
             _ if datatype.starts_with("fn<") => {
@@ -1372,6 +1373,7 @@ impl<'ctx> Compiler<'ctx> {
         }
     }
 
+    #[inline]
     fn get_fn_type(
         &self,
         datatype: &str,
@@ -1675,7 +1677,24 @@ impl<'ctx> Compiler<'ctx> {
             self.compile_statement(stmt, function);
         }
 
-        if !function.verify(false) {
+        // add terminator if dont have
+        let terminator_instructions = self.builder.get_insert_block().unwrap().get_instructions().filter(|x| x.is_terminator());
+        if terminator_instructions.count() < 1 && function_type != String::from("void") {
+            let _ = self.builder.build_return(
+                Some(
+                    &match function_type.as_str() {
+                        "int8" | "int16" | "int32" | "int64" | "int128" => self.compile_value(Value::Integer(0), line, Some(function_type.clone())).1,
+                        "str" => self.compile_value(Value::String("@tplc:auto-return".to_string()), line, None).1,
+                        "bool" => self.compile_value(Value::Boolean(false), line, None).1,
+                        _ => unreachable!()
+                    }
+                )
+            );
+        };
+
+        // verification
+
+        if !function.verify(true) {
             if function_type == "void" {
                 self.builder.build_return(None)
                     .unwrap_or_else(|_| {
