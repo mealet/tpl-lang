@@ -1,0 +1,26 @@
+name: Update Plan
+description: Create a report to help project development.
+title: "[UPDATE] Update v0.0.0"
+labels: ["bug"]
+body:
+  - type: textarea
+    id: update-plan
+    attributes:
+      label: Update Plan
+      description: Detailed Plan for the next update
+    validations:
+      required: true
+  - type: textarea
+    id: tech-info
+    attributes:
+      label: Tech-Info
+      description: Dev-tools and versions
+      value: |
+        **`inkwell` Version -** 0.5.0
+        **`llvm_sys` Version -** 180.0.0
+        **`llvm` Minimum Version -** 18.1.6
+        **`rustc` Version -** rustc 1.82.0 (f6e511eec 2024-10-15)
+        **`cargo` Version -** cargo 1.82.0 (8f40fc59f 2024-08-21)
+        **`rustup` Channel -** nightly
+    validations:
+      required: true
