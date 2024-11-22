@@ -1678,18 +1678,31 @@ impl<'ctx> Compiler<'ctx> {
         }
 
         // add terminator if dont have
-        let terminator_instructions = self.builder.get_insert_block().unwrap().get_instructions().filter(|x| x.is_terminator());
-        if terminator_instructions.count() < 1 && function_type != String::from("void") {
-            let _ = self.builder.build_return(
-                Some(
-                    &match function_type.as_str() {
-                        "int8" | "int16" | "int32" | "int64" | "int128" => self.compile_value(Value::Integer(0), line, Some(function_type.clone())).1,
-                        "str" => self.compile_value(Value::String("@tplc:auto-return".to_string()), line, None).1,
-                        "bool" => self.compile_value(Value::Boolean(false), line, None).1,
-                        _ => unreachable!()
+        let terminator_instructions = self
+            .builder
+            .get_insert_block()
+            .unwrap()
+            .get_instructions()
+            .filter(|x| x.is_terminator());
+        if terminator_instructions.count() < 1 && function_type != *"void" {
+            let _ = self
+                .builder
+                .build_return(Some(&match function_type.as_str() {
+                    "int8" | "int16" | "int32" | "int64" | "int128" => {
+                        self.compile_value(Value::Integer(0), line, Some(function_type.clone()))
+                            .1
                     }
-                )
-            );
+                    "str" => {
+                        self.compile_value(
+                            Value::String("@tplc:auto-return".to_string()),
+                            line,
+                            None,
+                        )
+                        .1
+                    }
+                    "bool" => self.compile_value(Value::Boolean(false), line, None).1,
+                    _ => unreachable!(),
+                }));
         };
 
         // verification
@@ -1793,13 +1806,11 @@ mod tests {
             "int8".to_string(),
             "int8".to_string(),
             "int8".to_string(),
-            "int8".to_string()
+            "int8".to_string(),
         ];
         let expected_type = "int8".to_string();
 
-        assert!(
-            Compiler::validate_types(&types_array, expected_type)
-        );
+        assert!(Compiler::validate_types(&types_array, expected_type));
     }
 
     #[test]
@@ -1809,78 +1820,50 @@ mod tests {
             "int8".to_string(),
             "int8".to_string(),
             "int32".to_string(),
-            "int8".to_string()
+            "int8".to_string(),
         ];
         let expected_type = "int8".to_string();
 
-        assert!(
-            Compiler::validate_types(&types_array, expected_type)
-        );
+        assert!(Compiler::validate_types(&types_array, expected_type));
     }
 
     #[test]
     fn boolean_strings_alloca_test() {
         let ctx = inkwell::context::Context::create();
-        let mut compiler = Compiler::new(
-            &ctx,
-            "test",
-            String::from("none"),
-            String::from("test.tpl"),
-        );
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
         compiler.builder.position_at_end(compiler.current_block);
 
         let ptrs = compiler.__boolean_strings();
 
         assert_eq!(
-            (ptrs.0.get_name().to_string_lossy().to_string(), ptrs.1.get_name().to_string_lossy().to_string()),
+            (
+                ptrs.0.get_name().to_string_lossy().to_string(),
+                ptrs.1.get_name().to_string_lossy().to_string()
+            ),
             (String::from("true_fmt"), String::from("false_fmt"))
         );
 
-        assert_eq!(
-            (ptrs.0.is_null(), ptrs.1.is_null()),
-            (false, false)
-        );
+        assert_eq!((ptrs.0.is_null(), ptrs.1.is_null()), (false, false));
 
-        assert_eq!(
-            (ptrs.0.is_undef(), ptrs.1.is_undef()),
-            (false, false)
-        );
+        assert_eq!((ptrs.0.is_undef(), ptrs.1.is_undef()), (false, false));
 
-        assert_eq!(
-            (ptrs.0.is_const(), ptrs.1.is_const()),
-            (true, true)
-        );
+        assert_eq!((ptrs.0.is_const(), ptrs.1.is_const()), (true, true));
     }
 
     #[test]
     fn __c_printf_test() {
         let ctx = inkwell::context::Context::create();
-        let mut compiler = Compiler::new(
-            &ctx,
-            "test",
-            String::from("none"),
-            String::from("test.tpl"),
-        );
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
         compiler.builder.position_at_end(compiler.current_block);
 
         let printf_function = compiler.__c_printf();
 
-        assert_eq!(
-            printf_function.get_linkage(),
-            Linkage::External
-        );
-        assert_eq!(
-            printf_function.is_null(),
-            false
-        );
-        assert_eq!(
-            printf_function.is_undef(),
-            false
-        );
-        assert_eq!(
-            printf_function.verify(true),
-            true
-        );
+        assert_eq!(printf_function.get_linkage(), Linkage::External);
+        assert!(!printf_function.is_null());
+        assert!(!printf_function.is_undef());
+        assert!(printf_function.verify(true));
         assert_eq!(
             printf_function.get_name().to_string_lossy().to_string(),
             String::from("printf")
@@ -1897,32 +1880,16 @@ mod tests {
     #[test]
     fn __c_strcat_test() {
         let ctx = inkwell::context::Context::create();
-        let mut compiler = Compiler::new(
-            &ctx,
-            "test",
-            String::from("none"),
-            String::from("test.tpl"),
-        );
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
         compiler.builder.position_at_end(compiler.current_block);
 
         let printf_function = compiler.__c_strcat();
 
-        assert_eq!(
-            printf_function.get_linkage(),
-            Linkage::External
-        );
-        assert_eq!(
-            printf_function.is_null(),
-            false
-        );
-        assert_eq!(
-            printf_function.is_undef(),
-            false
-        );
-        assert_eq!(
-            printf_function.verify(true),
-            true
-        );
+        assert_eq!(printf_function.get_linkage(), Linkage::External);
+        assert!(!printf_function.is_null());
+        assert!(!printf_function.is_undef());
+        assert!(printf_function.verify(true));
         assert_eq!(
             printf_function.get_name().to_string_lossy().to_string(),
             String::from("strcat")
@@ -1942,26 +1909,18 @@ mod tests {
     #[test]
     fn switch_block_test() {
         let ctx = inkwell::context::Context::create();
-        let mut compiler = Compiler::new(
-            &ctx,
-            "test",
-            String::from("none"),
-            String::from("test.tpl"),
-        );
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
         compiler.builder.position_at_end(compiler.current_block);
-        let main_block = compiler.current_block.clone();
-        let block = compiler.context.append_basic_block(compiler.main_function, "test_block");
+        let main_block = compiler.current_block;
+        let block = compiler
+            .context
+            .append_basic_block(compiler.main_function, "test_block");
 
         compiler.switch_block(block);
 
-        assert_eq!(
-            compiler.builder.get_insert_block().unwrap(),
-            block
-        );
-        assert_eq!(
-            block.get_previous_basic_block().unwrap(),
-            main_block
-        );
+        assert_eq!(compiler.builder.get_insert_block().unwrap(), block);
+        assert_eq!(block.get_previous_basic_block().unwrap(), main_block);
 
         assert_eq!(
             compiler.builder.get_insert_block().unwrap().get_name(),
@@ -1970,21 +1929,13 @@ mod tests {
 
         compiler.switch_block(main_block);
 
-        assert_eq!(
-            compiler.builder.get_insert_block().unwrap(),
-            main_block
-        );
+        assert_eq!(compiler.builder.get_insert_block().unwrap(), main_block);
     }
 
     #[test]
     fn compile_value_test() {
         let ctx = inkwell::context::Context::create();
-        let compiler = Compiler::new(
-            &ctx,
-            "test",
-            String::from("none"),
-            String::from("test.tpl"),
-        );
+        let compiler = Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
         compiler.builder.position_at_end(compiler.current_block);
 
         let int8 = compiler.compile_value(Value::Integer(15), 0, None);
@@ -2034,38 +1985,40 @@ mod tests {
     #[test]
     fn compile_condition_test() {
         let ctx = inkwell::context::Context::create();
-        let mut compiler = Compiler::new(
-            &ctx,
-            "test",
-            String::from("none"),
-            String::from("test.tpl"),
-        );
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
         compiler.builder.position_at_end(compiler.current_block);
 
         let condition_true = Expressions::Binary {
             operand: String::from("=="),
             lhs: Box::new(Expressions::Value(Value::Integer(123))),
             rhs: Box::new(Expressions::Value(Value::Integer(123))),
-            line: 0
+            line: 0,
         };
 
         let condition_false = Expressions::Binary {
             operand: String::from("=="),
             lhs: Box::new(Expressions::Value(Value::Integer(0))),
             rhs: Box::new(Expressions::Value(Value::Integer(123))),
-            line: 0
+            line: 0,
         };
 
-        let compiled_true_condition = compiler.compile_condition(condition_true, 0, compiler.main_function);
-        let compiled_false_condition = compiler.compile_condition(condition_false, 0, compiler.main_function);
+        let compiled_true_condition =
+            compiler.compile_condition(condition_true, 0, compiler.main_function);
+        let compiled_false_condition =
+            compiler.compile_condition(condition_false, 0, compiler.main_function);
 
         assert_eq!(
-            compiled_true_condition.get_zero_extended_constant().unwrap(),
+            compiled_true_condition
+                .get_zero_extended_constant()
+                .unwrap(),
             1
         );
 
         assert_eq!(
-            compiled_false_condition.get_zero_extended_constant().unwrap(),
+            compiled_false_condition
+                .get_zero_extended_constant()
+                .unwrap(),
             0
         );
     }
