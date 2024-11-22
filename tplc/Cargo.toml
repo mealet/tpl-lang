@@ -11,3 +11,8 @@ tpl-lexer = { path = "../tpl-lexer" }
 tpl-parser = { path = "../tpl-parser" }
 tpl-ir = { path = "../tpl-ir" }
 colored = "2.1.0"
+
+[package.metadata.vcpkg]
+git = "https://github.com/microsoft/vcpkg"
+rev = "4c1db68"
+dependencies = ["libxml2"]
