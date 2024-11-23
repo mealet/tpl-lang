@@ -8,7 +8,7 @@
 <div align="center">
  <img src="https://github.com/user-attachments/assets/291c4d80-e255-4c17-8543-8528e1a4ddda" /> </br>
 
- <img src="https://tokei.rs/b1/github/mealet/tpl-lang?category=code&style=for-the-badge&color=%230389f5" />
+ <img src="https://img.shields.io/endpoint?url=https%3A%2F%2Floc-counter.onrender.com%2F%3Frepo%3Dmealet%2Ftpl-lang%26branch%3Dmain%26stat%3Dlines&style=for-the-badge&color=%230389f5" />
  <img src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmealet%2Ftpl-lang%2Frefs%2Fheads%2Fmain%2FCargo.toml%3Fraw%3Dtrue&query=workspace.package.version&style=for-the-badge&label=Version&color=%230389f5" />
 </div>
 
