@@ -16,6 +16,7 @@ jobs:
         include:
           - target: ubuntu-latest
           - target: macos-latest
+          - target: windows-2019
 
     steps:
       - name: 👀 Checkout Repository
@@ -32,9 +33,17 @@ jobs:
         with:
           workspaces: './target'
 
+      - name: 📦 LIBXML2 Setup
+        if: runner.os == 'Windows'
+        uses: johnwason/vcpkg-action@v6
+        with:
+          pkgs: libxml2
+          triplet: x64-windows-release
+          token: ${{ github.token }}
+          github-binarycache: true
+
       - name: 🔨 Project Build
         run: |
-          rustup target add x86_64-apple-darwin
           cargo build --release
 
       - name: 📂 Publish Artifacts
