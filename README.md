@@ -3,6 +3,7 @@
 [Inkwell]: https://github.com/TheDan64/inkwell
 [Colored]: https://crates.io/crates/colored
 [Examples]: ./examples
+[Releases]: https://github.com/mealet/tpl-lang/releases
 
 <div align="center">
  <img src="https://github.com/user-attachments/assets/291c4d80-e255-4c17-8543-8528e1a4ddda" /> </br>
@@ -30,11 +31,9 @@ Code separated to 4 modules:
 
 ## 💡 Installation
 1. Install any of these C compilers: `clang`, `gcc`, `cc`.
-2. Install [LLVM]
-3. Install the compiler by:
-```
-cargo install --git https://github.com/mealet/tpl-lang
-```
+2. Download archive for you'r system from [Releases]
+3. Unpack it anywhere
+4. Use the binary file (`tplc` on Linux/Mac, `tplc.exe` on Windows)
 
 ## 🦛 Building
 1. Download or clone this repository to your computer.
