@@ -31,6 +31,11 @@ pub enum Expressions {
         arguments: Vec<Expressions>,
         line: usize,
     },
+    SubElement {
+        parent: Box<Expressions>,
+        child: Box<Expressions>,
+        line: usize
+    },
     Lambda {
         arguments: Vec<(String, String)>,
         statements: Vec<Statements>,

@@ -71,7 +71,7 @@ pub enum Statements {
         line: usize,
     },
 
-    // Some Keywords
+    // Etc
     BreakStatement {
         line: usize,
     },
@@ -80,7 +80,6 @@ pub enum Statements {
         line: usize,
     },
 
-    // Etc.
     Expression(Expressions),
     None,
     End,

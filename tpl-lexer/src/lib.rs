@@ -247,7 +247,7 @@ impl Lexer {
                     output.push(Token::new(TokenType::Number, value.to_string(), self.line));
                 }
                 _ if self.char.is_alphabetic() => {
-                    let allowed_identifier_chars = ['!', '_', '.'];
+                    let allowed_identifier_chars = ['_'];
 
                     let mut id = String::new();
                     while self.char.is_alphanumeric()

@@ -191,6 +191,17 @@ impl Parser {
 
                 match next.token_type {
                     TokenType::Equal => self.assign_statement(current.value),
+                    TokenType::Dot => {
+                        // subelement
+                        let sub_expr = self.subelement_expression(
+                            Expressions::Value(
+                                Value::Identifier(current.value)
+                            ),
+                            TokenType::Dot
+                        );
+
+                        Statements::Expression(sub_expr)
+                    }
                     TokenType::LParen => self.call_statement(current.value),
                     _ if BINARY_OPERATORS.contains(&next.token_type) => {
                         match self.next().token_type {
@@ -380,6 +391,12 @@ impl Parser {
                 self.error("Unexpected parentheses in expression found".to_string());
                 let _ = self.next();
                 return Expressions::None;
+            }
+            TokenType::Dot => {
+                node = self.subelement_expression(
+                    node,
+                    TokenType::Dot
+                );
             }
             END_STATEMENT => {
                 self.next();
@@ -1066,6 +1083,22 @@ impl Parser {
         output
     }
 
+    fn subelement_expression(&mut self, parent: Expressions, separator: TokenType) -> Expressions {
+        let line = self.current().line;
+
+        if self.expect(separator) {
+            let _ = self.next();
+        }
+
+        let child = self.expression();
+
+        return Expressions::SubElement {
+            parent: Box::new(parent),
+            child: Box::new(child),
+            line
+        };
+    }
+
     // main function
 
     pub fn parse(&mut self) -> Result<Vec<Statements>, ParseErrorHandler> {
@@ -1091,6 +1124,142 @@ impl Parser {
 mod tests {
     use super::*;
     use tpl_lexer::{token::Token, token_type::TokenType, Lexer};
+
+    #[test]
+    fn subelement_expr_test() {
+        let input = String::from("a.b");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::Expression(
+                Expressions::SubElement {
+                    parent: Box::new(
+                        Expressions::Value(
+                            Value::Identifier(
+                                "a".to_string()
+                            )
+                        )
+                    ),
+                    child: Box::new(
+                        Expressions::Value(
+                            Value::Identifier(
+                                "b".to_string()
+                            )
+                        )
+                    ),
+                    line: 0
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn subelement_function_call_test() {
+        let input = String::from("a.b()");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::Expression(
+                Expressions::SubElement {
+                    parent: Box::new(
+                        Expressions::Value(
+                            Value::Identifier(
+                                "a".to_string()
+                            )
+                        )
+                    ),
+                    child: Box::new(
+                        Expressions::Call {
+                            function_name: String::from("b"),
+                            arguments: Vec::new(),
+                            line: 0
+                        }
+                    ),
+                    line: 0
+                }
+            )
+        );
+    }
+
+
+    #[test]
+    fn subelement_adv_expr_test() {
+        let input = String::from("a.b.c.d");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::Expression(
+                Expressions::SubElement {
+                    parent: Box::new(
+                        Expressions::Value(
+                            Value::Identifier(
+                                "a".to_string()
+                            )
+                        )
+                    ),
+                    child: Box::new(
+                        Expressions::SubElement {
+                            parent: Box::new(
+                                Expressions::Value(
+                                    Value::Identifier(
+                                        "b".to_string()
+                                    )
+                                )
+                            ),
+                            child: Box::new(
+                                Expressions::SubElement {
+                                    parent: Box::new(
+                                        Expressions::Value(
+                                            Value::Identifier(
+                                                "c".to_string()
+                                            )
+                                        )
+                                    ),
+                                    child: Box::new(
+                                        Expressions::Value(
+                                            Value::Identifier(
+                                                "d".to_string()
+                                            )
+                                        )
+                                    ),
+                                    line: 0
+                                }
+                            ),
+                            line: 0
+                        }
+                    ),
+                    line: 0
+                }
+            )
+        );
+    }
 
     #[test]
     fn peek_fn_test() {
