@@ -34,7 +34,7 @@ pub enum Expressions {
     SubElement {
         parent: Box<Expressions>,
         child: Box<Expressions>,
-        line: usize
+        line: usize,
     },
     Lambda {
         arguments: Vec<(String, String)>,

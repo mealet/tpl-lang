@@ -770,23 +770,32 @@ impl<'ctx> Compiler<'ctx> {
                 }
             }
 
-            Statements::Expression(expr) => {
-                match expr {
-                    Expressions::SubElement { parent, child, line } => {
-                        self.compile_subelement(Expressions::SubElement { parent, child, line }, function);
-                    }
-                    _ => {
-                        GenError::throw(
-                            "Unsupported expression found! Please open issue with your code on Github!",
-                            ErrorType::NotSupported,
-                            self.module_name.clone(),
-                            self.module_source.clone(),
-                            0,
-                        );
-                        std::process::exit(1);
-                    }
+            Statements::Expression(expr) => match expr {
+                Expressions::SubElement {
+                    parent,
+                    child,
+                    line,
+                } => {
+                    self.compile_subelement(
+                        Expressions::SubElement {
+                            parent,
+                            child,
+                            line,
+                        },
+                        function,
+                    );
                 }
-            }
+                _ => {
+                    GenError::throw(
+                        "Unsupported expression found! Please open issue with your code on Github!",
+                        ErrorType::NotSupported,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        0,
+                    );
+                    std::process::exit(1);
+                }
+            },
 
             // NOTE: Not supported
             _ => {
@@ -953,10 +962,19 @@ impl<'ctx> Compiler<'ctx> {
                         std::process::exit(1);
                     }
                 }
-            },
-            Expressions::SubElement { parent, child, line } => {
-                self.compile_subelement(Expressions::SubElement { parent, child, line }, function)
             }
+            Expressions::SubElement {
+                parent,
+                child,
+                line,
+            } => self.compile_subelement(
+                Expressions::SubElement {
+                    parent,
+                    child,
+                    line,
+                },
+                function,
+            ),
             _ => {
                 GenError::throw(
                     format!("`{:?}` is not supported!", expr),
@@ -1081,15 +1099,23 @@ impl<'ctx> Compiler<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         match subelement {
-            Expressions::SubElement { parent, child, line } => {
+            Expressions::SubElement {
+                parent,
+                child,
+                line,
+            } => {
                 match *child {
-                    Expressions::Call { function_name, arguments, line } => {
+                    Expressions::Call {
+                        function_name,
+                        arguments,
+                        line,
+                    } => {
                         // inserting parent as a first argument
                         let modified_args = [vec![*parent], arguments].concat();
                         let call = self.fn_call(function_name, modified_args, line, function);
 
                         call
-                    },
+                    }
                     _ => {
                         GenError::throw(
                             "Unsupported subelement found! Please open issue on github repo for bug report!",
@@ -1101,14 +1127,14 @@ impl<'ctx> Compiler<'ctx> {
                         std::process::exit(1);
                     }
                 }
-            },
+            }
             _ => {
                 GenError::throw(
                     "`compile_subelement` takes only 'SubElement' expression!",
                     ErrorType::BuildError,
                     self.module_name.clone(),
                     self.module_source.clone(),
-                    0
+                    0,
                 );
                 std::process::exit(1);
             }

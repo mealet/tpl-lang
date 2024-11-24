@@ -194,10 +194,8 @@ impl Parser {
                     TokenType::Dot => {
                         // subelement
                         let sub_expr = self.subelement_expression(
-                            Expressions::Value(
-                                Value::Identifier(current.value)
-                            ),
-                            TokenType::Dot
+                            Expressions::Value(Value::Identifier(current.value)),
+                            TokenType::Dot,
                         );
 
                         Statements::Expression(sub_expr)
@@ -393,10 +391,7 @@ impl Parser {
                 return Expressions::None;
             }
             TokenType::Dot => {
-                node = self.subelement_expression(
-                    node,
-                    TokenType::Dot
-                );
+                node = self.subelement_expression(node, TokenType::Dot);
             }
             END_STATEMENT => {
                 self.next();
@@ -1092,11 +1087,11 @@ impl Parser {
 
         let child = self.expression();
 
-        return Expressions::SubElement {
+        Expressions::SubElement {
             parent: Box::new(parent),
             child: Box::new(child),
-            line
-        };
+            line,
+        }
     }
 
     // main function
@@ -1140,25 +1135,11 @@ mod tests {
 
         assert_eq!(
             ast[0],
-            Statements::Expression(
-                Expressions::SubElement {
-                    parent: Box::new(
-                        Expressions::Value(
-                            Value::Identifier(
-                                "a".to_string()
-                            )
-                        )
-                    ),
-                    child: Box::new(
-                        Expressions::Value(
-                            Value::Identifier(
-                                "b".to_string()
-                            )
-                        )
-                    ),
-                    line: 0
-                }
-            )
+            Statements::Expression(Expressions::SubElement {
+                parent: Box::new(Expressions::Value(Value::Identifier("a".to_string()))),
+                child: Box::new(Expressions::Value(Value::Identifier("b".to_string()))),
+                line: 0
+            })
         );
     }
 
@@ -1177,28 +1158,17 @@ mod tests {
 
         assert_eq!(
             ast[0],
-            Statements::Expression(
-                Expressions::SubElement {
-                    parent: Box::new(
-                        Expressions::Value(
-                            Value::Identifier(
-                                "a".to_string()
-                            )
-                        )
-                    ),
-                    child: Box::new(
-                        Expressions::Call {
-                            function_name: String::from("b"),
-                            arguments: Vec::new(),
-                            line: 0
-                        }
-                    ),
+            Statements::Expression(Expressions::SubElement {
+                parent: Box::new(Expressions::Value(Value::Identifier("a".to_string()))),
+                child: Box::new(Expressions::Call {
+                    function_name: String::from("b"),
+                    arguments: Vec::new(),
                     line: 0
-                }
-            )
+                }),
+                line: 0
+            })
         );
     }
-
 
     #[test]
     fn subelement_adv_expr_test() {
@@ -1215,49 +1185,19 @@ mod tests {
 
         assert_eq!(
             ast[0],
-            Statements::Expression(
-                Expressions::SubElement {
-                    parent: Box::new(
-                        Expressions::Value(
-                            Value::Identifier(
-                                "a".to_string()
-                            )
-                        )
-                    ),
-                    child: Box::new(
-                        Expressions::SubElement {
-                            parent: Box::new(
-                                Expressions::Value(
-                                    Value::Identifier(
-                                        "b".to_string()
-                                    )
-                                )
-                            ),
-                            child: Box::new(
-                                Expressions::SubElement {
-                                    parent: Box::new(
-                                        Expressions::Value(
-                                            Value::Identifier(
-                                                "c".to_string()
-                                            )
-                                        )
-                                    ),
-                                    child: Box::new(
-                                        Expressions::Value(
-                                            Value::Identifier(
-                                                "d".to_string()
-                                            )
-                                        )
-                                    ),
-                                    line: 0
-                                }
-                            ),
-                            line: 0
-                        }
-                    ),
+            Statements::Expression(Expressions::SubElement {
+                parent: Box::new(Expressions::Value(Value::Identifier("a".to_string()))),
+                child: Box::new(Expressions::SubElement {
+                    parent: Box::new(Expressions::Value(Value::Identifier("b".to_string()))),
+                    child: Box::new(Expressions::SubElement {
+                        parent: Box::new(Expressions::Value(Value::Identifier("c".to_string()))),
+                        child: Box::new(Expressions::Value(Value::Identifier("d".to_string()))),
+                        line: 0
+                    }),
                     line: 0
-                }
-            )
+                }),
+                line: 0
+            })
         );
     }
 
