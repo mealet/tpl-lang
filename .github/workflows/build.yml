@@ -26,7 +26,7 @@ jobs:
         uses: ZhongRuoyu/setup-llvm@v0
 
       - name: 🦀 Rust Setup
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
 
       - name: 🕐 Rust Cache
         uses: swatinem/rust-cache@v2
