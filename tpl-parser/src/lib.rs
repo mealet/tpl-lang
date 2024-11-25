@@ -25,7 +25,6 @@ lazy_static! {
         "int16",
         "int32",
         "int64",
-        "int128",
 
         "str",
         "bool",

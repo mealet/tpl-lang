@@ -861,9 +861,9 @@ impl<'ctx> Compiler<'ctx> {
                 // matching types
                 match left.0.as_str() {
                     // int
-                    "int8" | "int16" | "int32" | "int64" | "int128" => {
+                    "int8" | "int16" | "int32" | "int64" => {
                         // checking if all sides are the same type
-                        if !["int8", "int16", "int32", "int64", "int128"]
+                        if !["int8", "int16", "int32", "int64"]
                             .contains(&right.0.as_str())
                         {
                             GenError::throw(
@@ -1017,26 +1017,10 @@ impl<'ctx> Compiler<'ctx> {
                         "int32".to_string(),
                         self.context.i32_type().const_int(i as u64, true).into(),
                     ),
-                    -9_223_372_036_854_775_808..9_223_372_036_854_775_808 => (
+                    i64::MIN..=i64::MAX => (
                         "int64".to_string(),
                         self.context.i64_type().const_int(i as u64, true).into(),
                     ),
-                    -170_141_183_460_469_231_731_687_303_715_884_105_728
-                        ..=170_141_183_460_469_231_731_687_303_715_884_105_727 => (
-                        "int128".to_string(),
-                        self.context.i128_type().const_int(i as u64, true).into(),
-                    ), // Even the compiler says that number bigger 128-bits is unreachable. xD
-
-                       // _ => {
-                       //     GenError::throw(
-                       //         "Provided integer is too big! Max supported type is 128-bit number!",
-                       //         ErrorType::TypeError,
-                       //         self.module_name.clone(),
-                       //         self.module_source.clone(),
-                       //         line
-                       //     );
-                       //     std::process::exit(1);
-                       // }
                 }
             }
             Value::Boolean(b) => (
@@ -1178,7 +1162,7 @@ impl<'ctx> Compiler<'ctx> {
                     | ("int16", "int16")
                     | ("int32", "int32")
                     | ("int64", "int64")
-                    | ("int128", "int128") => {
+                    => {
                         // matching operand
                         let predicate = match operand.as_str() {
                             ">" => inkwell::IntPredicate::SGT,
@@ -1439,7 +1423,6 @@ impl<'ctx> Compiler<'ctx> {
             "int16" => self.context.i16_type().into(),
             "int32" => self.context.i32_type().into(),
             "int64" => self.context.i64_type().into(),
-            "int128" => self.context.i128_type().into(),
             "bool" => self.context.bool_type().into(),
             "str" => self.context.ptr_type(AddressSpace::default()).into(),
             "auto" => self.context.i8_type().into(),
@@ -1473,7 +1456,6 @@ impl<'ctx> Compiler<'ctx> {
             "int16" => self.context.i16_type().fn_type(params, is_var_args),
             "int32" => self.context.i32_type().fn_type(params, is_var_args),
             "int64" => self.context.i64_type().fn_type(params, is_var_args),
-            "int128" => self.context.i128_type().fn_type(params, is_var_args),
             "bool" => self.context.bool_type().fn_type(params, is_var_args),
             "void" => self.context.void_type().fn_type(params, is_var_args),
             "str" => self
@@ -1601,7 +1583,6 @@ impl<'ctx> Compiler<'ctx> {
                 "int16" => "%hd",
                 "int32" => "%d",
                 "int64" => "%lld",
-                "int128" => "%lld", // now int128 isn't supported for print
                 "bool" => {
                     let (_true, _false) = self.__boolean_strings();
 
@@ -1775,7 +1756,7 @@ impl<'ctx> Compiler<'ctx> {
             let _ = self
                 .builder
                 .build_return(Some(&match function_type.as_str() {
-                    "int8" | "int16" | "int32" | "int64" | "int128" => {
+                    "int8" | "int16" | "int32" | "int64" => {
                         self.compile_value(Value::Integer(0), line, Some(function_type.clone()))
                             .1
                     }
@@ -2029,7 +2010,6 @@ mod tests {
         let int16 = compiler.compile_value(Value::Integer(256), 0, None);
         let int32 = compiler.compile_value(Value::Integer(65_535), 0, None);
         let int64 = compiler.compile_value(Value::Integer(2_147_483_648), 0, None);
-        let int128 = compiler.compile_value(Value::Integer(9_223_372_036_854_775_808), 0, None);
 
         let boolean_true = compiler.compile_value(Value::Boolean(true), 0, None);
         let boolean_false = compiler.compile_value(Value::Boolean(false), 0, None);
@@ -2042,7 +2022,6 @@ mod tests {
                 int16.0,
                 int32.0,
                 int64.0,
-                int128.0,
                 boolean_true.0,
                 boolean_false.0,
                 str.0
@@ -2052,7 +2031,6 @@ mod tests {
                 String::from("int16"),
                 String::from("int32"),
                 String::from("int64"),
-                String::from("int128"),
                 String::from("bool"),
                 String::from("bool"),
                 String::from("str"),
@@ -2063,7 +2041,6 @@ mod tests {
         assert!(int16.1.is_int_value());
         assert!(int32.1.is_int_value());
         assert!(int64.1.is_int_value());
-        assert!(int128.1.is_int_value());
         assert!(boolean_true.1.is_int_value());
         assert!(boolean_false.1.is_int_value());
         assert!(str.1.is_pointer_value());
