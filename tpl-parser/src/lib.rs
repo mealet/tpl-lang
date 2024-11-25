@@ -25,6 +25,7 @@ lazy_static! {
         "int16",
         "int32",
         "int64",
+        "int128",
 
         "str",
         "bool",
@@ -304,8 +305,9 @@ impl Parser {
             }
             _ => {
                 self.error(format!(
-                    "Unexpected term '{:?}' found",
-                    self.current().value
+                    "Unexpected term found: '{}' -> @{}",
+                    self.current().value,
+                    self.current().token_type
                 ));
                 let _ = self.next();
                 return Expressions::None;
