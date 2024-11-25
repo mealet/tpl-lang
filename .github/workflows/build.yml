@@ -34,13 +34,16 @@ jobs:
           workspaces: './target'
 
       - name: 📦 LIBXML2 Setup
-        if: runner.os == 'Windows'
-        uses: johnwason/vcpkg-action@v6
-        with:
-          pkgs: libxml2
-          triplet: x64-windows-release
-          token: ${{ github.token }}
-          github-binarycache: true
+        if: runner.os == "Windows"
+        run: |
+            cd $HOME
+            git clone https://github.com/microsoft/vcpkg.git
+            cd vcpkg
+            .\bootstrap-vcpkg.bat
+            .\vcpkg install libxml2
+            .\vcpkg integrate install
+            Add-Content $env:GITHUB_PATH "$HOME\vcpkg"
+            Add-Content $env:GITHUB_PATH "$HOME\vcpkg\bin"
 
       - name: 🔨 Project Build
         run: |
