@@ -16,7 +16,7 @@ jobs:
         include:
           - target: ubuntu-latest
           - target: macos-latest
-          - target: windows-2019
+          - target: windows-latest
 
     steps:
       - name: 👀 Checkout Repository
