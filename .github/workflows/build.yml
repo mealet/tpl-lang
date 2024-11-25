@@ -34,7 +34,7 @@ jobs:
           workspaces: './target'
 
       - name: 📦 LIBXML2 Setup
-        if: runner.os == "Windows"
+        if: runner.os == 'Windows'
         run: |
             cd $HOME
             git clone https://github.com/microsoft/vcpkg.git
