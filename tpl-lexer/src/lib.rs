@@ -265,7 +265,9 @@ impl Lexer {
                         output.push(matched_token);
                     } else {
                         output.push(Token::new(TokenType::Identifier, id, self.line));
-                        self.getc();
+
+                        // self.getc();
+                        // This line was the main reason of failing ~30% parser tests 0_0
                     }
                 }
 
