@@ -42,6 +42,11 @@ pub enum Expressions {
         ftype: String,
         line: usize,
     },
+    Array {
+        values: Vec<Expressions>,
+        len: usize,
+        line: usize
+    },
     Value(Value),
     None,
 }

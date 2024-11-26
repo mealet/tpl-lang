@@ -281,6 +281,22 @@ impl Parser {
 
                 return output;
             }
+            TokenType::LBrack => {
+                // array
+                let line = self.current().line;
+                let values = self.expressions_enum(
+                    TokenType::LBrack,
+                    TokenType::RBrack,
+                    TokenType::Comma
+                );
+                let len = values.len();
+
+                return Expressions::Array {
+                    values,
+                    len,
+                    line
+                }
+            }
             _ if DATATYPES.contains(&current.value.as_str()) => {
                 // parsing argument
                 let datatype = current.value;
@@ -539,32 +555,65 @@ impl Parser {
             let mut datatype = self.current().value;
             let _ = self.next();
 
-            if self.expect(TokenType::Lt) {
-                // example: fn<int32>
+            match self.current().token_type {
+                TokenType::Lt => {
+                    // example: fn<int32>
 
-                // In future there must be a special function for parsing nested datatypes
+                    // In future there must be a special function for parsing nested datatypes
 
-                let _ = self.next();
+                    let _ = self.next();
 
-                if !self.expect(TokenType::Keyword) {
-                    self.error("Unexpected nested datatype found!");
-                    self.next();
+                    if !self.expect(TokenType::Keyword) {
+                        self.error("Unexpected nested datatype found!");
+                        self.next();
 
-                    return Statements::None;
+                        return Statements::None;
+                    }
+
+                    let subtype = self.current().value;
+                    let _ = self.next();
+
+                    if !self.expect(TokenType::Bt) {
+                        self.error("Wrong nested type definition! Must be like: fn<int32>");
+                        self.next();
+
+                        return Statements::None;
+                    }
+
+                    let _ = self.next();
+                    datatype = format!("{}<{}>", datatype, subtype);
                 }
+                TokenType::LBrack => {
+                    // example: int32[] or int32[1]
+                    //                           ↑
+                    //                    array's length
+                    
+                    let mut array_len = String::from("auto");
+                    let _ = self.next();
 
-                let subtype = self.current().value;
-                let _ = self.next();
+                    match self.current().token_type {
+                        TokenType::Number => {
+                            array_len = self.current().value;
+                            let _ = self.next();
+                        }
+                        TokenType::RBrack => {}
+                        _ => {
+                            self.error("Unexpected array annotation found!");
+                            let _ = self.next();
+                            return Statements::None;
+                        }
+                    }
 
-                if !self.expect(TokenType::Bt) {
-                    self.error("Wrong nested type definition! Must be like: fn<int32>");
-                    self.next();
+                    if !self.expect(TokenType::RBrack) {
+                            self.error("Unexpected brackets end at annoation found!");
+                            let _ = self.next();
+                            return Statements::None;
+                    }
 
-                    return Statements::None;
-                }
-
-                let _ = self.next();
-                datatype = format!("{}<{}>", datatype, subtype);
+                    let _ = self.next();
+                    datatype = format!("{}[{}]", datatype, array_len);
+                },
+                _ => {}
             }
 
             if !self.expect(TokenType::Identifier) {
@@ -2132,5 +2181,121 @@ mod tests {
 
         let mut parser = Parser::new(tokens, "test".to_string(), input);
         let _ = parser.parse().unwrap();
+    }
+
+    #[test]
+    fn array_annotation_test() {
+        let input = String::from("int32[] a;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32[auto]"),
+                value: None,
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn array_annotation_with_len_test() {
+        let input = String::from("int32[5] a;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32[5]"),
+                value: None,
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn array_annotation_with_values_test() {
+        let input = String::from("int32[] a = [1,2,3];");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32[auto]"),
+                value: Some(
+                    Box::new(
+                        Expressions::Array {
+                            values: vec![
+                                Expressions::Value(Value::Integer(1)),
+                                Expressions::Value(Value::Integer(2)),
+                                Expressions::Value(Value::Integer(3)),
+                            ],
+                            len: 3,
+                            line: 0
+                        }
+                    )
+                ),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn array_annotation_with_empty_test() {
+        let input = String::from("int32[] a = [];");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32[auto]"),
+                value: Some(
+                    Box::new(
+                        Expressions::Array {
+                            values: vec![],
+                            len: 0,
+                            line: 0
+                        }
+                    )
+                ),
+                line: 0
+            }
+        );
     }
 }
