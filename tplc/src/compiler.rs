@@ -44,8 +44,8 @@ impl ObjectCompiler {
 }
 
 impl ObjectLinker {
-    pub fn link(input_file: &String, output_file: &String) -> Result<(), ()> {
-        let mut output_path = output_file.clone();
+    pub fn link(input_file: &String, output_file: &str) -> Result<(), ()> {
+        let mut output_path = output_file.to_owned();
 
         if cfg!(windows) && !output_file.contains(".exe") {
             output_path = format!("{}.exe", output_path);

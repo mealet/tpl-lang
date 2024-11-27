@@ -15,8 +15,10 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::{Linkage, Module},
-    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
-    values::{ArrayValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
+    values::{
+        BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue,
+    },
     AddressSpace,
 };
 
@@ -249,16 +251,14 @@ impl<'ctx> Compiler<'ctx> {
 
                     if let Some(intial_value) = value {
                         let expected_type = match datatype.clone().as_str() {
-                            _ if datatype.contains("[") => Some(Compiler::clean_datatype(&datatype)),
-                            _ => Some(datatype.clone())
+                            _ if datatype.contains("[") => {
+                                Some(Compiler::clean_datatype(&datatype))
+                            }
+                            _ => Some(datatype.clone()),
                         };
 
-                        let compiled_expression = self.compile_expression(
-                            *intial_value,
-                            line,
-                            function,
-                            expected_type
-                        );
+                        let compiled_expression =
+                            self.compile_expression(*intial_value, line, function, expected_type);
 
                         // matching datatypes
 
@@ -868,9 +868,7 @@ impl<'ctx> Compiler<'ctx> {
                     // int
                     "int8" | "int16" | "int32" | "int64" => {
                         // checking if all sides are the same type
-                        if !["int8", "int16", "int32", "int64"]
-                            .contains(&right.0.as_str())
-                        {
+                        if !["int8", "int16", "int32", "int64"].contains(&right.0.as_str()) {
                             GenError::throw(
                                 "Left and Right sides must be the same types in Binary Expression!"
                                     .to_string(),
@@ -983,39 +981,46 @@ impl<'ctx> Compiler<'ctx> {
             Expressions::Array { values, len, line } => {
                 let mut compiled_values = Vec::new();
                 for val in values {
-                    let compiled = self.compile_expression(val, line, function, expected_datatype.clone());
+                    let compiled =
+                        self.compile_expression(val, line, function, expected_datatype.clone());
                     compiled_values.push(compiled);
                 }
 
                 let types: Vec<String> = compiled_values.iter().map(|x| x.0.clone()).collect();
-                let values: Vec<BasicValueEnum> = compiled_values.iter().into_iter().map(|x| x.1).collect();
+                let values: Vec<BasicValueEnum> = compiled_values.iter().map(|x| x.1).collect();
 
                 let arr_type = types[0].clone();
                 let arr_type_basic = match self.get_basic_type(&arr_type, line) {
                     BasicTypeEnum::IntType(int) => int.vec_type(len as u32),
                     BasicTypeEnum::PointerType(ptr) => ptr.vec_type(len as u32),
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 };
 
                 if !Compiler::validate_types(&types, arr_type.clone()) {
                     GenError::throw(
-                        format!("Array has type `{}`, but found: {}", &arr_type, types.join(", ")),
+                        format!(
+                            "Array has type `{}`, but found: {}",
+                            &arr_type,
+                            types.join(", ")
+                        ),
                         ErrorType::TypeError,
                         self.module_name.clone(),
                         self.module_source.clone(),
-                        line
+                        line,
                     );
                 }
 
                 let expr_type = format!("{}[{}]", arr_type, len);
                 let mut expr_value = arr_type_basic.const_zero().as_basic_value_enum();
-                
+
                 for (index, value) in values.iter().enumerate() {
-                        let index =  self.context.i8_type().const_int(index as u64, false);
-                        expr_value = expr_value.into_vector_value().const_insert_element(index, *value);
+                    let index = self.context.i8_type().const_int(index as u64, false);
+                    expr_value = expr_value
+                        .into_vector_value()
+                        .const_insert_element(index, *value);
                 }
 
-                (expr_type, expr_value.into())
+                (expr_type, expr_value)
             }
             _ => {
                 GenError::throw(
@@ -1031,11 +1036,7 @@ impl<'ctx> Compiler<'ctx> {
     }
 
     fn clean_datatype(val: &str) -> String {
-        val
-            .split("[")
-            .collect::<Vec<&str>>()
-            [0]
-            .to_string()
+        val.split("[").collect::<Vec<&str>>()[0].to_string()
     }
 
     fn compile_value(
@@ -1211,8 +1212,7 @@ impl<'ctx> Compiler<'ctx> {
                     ("int8", "int8")
                     | ("int16", "int16")
                     | ("int32", "int32")
-                    | ("int64", "int64")
-                    => {
+                    | ("int64", "int64") => {
                         // matching operand
                         let predicate = match operand.as_str() {
                             ">" => inkwell::IntPredicate::SGT,
@@ -1472,9 +1472,7 @@ impl<'ctx> Compiler<'ctx> {
             _ if datatype.contains("[") => {
                 let type_parts = datatype.split("[").collect::<Vec<&str>>();
                 let raw_type = type_parts[0];
-                let array_len: u32 = type_parts[1]
-                    .split("]")
-                    .collect::<Vec<&str>>()[0]
+                let array_len: u32 = type_parts[1].split("]").collect::<Vec<&str>>()[0]
                     .parse()
                     .unwrap_or_else(|_| {
                         GenError::throw(
@@ -1482,7 +1480,7 @@ impl<'ctx> Compiler<'ctx> {
                             ErrorType::BuildError,
                             self.module_name.clone(),
                             self.module_source.clone(),
-                            line
+                            line,
                         );
                         std::process::exit(1);
                     });
@@ -1490,7 +1488,7 @@ impl<'ctx> Compiler<'ctx> {
                 match self.get_basic_type(raw_type, line) {
                     BasicTypeEnum::IntType(int) => int.vec_type(array_len).into(),
                     BasicTypeEnum::PointerType(ptr) => ptr.vec_type(array_len).into(),
-                    _ => unreachable!()
+                    _ => unreachable!(),
                 }
             }
             "int8" => self.context.i8_type().into(),
@@ -2172,10 +2170,10 @@ mod tests {
             values: vec![
                 Expressions::Value(Value::Integer(5)),
                 Expressions::Value(Value::Integer(3)),
-                Expressions::Value(Value::Integer(4))
+                Expressions::Value(Value::Integer(4)),
             ],
             len: 3,
-            line: 0
+            line: 0,
         };
 
         let compiled = compiler.compile_expression(array_expr, 0, compiler.main_function, None);

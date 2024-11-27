@@ -45,7 +45,7 @@ pub enum Expressions {
     Array {
         values: Vec<Expressions>,
         len: usize,
-        line: usize
+        line: usize,
     },
     Value(Value),
     None,

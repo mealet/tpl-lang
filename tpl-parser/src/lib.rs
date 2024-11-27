@@ -284,18 +284,11 @@ impl Parser {
             TokenType::LBrack => {
                 // array
                 let line = self.current().line;
-                let values = self.expressions_enum(
-                    TokenType::LBrack,
-                    TokenType::RBrack,
-                    TokenType::Comma
-                );
+                let values =
+                    self.expressions_enum(TokenType::LBrack, TokenType::RBrack, TokenType::Comma);
                 let len = values.len();
 
-                return Expressions::Array {
-                    values,
-                    len,
-                    line
-                }
+                return Expressions::Array { values, len, line };
             }
             _ if DATATYPES.contains(&current.value.as_str()) => {
                 // parsing argument
@@ -587,7 +580,7 @@ impl Parser {
                     // example: int32[] or int32[1]
                     //                           ↑
                     //                    array's length
-                    
+
                     let mut array_len = String::from("auto");
                     let _ = self.next();
 
@@ -605,14 +598,14 @@ impl Parser {
                     }
 
                     if !self.expect(TokenType::RBrack) {
-                            self.error("Unexpected brackets end at annoation found!");
-                            let _ = self.next();
-                            return Statements::None;
+                        self.error("Unexpected brackets end at annoation found!");
+                        let _ = self.next();
+                        return Statements::None;
                     }
 
                     let _ = self.next();
                     datatype = format!("{}[{}]", datatype, array_len);
-                },
+                }
                 _ => {}
             }
 
@@ -2249,19 +2242,15 @@ mod tests {
             Statements::AnnotationStatement {
                 identifier: String::from("a"),
                 datatype: String::from("int32[auto]"),
-                value: Some(
-                    Box::new(
-                        Expressions::Array {
-                            values: vec![
-                                Expressions::Value(Value::Integer(1)),
-                                Expressions::Value(Value::Integer(2)),
-                                Expressions::Value(Value::Integer(3)),
-                            ],
-                            len: 3,
-                            line: 0
-                        }
-                    )
-                ),
+                value: Some(Box::new(Expressions::Array {
+                    values: vec![
+                        Expressions::Value(Value::Integer(1)),
+                        Expressions::Value(Value::Integer(2)),
+                        Expressions::Value(Value::Integer(3)),
+                    ],
+                    len: 3,
+                    line: 0
+                })),
                 line: 0
             }
         );
@@ -2285,15 +2274,11 @@ mod tests {
             Statements::AnnotationStatement {
                 identifier: String::from("a"),
                 datatype: String::from("int32[auto]"),
-                value: Some(
-                    Box::new(
-                        Expressions::Array {
-                            values: vec![],
-                            len: 0,
-                            line: 0
-                        }
-                    )
-                ),
+                value: Some(Box::new(Expressions::Array {
+                    values: vec![],
+                    len: 0,
+                    line: 0
+                })),
                 line: 0
             }
         );
