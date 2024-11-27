@@ -15,8 +15,8 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::{Linkage, Module},
-    types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    values::{ArrayValue, BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue},
     AddressSpace,
 };
 
@@ -248,11 +248,16 @@ impl<'ctx> Compiler<'ctx> {
                     );
 
                     if let Some(intial_value) = value {
+                        let expected_type = match datatype.clone().as_str() {
+                            _ if datatype.contains("[") => Some(Compiler::clean_datatype(&datatype)),
+                            _ => Some(datatype.clone())
+                        };
+
                         let compiled_expression = self.compile_expression(
                             *intial_value,
                             line,
                             function,
-                            Some(datatype.clone()),
+                            expected_type
                         );
 
                         // matching datatypes
@@ -975,6 +980,43 @@ impl<'ctx> Compiler<'ctx> {
                 },
                 function,
             ),
+            Expressions::Array { values, len, line } => {
+                let mut compiled_values = Vec::new();
+                for val in values {
+                    let compiled = self.compile_expression(val, line, function, expected_datatype.clone());
+                    compiled_values.push(compiled);
+                }
+
+                let types: Vec<String> = compiled_values.iter().map(|x| x.0.clone()).collect();
+                let values: Vec<BasicValueEnum> = compiled_values.iter().into_iter().map(|x| x.1).collect();
+
+                let arr_type = types[0].clone();
+                let arr_type_basic = match self.get_basic_type(&arr_type, line) {
+                    BasicTypeEnum::IntType(int) => int.vec_type(len as u32),
+                    BasicTypeEnum::PointerType(ptr) => ptr.vec_type(len as u32),
+                    _ => unreachable!()
+                };
+
+                if !Compiler::validate_types(&types, arr_type.clone()) {
+                    GenError::throw(
+                        format!("Array has type `{}`, but found: {}", &arr_type, types.join(", ")),
+                        ErrorType::TypeError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line
+                    );
+                }
+
+                let expr_type = format!("{}[{}]", arr_type, len);
+                let mut expr_value = arr_type_basic.const_zero().as_basic_value_enum();
+                
+                for (index, value) in values.iter().enumerate() {
+                        let index =  self.context.i8_type().const_int(index as u64, false);
+                        expr_value = expr_value.into_vector_value().const_insert_element(index, *value);
+                }
+
+                (expr_type, expr_value.into())
+            }
             _ => {
                 GenError::throw(
                     format!("`{:?}` is not supported!", expr),
@@ -986,6 +1028,14 @@ impl<'ctx> Compiler<'ctx> {
                 std::process::exit(1);
             }
         }
+    }
+
+    fn clean_datatype(val: &str) -> String {
+        val
+            .split("[")
+            .collect::<Vec<&str>>()
+            [0]
+            .to_string()
     }
 
     fn compile_value(
@@ -1418,6 +1468,30 @@ impl<'ctx> Compiler<'ctx> {
             _ if datatype.starts_with("fn<") => {
                 let fn_type = datatype.replace("fn<", "").replace(">", "");
                 self.get_basic_type(fn_type.as_str(), line)
+            }
+            _ if datatype.contains("[") => {
+                let type_parts = datatype.split("[").collect::<Vec<&str>>();
+                let raw_type = type_parts[0];
+                let array_len: u32 = type_parts[1]
+                    .split("]")
+                    .collect::<Vec<&str>>()[0]
+                    .parse()
+                    .unwrap_or_else(|_| {
+                        GenError::throw(
+                            "Unable to compile array's length!",
+                            ErrorType::BuildError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line
+                        );
+                        std::process::exit(1);
+                    });
+
+                match self.get_basic_type(raw_type, line) {
+                    BasicTypeEnum::IntType(int) => int.vec_type(array_len).into(),
+                    BasicTypeEnum::PointerType(ptr) => ptr.vec_type(array_len).into(),
+                    _ => unreachable!()
+                }
             }
             "int8" => self.context.i8_type().into(),
             "int16" => self.context.i16_type().into(),
@@ -2085,5 +2159,26 @@ mod tests {
                 .unwrap(),
             0
         );
+    }
+
+    #[test]
+    fn compile_array_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let array_expr = Expressions::Array {
+            values: vec![
+                Expressions::Value(Value::Integer(5)),
+                Expressions::Value(Value::Integer(3)),
+                Expressions::Value(Value::Integer(4))
+            ],
+            len: 3,
+            line: 0
+        };
+
+        let compiled = compiler.compile_expression(array_expr, 0, compiler.main_function, None);
+        dbg!(compiled);
     }
 }
