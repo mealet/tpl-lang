@@ -14,7 +14,7 @@ use inkwell::{
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
-    module::{Linkage, Module},
+    module::Module,
     types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
     values::{
         BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue,
@@ -34,47 +34,6 @@ use tpl_parser::{expressions::Expressions, statements::Statements, value::Value}
 
 const TEST_OPERATORS: [&str; 4] = [">", "<", "==", "!="];
 const LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
-
-impl<'ctx> Libc for Compiler<'ctx> {
-    type Function = FunctionValue<'ctx>;
-
-    fn __c_printf(&mut self) -> FunctionValue<'ctx> {
-        if let Some(function_value) = self.built_functions.get("printf") {
-            return *function_value;
-        }
-
-        let printf_type = self.context.void_type().fn_type(
-            &[self.context.ptr_type(AddressSpace::default()).into()],
-            true,
-        );
-        let printf_fn = self
-            .module
-            .add_function("printf", printf_type, Some(Linkage::External));
-        let _ = self.built_functions.insert("printf".to_string(), printf_fn);
-
-        printf_fn
-    }
-
-    fn __c_strcat(&mut self) -> FunctionValue<'ctx> {
-        if let Some(function_value) = self.built_functions.get("strcat") {
-            return *function_value;
-        }
-
-        let strcat_type = self.context.ptr_type(AddressSpace::default()).fn_type(
-            &[
-                self.context.ptr_type(AddressSpace::default()).into(),
-                self.context.ptr_type(AddressSpace::default()).into(),
-            ],
-            true,
-        );
-        let strcat_fn = self
-            .module
-            .add_function("strcat", strcat_type, Some(Linkage::External));
-        let _ = self.built_functions.insert("strcat".to_string(), strcat_fn);
-
-        strcat_fn
-    }
-}
 
 #[derive(Debug)]
 pub struct Compiler<'ctx> {
@@ -1627,6 +1586,76 @@ impl<'ctx> Compiler<'ctx> {
         // To fix it we need to copy both of values and use it in function (and try to free memory)
     }
 
+    fn build_to_str_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 1 {
+            GenError::throw(
+                format!("Function `to_str()` requires only 1 argument, but {} found!", arguments.len()),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let compiled_arg = self.compile_expression(arguments[0], line, function, None);
+        let arg_fmt = Compiler::__type_fmt(&compiled_arg.0);
+        let arg_fmt_ptr = self.
+            builder.build_global_string_ptr(&arg_fmt, "_to_str_fmt")
+            .unwrap_or_else(|_| {
+                GenError::throw(
+                    "Unable to allocate format pointer!",
+                    ErrorType::BuildError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line
+                );
+                std::process::exit(1);
+            })
+            .as_basic_value_enum();
+
+        let data_ptr = self.context.ptr_type(AddressSpace::default()).const_zero();
+        let sprintf_fn = self.__c_sprintf();
+
+        let call_result = self.builder.build_call(
+            sprintf_fn,
+            &[
+                data_ptr.into(),
+                arg_fmt_ptr.into(),
+                compiled_arg.1.into()
+            ],
+            "_to_string_call"
+        ).unwrap_or_else(|_| {
+            GenError::throw(
+                "Call `to_str()` failed!",
+                ErrorType::BuildError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        })
+        .try_as_basic_value()
+        .left()
+        .unwrap_or_else(|| {
+            GenError::throw(
+                "Unable to get `to_str()` value!",
+                ErrorType::BuildError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        });
+
+        ("str".to_string(), call_result)
+    }
+
     fn build_print_call(
         &mut self,
         arguments: Vec<Expressions>,
@@ -1911,6 +1940,21 @@ impl<'ctx> Compiler<'ctx> {
     }
 
     #[allow(non_snake_case)]
+    #[inline]
+    fn __type_fmt(type_str: &str) -> String {
+        match type_str {
+            "int8" => "%d",
+            "int16" => "%hd",
+            "int32" => "%d",
+            "int64" => "%lld",
+            "bool" => "%s",
+            "str" => "%s",
+            _ => unreachable!()
+        }.to_string()
+    }
+
+    #[allow(non_snake_case)]
+    #[inline]
     fn __boolean_strings(&mut self) -> (PointerValue<'ctx>, PointerValue<'ctx>) {
         if let Some(allocated_values) = self.boolean_strings_ptr {
             return allocated_values;
@@ -1939,6 +1983,7 @@ impl<'ctx> Compiler<'ctx> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use inkwell::module::Linkage;
 
     #[test]
     fn validate_types_test() {
