@@ -62,6 +62,7 @@ impl Lexer {
                 // Built-In Functions
                 macros::std_function!("print"),
                 macros::std_function!("concat"),
+                macros::std_function!("to_str"),
                 // Constructions
                 macros::std_keyword!("if"),
                 macros::std_keyword!("else"),

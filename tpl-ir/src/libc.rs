@@ -1,9 +1,5 @@
 use crate::Compiler;
-use inkwell::{
-    values::FunctionValue,
-    module::Linkage,
-    AddressSpace,
-};
+use inkwell::{module::Linkage, values::FunctionValue, AddressSpace};
 
 pub trait Libc {
     type Function;
@@ -31,10 +27,11 @@ impl<'ctx> Libc for Compiler<'ctx> {
         let sprintf_fn = self
             .module
             .add_function("sprintf", sprintf_type, Some(Linkage::External));
-        let _ = self.built_functions.insert("printf".to_string(), sprintf_fn);
+        let _ = self
+            .built_functions
+            .insert("sprintf".to_string(), sprintf_fn);
 
         sprintf_fn
-
     }
 
     fn __c_printf(&mut self) -> FunctionValue<'ctx> {
