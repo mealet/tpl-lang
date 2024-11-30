@@ -63,6 +63,10 @@ impl Lexer {
                 macros::std_function!("print"),
                 macros::std_function!("concat"),
                 macros::std_function!("to_str"),
+                macros::std_function!("to_int8"),
+                macros::std_function!("to_int16"),
+                macros::std_function!("to_int32"),
+                macros::std_function!("to_int64"),
                 // Constructions
                 macros::std_keyword!("if"),
                 macros::std_keyword!("else"),

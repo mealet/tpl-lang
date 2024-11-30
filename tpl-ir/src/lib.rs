@@ -4,6 +4,7 @@
 // Project licensed under the BSD-3 LICENSE.
 // Check the `LICENSE` file to more info.
 
+mod builtin;
 mod error;
 mod function;
 mod import;
@@ -22,7 +23,7 @@ use inkwell::{
     AddressSpace,
 };
 
-use libc::Libc;
+use builtin::BuiltIn;
 use std::collections::HashMap;
 
 use error::{ErrorType, GenError};
@@ -358,6 +359,9 @@ impl<'ctx> Compiler<'ctx> {
                     }
                     "to_str" => {
                         self.build_to_str_call(arguments, line, function);
+                    }
+                    "to_i8" => {
+                        self.build_to_int8_call(arguments, line, function);
                     }
                     _ => {
                         // user defined function
@@ -1270,6 +1274,7 @@ impl<'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
                 "to_str" => return self.build_to_str_call(arguments, line, function),
+                "to_int8" => return self.build_to_int8_call(arguments, line, function),
                 _ => {
                     if let Some(var) = self.variables.get(&function_name) {
                         if var.assigned_function.is_some() {
@@ -1495,333 +1500,6 @@ impl<'ctx> Compiler<'ctx> {
                 std::process::exit(1);
             }
         }
-    }
-
-    // built-in functions
-
-    fn build_concat_call(
-        &mut self,
-        arguments: Vec<Expressions>,
-        line: usize,
-        function: FunctionValue<'ctx>,
-    ) -> (String, BasicValueEnum<'ctx>) {
-        if arguments.len() != 2 {
-            GenError::throw(
-                "`concat` function takes 2 arguments!",
-                ErrorType::NotExpected,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                line,
-            );
-        }
-
-        let left_arg = self.compile_expression(
-            arguments[0].clone(),
-            line,
-            function,
-            self.current_expectation_value.clone(),
-        );
-        let right_arg = self.compile_expression(
-            arguments[1].clone(),
-            line,
-            function,
-            self.current_expectation_value.clone(),
-        );
-
-        let strcat_fn = self.__c_strcat();
-
-        if !Compiler::validate_types(&[left_arg.0, right_arg.0], "str".to_string()) {
-            GenError::throw(
-                "`concat` function takes only string types!",
-                ErrorType::TypeError,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                line,
-            );
-        }
-
-        let val: BasicValueEnum<'ctx> = self
-            .builder
-            .build_direct_call(
-                strcat_fn,
-                &[left_arg.1.into(), right_arg.1.into()],
-                "concat",
-            )
-            .unwrap_or_else(|_| {
-                GenError::throw(
-                    "An error occured while calling `concat` function!",
-                    ErrorType::BuildError,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
-            })
-            .try_as_basic_value()
-            .left()
-            .unwrap_or_else(|| {
-                GenError::throw(
-                    "Unable to get basic value from `concat` function!",
-                    ErrorType::BuildError,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
-            });
-
-        (String::from("str"), val)
-
-        // `strcat` provides concatenating left and right values to left variable, which
-        // means that call `concat(a, b)` will insert result into variable 'a'.
-        // To fix it we need to copy both of values and use it in function (and try to free memory)
-    }
-
-    fn build_to_str_call(
-        &mut self,
-        arguments: Vec<Expressions>,
-        line: usize,
-        function: FunctionValue<'ctx>,
-    ) -> (String, BasicValueEnum<'ctx>) {
-        if arguments.len() != 1 {
-            GenError::throw(
-                format!(
-                    "Function `to_str()` requires only 1 argument, but {} found!",
-                    arguments.len()
-                ),
-                ErrorType::NotExpected,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                line,
-            );
-            std::process::exit(1);
-        }
-
-        let compiled_arg = self.compile_expression(arguments[0].clone(), line, function, None);
-        let arg_fmt = Compiler::__type_fmt(&compiled_arg.0);
-        let arg_fmt_ptr = self
-            .builder
-            .build_global_string_ptr(&arg_fmt, "_to_str_fmt")
-            .unwrap_or_else(|_| {
-                GenError::throw(
-                    "Unable to allocate format pointer!",
-                    ErrorType::BuildError,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
-            })
-            .as_basic_value_enum();
-
-        let data_ptr_size = self.context.i8_type().const_int(10, false);
-        let data_ptr = self
-            .builder
-            .build_array_alloca(
-                self.context.ptr_type(AddressSpace::default()),
-                data_ptr_size,
-                "_to_str_alloca",
-            )
-            .unwrap_or_else(|_| {
-                GenError::throw(
-                    "Unable to create array alloca!",
-                    ErrorType::MemoryError,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
-            });
-
-        let sprintf_fn = self.__c_sprintf();
-
-        let _ = self
-            .builder
-            .build_call(
-                sprintf_fn,
-                &[data_ptr.into(), arg_fmt_ptr.into(), compiled_arg.1.into()],
-                "_to_string_call",
-            )
-            .unwrap_or_else(|_| {
-                GenError::throw(
-                    "Call `to_str()` failed!",
-                    ErrorType::BuildError,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
-            });
-
-        ("str".to_string(), data_ptr.into())
-    }
-
-    fn build_print_call(
-        &mut self,
-        arguments: Vec<Expressions>,
-        line: usize,
-        function: FunctionValue<'ctx>,
-    ) {
-        let mut fmts: Vec<String> = Vec::new();
-        let mut values: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
-        let printf_fn = self.__c_printf();
-
-        for arg in arguments {
-            let compiled_arg = self.compile_expression(
-                arg.clone(),
-                line,
-                function,
-                self.current_expectation_value.clone(),
-            );
-            let mut basic_value = compiled_arg.1;
-
-            match compiled_arg.0.as_str() {
-                "void" => continue,
-                _ if compiled_arg.0.contains("[") => {
-                    // array
-                    let array_value = basic_value.into_vector_value();
-                    let array_type = compiled_arg.0.split("[").collect::<Vec<&str>>()[0];
-                    dbg!(array_type);
-                    let array_len = {
-                        let left_parts = compiled_arg.0.split("[").collect::<Vec<&str>>();
-
-                        let right_parts = left_parts[1].split("]").collect::<Vec<&str>>();
-
-                        right_parts[0].parse::<u32>().unwrap_or_else(|_| {
-                            GenError::throw(
-                                "Unable to get array length!",
-                                ErrorType::BuildError,
-                                self.module_name.clone(),
-                                self.module_source.clone(),
-                                line,
-                            );
-                            std::process::exit(1);
-                        })
-                    };
-
-                    let mut new_fmts: Vec<&str> = Vec::new();
-
-                    for array_index in 0..array_len {
-                        let mut element = array_value.const_extract_element(
-                            self.context.i32_type().const_int(array_index as u64, false),
-                        );
-
-                        let format_string = match array_type {
-                            "int8" => "%d",
-                            "int16" => "%hd",
-                            "int32" => "%d",
-                            "int64" => "%lld",
-                            "bool" => {
-                                let (_true, _false) = self.__boolean_strings();
-
-                                if let BasicValueEnum::IntValue(int) = element {
-                                    element = self
-                                        .builder
-                                        .build_select(int, _true, _false, "bool_fmt_str")
-                                        .unwrap();
-                                }
-
-                                "%s"
-                            }
-                            "str" => "\"%s\"",
-                            _ => {
-                                GenError::throw(
-                                    format!(
-                                        "Type `{}` is not supported for 'print' function!",
-                                        array_type
-                                    ),
-                                    ErrorType::NotSupported,
-                                    self.module_name.clone(),
-                                    self.module_source.clone(),
-                                    line,
-                                );
-                                std::process::exit(1);
-                            }
-                        };
-
-                        new_fmts.push(format_string);
-                        values.push(element.into());
-                    }
-
-                    for (index, fmt) in new_fmts.iter().enumerate() {
-                        let mut output_string = format!("{},", fmt);
-
-                        if index == 0 {
-                            output_string = format!("[{},", fmt)
-                        } else if index == new_fmts.len() - 1 {
-                            output_string = format!("{}]", fmt);
-                        }
-
-                        fmts.push(output_string);
-
-                        // i know that this code is piece of shit, but i wanna sleep ._.
-                        // i'll figure it out tomorrow
-                    }
-
-                    continue;
-                }
-                _ => {}
-            }
-
-            let format_string = match compiled_arg.0.as_str() {
-                "int8" => "%d",
-                "int16" => "%hd",
-                "int32" => "%d",
-                "int64" => "%lld",
-                "bool" => {
-                    let (_true, _false) = self.__boolean_strings();
-
-                    if let BasicValueEnum::IntValue(int) = basic_value {
-                        basic_value = self
-                            .builder
-                            .build_select(int, _true, _false, "bool_fmt_str")
-                            .unwrap();
-                    }
-
-                    "%s"
-                }
-                "str" => "%s",
-                _ => {
-                    GenError::throw(
-                        format!(
-                            "Type `{}` is not supported for 'print' function!",
-                            compiled_arg.0
-                        ),
-                        ErrorType::NotSupported,
-                        self.module_name.clone(),
-                        self.module_source.clone(),
-                        line,
-                    );
-                    std::process::exit(1);
-                }
-            }
-            .to_string();
-
-            fmts.push(format_string);
-            values.push(basic_value.into());
-        }
-
-        let complete_fmt_string = self
-            .builder
-            .build_global_string_ptr(format!("{}\n", fmts.join(" ")).as_str(), "printf_fmt")
-            .unwrap_or_else(|_| {
-                GenError::throw(
-                    "Unable to create format string for C function!",
-                    ErrorType::BuildError,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
-            })
-            .as_pointer_value();
-
-        let mut printf_arguments = vec![complete_fmt_string.into()];
-        printf_arguments.append(&mut values);
-
-        let _ = self
-            .builder
-            .build_call(printf_fn, &printf_arguments, "printf_call");
     }
 
     pub fn define_user_function(
@@ -2070,6 +1748,7 @@ impl<'ctx> Compiler<'ctx> {
 mod tests {
     use super::*;
     use inkwell::module::Linkage;
+    use libc::Libc;
 
     #[test]
     fn validate_types_test() {
