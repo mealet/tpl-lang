@@ -114,19 +114,6 @@ impl<'ctx> Compiler<'ctx> {
         let _ = self
             .builder
             .build_return(Some(&self.context.i8_type().const_int(0, false)));
-
-        if !self.main_function.verify(true) {
-            self.module.print_to_stderr();
-
-            GenError::throw(
-                "Verification failure for `main` function! Please remove all returns blocks outside definitions!",
-                ErrorType::VerificationFailure,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                0
-            );
-            std::process::exit(1);
-        }
     }
 
     fn switch_block(&mut self, dest: BasicBlock<'ctx>) {
