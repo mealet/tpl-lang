@@ -1723,7 +1723,7 @@ impl<'ctx> Compiler<'ctx> {
 
                                 "%s"
                             }
-                            "str" => "%s",
+                            "str" => "\"%s\"",
                             _ => {
                                 GenError::throw(
                                     format!(
