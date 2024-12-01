@@ -44,7 +44,7 @@ pub enum Expressions {
     },
     Reference {
         object: Box<Expressions>,
-        line: usize
+        line: usize,
     },
     Array {
         values: Vec<Expressions>,

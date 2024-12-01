@@ -24,10 +24,7 @@ use inkwell::{
 };
 
 use builtin::BuiltIn;
-use std::{
-    sync::LazyLock,
-    collections::HashMap
-};
+use std::{collections::HashMap, sync::LazyLock};
 
 use error::{ErrorType, GenError};
 use function::Function;
@@ -1013,11 +1010,14 @@ impl<'ctx> Compiler<'ctx> {
 
                         if get_int_order(&avaible_type.0) > get_int_order(&exp) {
                             GenError::throw(
-                                format!("Unable to compile `{}` value on `{}` type!", avaible_type.0, exp),
+                                format!(
+                                    "Unable to compile `{}` value on `{}` type!",
+                                    avaible_type.0, exp
+                                ),
                                 ErrorType::TypeError,
                                 self.module_name.clone(),
                                 self.module_source.clone(),
-                                line
+                                line,
                             );
                             std::process::exit(1)
                         }
@@ -2010,6 +2010,22 @@ mod tests {
         };
 
         let compiled = compiler.compile_expression(array_expr, 0, compiler.main_function, None);
-        dbg!(compiled);
+        assert_eq!(compiled.0, String::from("int8[3]"))
+    }
+
+    #[test]
+    fn type_function_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let value_int8 = Expressions::Value(Value::Integer(0));
+
+        let call_result = compiler.build_type_call(vec![value_int8], 0, compiler.main_function);
+        let ptr_value = call_result.1.into_pointer_value().to_string();
+
+        assert_eq!(call_result.0, "str".to_string());
+        assert!(ptr_value.contains("int8"));
     }
 }

@@ -272,11 +272,9 @@ impl Parser {
             TokenType::Ampersand => {
                 let _ = self.next();
                 return Expressions::Reference {
-                    object: Box::new(
-                        self.expression()
-                    ),
-                    line: current.line
-                }
+                    object: Box::new(self.expression()),
+                    line: current.line,
+                };
             }
             TokenType::Identifier => {
                 output = Expressions::Value(Value::Identifier(current.value.clone()));
@@ -621,7 +619,7 @@ impl Parser {
                 let _ = self.next();
             }
 
-            return datatype;
+            datatype
         } else {
             self.error(format!("Datatype `{}` not found!", current.value));
             String::new()
@@ -2351,18 +2349,10 @@ mod tests {
             Statements::AnnotationStatement {
                 identifier: String::from("a"),
                 datatype: String::from("int32*"),
-                value: Some(
-                    Box::new(
-                        Expressions::Reference {
-                            object: Box::new(
-                                Expressions::Value(
-                                    Value::Integer(5)
-                                )
-                            ),
-                            line: 0
-                        }
-                    )
-                ),
+                value: Some(Box::new(Expressions::Reference {
+                    object: Box::new(Expressions::Value(Value::Integer(5))),
+                    line: 0
+                })),
                 line: 0
             }
         );

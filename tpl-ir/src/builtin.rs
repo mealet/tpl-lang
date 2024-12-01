@@ -1,11 +1,12 @@
 use inkwell::{
-    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue}, AddressSpace
+    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue},
+    AddressSpace,
 };
 
 use crate::{
     error::{ErrorType, GenError},
-    libc::Libc,
     get_int_order,
+    libc::Libc,
     Compiler,
 };
 
@@ -28,7 +29,7 @@ pub trait BuiltIn<'ctx> {
         &mut self,
         arguments: Vec<Expressions>,
         line: usize,
-        function: FunctionValue<'ctx>
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
 
     fn build_to_str_call(
@@ -314,7 +315,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         &mut self,
         arguments: Vec<Expressions>,
         line: usize,
-        function: FunctionValue<'ctx>
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         if arguments.len() != 1 {
             GenError::throw(
@@ -329,7 +330,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             );
             std::process::exit(1);
         }
-        
+
         let compiled_arg = self.compile_expression(arguments[0].clone(), line, function, None);
         let arg_type_string = self
             .builder
@@ -340,7 +341,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     ErrorType::BuildError,
                     self.module_name.clone(),
                     self.module_source.clone(),
-                    line
+                    line,
                 );
                 std::process::exit(1);
             })
@@ -404,7 +405,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                 .build_int_truncate(
                     val.into_int_value(),
                     TARGET_BASIC_TYPE,
-                    format!("to_{}_trunc", TARGET_TYPE).as_str()
+                    format!("to_{}_trunc", TARGET_TYPE).as_str(),
                 )
                 .unwrap_or_else(|_| {
                     GenError::throw(
@@ -425,7 +426,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                 .build_int_s_extend(
                     val.into_int_value(),
                     TARGET_BASIC_TYPE,
-                    format!("to_{}_sext", TARGET_TYPE).as_str()
+                    format!("to_{}_sext", TARGET_TYPE).as_str(),
                 )
                 .unwrap_or_else(|_| {
                     GenError::throw(
@@ -496,7 +497,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                 .build_int_truncate(
                     val.into_int_value(),
                     TARGET_BASIC_TYPE,
-                    format!("to_{}_trunc", TARGET_TYPE).as_str()
+                    format!("to_{}_trunc", TARGET_TYPE).as_str(),
                 )
                 .unwrap_or_else(|_| {
                     GenError::throw(
@@ -517,7 +518,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                 .build_int_s_extend(
                     val.into_int_value(),
                     TARGET_BASIC_TYPE,
-                    format!("to_{}_sext", TARGET_TYPE).as_str()
+                    format!("to_{}_sext", TARGET_TYPE).as_str(),
                 )
                 .unwrap_or_else(|_| {
                     GenError::throw(
@@ -588,7 +589,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                 .build_int_truncate(
                     val.into_int_value(),
                     TARGET_BASIC_TYPE,
-                    format!("to_{}_trunc", TARGET_TYPE).as_str()
+                    format!("to_{}_trunc", TARGET_TYPE).as_str(),
                 )
                 .unwrap_or_else(|_| {
                     GenError::throw(
@@ -609,7 +610,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                 .build_int_s_extend(
                     val.into_int_value(),
                     TARGET_BASIC_TYPE,
-                    format!("to_{}_sext", TARGET_TYPE).as_str()
+                    format!("to_{}_sext", TARGET_TYPE).as_str(),
                 )
                 .unwrap_or_else(|_| {
                     GenError::throw(
@@ -680,7 +681,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                 .build_int_truncate(
                     val.into_int_value(),
                     TARGET_BASIC_TYPE,
-                    format!("to_{}_trunc", TARGET_TYPE).as_str()
+                    format!("to_{}_trunc", TARGET_TYPE).as_str(),
                 )
                 .unwrap_or_else(|_| {
                     GenError::throw(
@@ -701,7 +702,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                 .build_int_s_extend(
                     val.into_int_value(),
                     TARGET_BASIC_TYPE,
-                    format!("to_{}_sext", TARGET_TYPE).as_str()
+                    format!("to_{}_sext", TARGET_TYPE).as_str(),
                 )
                 .unwrap_or_else(|_| {
                     GenError::throw(
@@ -719,7 +720,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
         (String::from(TARGET_TYPE), converted_value.into())
     }
-    
+
     // str
 
     fn build_to_str_call(

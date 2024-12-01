@@ -44,23 +44,18 @@ impl Lexer {
                 macros::std_symbol!('*', TokenType::Multiply),
                 macros::std_symbol!('/', TokenType::Divide),
                 macros::std_symbol!('=', TokenType::Equal),
-
                 macros::std_symbol!('!', TokenType::Not),
                 macros::std_symbol!('<', TokenType::Lt),
                 macros::std_symbol!('>', TokenType::Bt),
-
                 macros::std_symbol!('.', TokenType::Dot),
                 macros::std_symbol!(',', TokenType::Comma),
                 macros::std_symbol!('"', TokenType::Quote),
                 macros::std_symbol!(';', TokenType::Semicolon),
                 macros::std_symbol!('&', TokenType::Ampersand),
-
                 macros::std_symbol!('(', TokenType::LParen),
                 macros::std_symbol!(')', TokenType::RParen),
-
                 macros::std_symbol!('[', TokenType::LBrack),
                 macros::std_symbol!(']', TokenType::RBrack),
-
                 macros::std_symbol!('{', TokenType::LBrace),
                 macros::std_symbol!('}', TokenType::RBrace),
             ]),
@@ -69,7 +64,6 @@ impl Lexer {
                 macros::std_function!("print"),
                 macros::std_function!("concat"),
                 macros::std_function!("type"),
-
                 macros::std_function!("to_str"),
                 macros::std_function!("to_int8"),
                 macros::std_function!("to_int16"),
