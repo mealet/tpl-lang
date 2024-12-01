@@ -1,27 +1,15 @@
 use inkwell::{
-    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue},
-    AddressSpace,
+    values::{BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue}, AddressSpace
 };
 
 use crate::{
     error::{ErrorType, GenError},
     libc::Libc,
+    get_int_order,
     Compiler,
 };
 
-use std::{collections::HashMap, sync::LazyLock};
-
 use tpl_parser::expressions::Expressions;
-
-static INT_TYPES_ORDER: LazyLock<HashMap<&str, u8>> =
-    LazyLock::new(|| HashMap::from([("int8", 0), ("int16", 1), ("int32", 2), ("int64", 3)]));
-
-fn get_order(o_type: &str) -> i8 {
-    if let Some(order) = INT_TYPES_ORDER.get(o_type) {
-        return *order as i8;
-    }
-    -1
-}
 
 pub trait BuiltIn<'ctx> {
     fn build_concat_call(
@@ -44,6 +32,24 @@ pub trait BuiltIn<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
     fn build_to_int8_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
+    fn build_to_int16_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
+    fn build_to_int32_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
+    fn build_to_int64_call(
         &mut self,
         arguments: Vec<Expressions>,
         line: usize,
@@ -299,6 +305,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
     }
 
     // conversion
+    // int
 
     fn build_to_int8_call(
         &mut self,
@@ -306,10 +313,14 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
+        #[allow(non_snake_case)]
+        let (TARGET_TYPE, TARGET_BASIC_TYPE) = ("int32", self.context.i32_type());
+
         if arguments.len() != 1 {
             GenError::throw(
                 format!(
-                    "Function `to_int8()` requires only 1 argument, but {} found!",
+                    "Function `to_{}()` requires only 1 argument, but {} found!",
+                    TARGET_TYPE,
                     arguments.len()
                 ),
                 ErrorType::NotExpected,
@@ -327,7 +338,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             "int8" => return compiled_arg,
             _ if !compiled_arg.0.contains("int") => {
                 GenError::throw(
-                    "Unable to convert non-int type to `int8`",
+                    format!("Unable to convert non-int type to `{}`", TARGET_TYPE),
                     ErrorType::BuildError,
                     self.module_name.clone(),
                     self.module_source.clone(),
@@ -338,17 +349,17 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             _ => {}
         }
 
-        let i8_order = get_order("int8");
-        let compiled_order = get_order(compiled_arg.0.as_str());
-        let converted_value = if compiled_order > i8_order {
+        let target_order = get_int_order(TARGET_TYPE);
+        let compiled_order = get_int_order(compiled_arg.0.as_str());
+        let converted_value = if compiled_order > target_order {
             // cutting bits
             let val = compiled_arg.1;
             let truncated = self
                 .builder
                 .build_int_truncate(
                     val.into_int_value(),
-                    self.context.i8_type(),
-                    "to_int8_trunc",
+                    TARGET_BASIC_TYPE,
+                    format!("to_{}_trunc", TARGET_TYPE).as_str()
                 )
                 .unwrap_or_else(|_| {
                     GenError::throw(
@@ -363,12 +374,308 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
             truncated
         } else {
-            // cuz int8 is smallest value we can reach ._.
-            unreachable!()
+            let val = compiled_arg.1;
+            let extended = self
+                .builder
+                .build_int_s_extend(
+                    val.into_int_value(),
+                    TARGET_BASIC_TYPE,
+                    format!("to_{}_sext", TARGET_TYPE).as_str()
+                )
+                .unwrap_or_else(|_| {
+                    GenError::throw(
+                        "Unable to extend integer value!",
+                        ErrorType::BuildError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                });
+
+            extended
         };
 
-        (String::from("int8"), converted_value.into())
+        (String::from(TARGET_TYPE), converted_value.into())
     }
+
+    fn build_to_int16_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        #[allow(non_snake_case)]
+        let (TARGET_TYPE, TARGET_BASIC_TYPE) = ("int32", self.context.i32_type());
+
+        if arguments.len() != 1 {
+            GenError::throw(
+                format!(
+                    "Function `to_{}()` requires only 1 argument, but {} found!",
+                    TARGET_TYPE,
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let compiled_arg = self.compile_expression(arguments[0].clone(), line, function, None);
+
+        // checks
+        match compiled_arg.0.as_str() {
+            "int16" => return compiled_arg,
+            _ if !compiled_arg.0.contains("int") => {
+                GenError::throw(
+                    format!("Unable to convert non-int type to `{}`", TARGET_TYPE),
+                    ErrorType::BuildError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line,
+                );
+                std::process::exit(1);
+            }
+            _ => {}
+        }
+
+        let target_order = get_int_order(TARGET_TYPE);
+        let compiled_order = get_int_order(compiled_arg.0.as_str());
+        let converted_value = if compiled_order > target_order {
+            // cutting bits
+            let val = compiled_arg.1;
+            let truncated = self
+                .builder
+                .build_int_truncate(
+                    val.into_int_value(),
+                    TARGET_BASIC_TYPE,
+                    format!("to_{}_trunc", TARGET_TYPE).as_str()
+                )
+                .unwrap_or_else(|_| {
+                    GenError::throw(
+                        "Unable to truncate integer value!",
+                        ErrorType::BuildError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                });
+
+            truncated
+        } else {
+            let val = compiled_arg.1;
+            let extended = self
+                .builder
+                .build_int_s_extend(
+                    val.into_int_value(),
+                    TARGET_BASIC_TYPE,
+                    format!("to_{}_sext", TARGET_TYPE).as_str()
+                )
+                .unwrap_or_else(|_| {
+                    GenError::throw(
+                        "Unable to extend integer value!",
+                        ErrorType::BuildError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                });
+
+            extended
+        };
+
+        (String::from(TARGET_TYPE), converted_value.into())
+    }
+
+    fn build_to_int32_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        #[allow(non_snake_case)]
+        let (TARGET_TYPE, TARGET_BASIC_TYPE) = ("int32", self.context.i32_type());
+
+        if arguments.len() != 1 {
+            GenError::throw(
+                format!(
+                    "Function `to_{}()` requires only 1 argument, but {} found!",
+                    TARGET_TYPE,
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let compiled_arg = self.compile_expression(arguments[0].clone(), line, function, None);
+
+        // checks
+        match compiled_arg.0.as_str() {
+            "int32" => return compiled_arg,
+            _ if !compiled_arg.0.contains("int") => {
+                GenError::throw(
+                    format!("Unable to convert non-int type to `{}`", TARGET_TYPE),
+                    ErrorType::BuildError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line,
+                );
+                std::process::exit(1);
+            }
+            _ => {}
+        }
+
+        let target_order = get_int_order(TARGET_TYPE);
+        let compiled_order = get_int_order(compiled_arg.0.as_str());
+        let converted_value = if compiled_order > target_order {
+            // cutting bits
+            let val = compiled_arg.1;
+            let truncated = self
+                .builder
+                .build_int_truncate(
+                    val.into_int_value(),
+                    TARGET_BASIC_TYPE,
+                    format!("to_{}_trunc", TARGET_TYPE).as_str()
+                )
+                .unwrap_or_else(|_| {
+                    GenError::throw(
+                        "Unable to truncate integer value!",
+                        ErrorType::BuildError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                });
+
+            truncated
+        } else {
+            let val = compiled_arg.1;
+            let extended = self
+                .builder
+                .build_int_s_extend(
+                    val.into_int_value(),
+                    TARGET_BASIC_TYPE,
+                    format!("to_{}_sext", TARGET_TYPE).as_str()
+                )
+                .unwrap_or_else(|_| {
+                    GenError::throw(
+                        "Unable to extend integer value!",
+                        ErrorType::BuildError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                });
+
+            extended
+        };
+
+        (String::from(TARGET_TYPE), converted_value.into())
+    }
+
+    fn build_to_int64_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        #[allow(non_snake_case)]
+        let (TARGET_TYPE, TARGET_BASIC_TYPE) = ("int64", self.context.i64_type());
+
+        if arguments.len() != 1 {
+            GenError::throw(
+                format!(
+                    "Function `to_{}()` requires only 1 argument, but {} found!",
+                    TARGET_TYPE,
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let compiled_arg = self.compile_expression(arguments[0].clone(), line, function, None);
+
+        // checks
+        match compiled_arg.0.as_str() {
+            "int64" => return compiled_arg,
+            _ if !compiled_arg.0.contains("int") => {
+                GenError::throw(
+                    format!("Unable to convert non-int type to `{}`", TARGET_TYPE),
+                    ErrorType::BuildError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line,
+                );
+                std::process::exit(1);
+            }
+            _ => {}
+        }
+
+        let target_order = get_int_order(TARGET_TYPE);
+        let compiled_order = get_int_order(compiled_arg.0.as_str());
+        let converted_value = if compiled_order > target_order {
+            // cutting bits
+            let val = compiled_arg.1;
+            let truncated = self
+                .builder
+                .build_int_truncate(
+                    val.into_int_value(),
+                    TARGET_BASIC_TYPE,
+                    format!("to_{}_trunc", TARGET_TYPE).as_str()
+                )
+                .unwrap_or_else(|_| {
+                    GenError::throw(
+                        "Unable to truncate integer value!",
+                        ErrorType::BuildError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                });
+
+            truncated
+        } else {
+            let val = compiled_arg.1;
+            let extended = self
+                .builder
+                .build_int_s_extend(
+                    val.into_int_value(),
+                    TARGET_BASIC_TYPE,
+                    format!("to_{}_sext", TARGET_TYPE).as_str()
+                )
+                .unwrap_or_else(|_| {
+                    GenError::throw(
+                        "Unable to extend integer value!",
+                        ErrorType::BuildError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                });
+
+            extended
+        };
+
+        (String::from(TARGET_TYPE), converted_value.into())
+    }
+    
+    // str
 
     fn build_to_str_call(
         &mut self,

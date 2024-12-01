@@ -24,7 +24,10 @@ use inkwell::{
 };
 
 use builtin::BuiltIn;
-use std::collections::HashMap;
+use std::{
+    sync::LazyLock,
+    collections::HashMap
+};
 
 use error::{ErrorType, GenError};
 use function::Function;
@@ -33,8 +36,17 @@ use variable::Variable;
 
 use tpl_parser::{expressions::Expressions, statements::Statements, value::Value};
 
-const TEST_OPERATORS: [&str; 4] = [">", "<", "==", "!="];
 const LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
+const TEST_OPERATORS: [&str; 4] = [">", "<", "==", "!="];
+static INT_TYPES_ORDER: LazyLock<HashMap<&str, u8>> =
+    LazyLock::new(|| HashMap::from([("int8", 0), ("int16", 1), ("int32", 2), ("int64", 3)]));
+
+pub fn get_int_order(o_type: &str) -> i8 {
+    if let Some(order) = INT_TYPES_ORDER.get(o_type) {
+        return *order as i8;
+    }
+    -1
+}
 
 #[derive(Debug)]
 pub struct Compiler<'ctx> {
@@ -356,12 +368,6 @@ impl<'ctx> Compiler<'ctx> {
                     }
                     "concat" => {
                         self.build_concat_call(arguments, line, function);
-                    }
-                    "to_str" => {
-                        self.build_to_str_call(arguments, line, function);
-                    }
-                    "to_i8" => {
-                        self.build_to_int8_call(arguments, line, function);
                     }
                     _ => {
                         // user defined function
@@ -1003,6 +1009,18 @@ impl<'ctx> Compiler<'ctx> {
                 if let Some(exp) = expected {
                     if exp != "void" {
                         let basic_type = self.get_basic_type(exp.as_str(), line).into_int_type();
+                        let avaible_type = self.compile_value(Value::Integer(i), line, None);
+
+                        if get_int_order(&avaible_type.0) > get_int_order(&exp) {
+                            GenError::throw(
+                                format!("Unable to compile `{}` value on `{}` type!", avaible_type.0, exp),
+                                ErrorType::TypeError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line
+                            );
+                            std::process::exit(1)
+                        }
 
                         return (exp.to_string(), basic_type.const_int(i as u64, true).into());
                     }
@@ -1275,6 +1293,9 @@ impl<'ctx> Compiler<'ctx> {
                 }
                 "to_str" => return self.build_to_str_call(arguments, line, function),
                 "to_int8" => return self.build_to_int8_call(arguments, line, function),
+                "to_int16" => return self.build_to_int16_call(arguments, line, function),
+                "to_int32" => return self.build_to_int32_call(arguments, line, function),
+                "to_int64" => return self.build_to_int64_call(arguments, line, function),
                 _ => {
                     if let Some(var) = self.variables.get(&function_name) {
                         if var.assigned_function.is_some() {
