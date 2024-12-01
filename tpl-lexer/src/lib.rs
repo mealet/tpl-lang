@@ -62,6 +62,8 @@ impl Lexer {
                 // Built-In Functions
                 macros::std_function!("print"),
                 macros::std_function!("concat"),
+                macros::std_function!("type"),
+
                 macros::std_function!("to_str"),
                 macros::std_function!("to_int8"),
                 macros::std_function!("to_int16"),

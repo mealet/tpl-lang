@@ -24,6 +24,12 @@ pub trait BuiltIn<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>,
     );
+    fn build_type_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>);
 
     fn build_to_str_call(
         &mut self,
@@ -302,6 +308,45 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         let _ = self
             .builder
             .build_call(printf_fn, &printf_arguments, "printf_call");
+    }
+
+    fn build_type_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 1 {
+            GenError::throw(
+                format!(
+                    "Function `type()` requires only 1 argument, but {} found!",
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+        
+        let compiled_arg = self.compile_expression(arguments[0].clone(), line, function, None);
+        let arg_type_string = self
+            .builder
+            .build_global_string_ptr(compiled_arg.0.as_str(), "_type")
+            .unwrap_or_else(|_| {
+                GenError::throw(
+                    "Unable to allocate memory for type fmt!",
+                    ErrorType::BuildError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line
+                );
+                std::process::exit(1);
+            })
+            .as_pointer_value();
+
+        (String::from("str"), arg_type_string.into())
     }
 
     // conversion

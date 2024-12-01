@@ -1281,6 +1281,7 @@ impl<'ctx> Compiler<'ctx> {
         if !self.functions.contains_key(&function_name) {
             match function_name.as_str() {
                 "concat" => return self.build_concat_call(arguments, line, function),
+                "type" => return self.build_type_call(arguments, line, function),
                 "print" => {
                     GenError::throw(
                         "Function `print` is 'void' type!",
@@ -1291,6 +1292,7 @@ impl<'ctx> Compiler<'ctx> {
                     );
                     std::process::exit(1);
                 }
+
                 "to_str" => return self.build_to_str_call(arguments, line, function),
                 "to_int8" => return self.build_to_int8_call(arguments, line, function),
                 "to_int16" => return self.build_to_int16_call(arguments, line, function),
