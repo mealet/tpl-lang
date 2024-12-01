@@ -269,6 +269,15 @@ impl Parser {
             TokenType::Boolean => {
                 output = Expressions::Value(Value::Boolean(current.value == "true"))
             }
+            TokenType::Ampersand => {
+                let _ = self.next();
+                return Expressions::Reference {
+                    object: Box::new(
+                        self.expression()
+                    ),
+                    line: current.line
+                }
+            }
             TokenType::Identifier => {
                 output = Expressions::Value(Value::Identifier(current.value.clone()));
 
@@ -541,36 +550,33 @@ impl Parser {
         }
     }
 
-    fn annotation_statement(&mut self) -> Statements {
+    fn parse_datatype(&mut self) -> String {
         let line = self.current().line;
+        let current = self.current();
 
-        if DATATYPES.contains(&self.current().value.as_str()) {
+        if DATATYPES.contains(&current.value.as_str()) {
             let mut datatype = self.current().value;
             let _ = self.next();
 
             match self.current().token_type {
                 TokenType::Lt => {
                     // example: fn<int32>
-
-                    // In future there must be a special function for parsing nested datatypes
-
                     let _ = self.next();
 
                     if !self.expect(TokenType::Keyword) {
                         self.error("Unexpected nested datatype found!");
                         self.next();
 
-                        return Statements::None;
+                        return String::new();
                     }
 
-                    let subtype = self.current().value;
-                    let _ = self.next();
+                    let subtype = self.parse_datatype();
 
                     if !self.expect(TokenType::Bt) {
                         self.error("Wrong nested type definition! Must be like: fn<int32>");
                         self.next();
 
-                        return Statements::None;
+                        return String::new();
                     }
 
                     let _ = self.next();
@@ -593,14 +599,14 @@ impl Parser {
                         _ => {
                             self.error("Unexpected array annotation found!");
                             let _ = self.next();
-                            return Statements::None;
+                            return String::new();
                         }
                     }
 
                     if !self.expect(TokenType::RBrack) {
                         self.error("Unexpected brackets end at annoation found!");
                         let _ = self.next();
-                        return Statements::None;
+                        return String::new();
                     }
 
                     let _ = self.next();
@@ -608,6 +614,25 @@ impl Parser {
                 }
                 _ => {}
             }
+
+            if self.expect(TokenType::Multiply) {
+                // yay, we've found a pointer!
+                datatype = format!("{}*", datatype);
+                let _ = self.next();
+            }
+
+            return datatype;
+        } else {
+            self.error(format!("Datatype `{}` not found!", current.value));
+            String::new()
+        }
+    }
+
+    fn annotation_statement(&mut self) -> Statements {
+        let line = self.current().line;
+
+        if DATATYPES.contains(&self.current().value.as_str()) {
+            let mut datatype = self.parse_datatype();
 
             if !self.expect(TokenType::Identifier) {
                 self.error("Identifier expected after type keyword!");
@@ -2279,6 +2304,65 @@ mod tests {
                     len: 0,
                     line: 0
                 })),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn pointer_annotation_test() {
+        let input = String::from("int32* a;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32*"),
+                value: None,
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn pointer_on_ref_annotation_test() {
+        let input = String::from("int32* a = &5;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32*"),
+                value: Some(
+                    Box::new(
+                        Expressions::Reference {
+                            object: Box::new(
+                                Expressions::Value(
+                                    Value::Integer(5)
+                                )
+                            ),
+                            line: 0
+                        }
+                    )
+                ),
                 line: 0
             }
         );

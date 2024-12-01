@@ -25,6 +25,7 @@ pub enum TokenType {
     Ne, // !=
 
     Semicolon, // ;
+    Ampersand, // &
     Dot,       // .
     Comma,     // ,
     Quote,     // "

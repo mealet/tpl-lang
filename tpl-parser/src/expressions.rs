@@ -42,6 +42,10 @@ pub enum Expressions {
         ftype: String,
         line: usize,
     },
+    Reference {
+        object: Box<Expressions>,
+        line: usize
+    },
     Array {
         values: Vec<Expressions>,
         len: usize,
