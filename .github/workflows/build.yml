@@ -16,7 +16,6 @@ jobs:
         include:
           - target: ubuntu-latest
           - target: macos-latest
-          - target: windows-latest
 
     steps:
       - name: 👀 Checkout Repository
@@ -32,18 +31,6 @@ jobs:
         uses: swatinem/rust-cache@v2
         with:
           workspaces: './target'
-
-      - name: 📦 LIBXML2 Setup
-        if: runner.os == 'Windows'
-        run: |
-            cd $HOME
-            git clone https://github.com/microsoft/vcpkg.git
-            cd vcpkg
-            .\bootstrap-vcpkg.bat
-            .\vcpkg install libxml2
-            .\vcpkg integrate install
-            Add-Content $env:GITHUB_PATH "$HOME\vcpkg"
-            Add-Content $env:GITHUB_PATH "$HOME\vcpkg\bin"
 
       - name: 🔨 Project Build
         run: |
