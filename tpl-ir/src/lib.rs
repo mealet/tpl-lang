@@ -202,7 +202,12 @@ impl<'ctx> Compiler<'ctx> {
 
                     self.variables.insert(
                         identifier.clone(),
-                        Variable::new(datatype.clone(), var_type, alloca, assigned_function.clone()),
+                        Variable::new(
+                            datatype.clone(),
+                            var_type,
+                            alloca,
+                            assigned_function.clone(),
+                        ),
                     );
 
                     if let Some(intial_value) = value {
@@ -241,8 +246,8 @@ impl<'ctx> Compiler<'ctx> {
                                     datatype.clone(),
                                     var_type,
                                     compiled_expression.1.into_pointer_value(),
-                                    assigned_function
-                                )
+                                    assigned_function,
+                                ),
                             );
                         } else {
                             let _ = self.builder.build_store(alloca, compiled_expression.1);
@@ -828,7 +833,7 @@ impl<'ctx> Compiler<'ctx> {
                     .builder
                     .build_alloca(
                         self.get_basic_type(&value.0, line),
-                        &format!("ref_{}", value.0)
+                        &format!("ref_{}", value.0),
                     )
                     .unwrap_or_else(|_| {
                         GenError::throw(
@@ -836,7 +841,7 @@ impl<'ctx> Compiler<'ctx> {
                             ErrorType::BuildError,
                             self.module_name.clone(),
                             self.module_source.clone(),
-                            line
+                            line,
                         );
                         std::process::exit(1);
                     });
@@ -850,15 +855,12 @@ impl<'ctx> Compiler<'ctx> {
                             ErrorType::BuildError,
                             self.module_name.clone(),
                             self.module_source.clone(),
-                            line
+                            line,
                         );
                         std::process::exit(1);
                     });
 
-                (
-                    format!("{}*", value.0),
-                    alloca.into()
-                )
+                (format!("{}*", value.0), alloca.into())
             }
             Expressions::Binary {
                 operand,
@@ -1075,7 +1077,7 @@ impl<'ctx> Compiler<'ctx> {
 
                         return (
                             unwrapped_type.to_string(),
-                            basic_type.const_int(i as u64, true).into()
+                            basic_type.const_int(i as u64, true).into(),
                         );
                     }
                 }
@@ -1123,7 +1125,7 @@ impl<'ctx> Compiler<'ctx> {
             }
             Value::Identifier(id) => {
                 if let Some(var_ptr) = self.variables.get(&id) {
-                    let exp = expected.unwrap_or(String::new());
+                    let exp = expected.unwrap_or_default();
 
                     let value = if Compiler::__is_ptr_type(&exp) {
                         var_ptr.pointer.into()
@@ -1141,10 +1143,7 @@ impl<'ctx> Compiler<'ctx> {
                                 std::process::exit(1);
                             })
                     };
-                    (
-                        var_ptr.str_type.clone(),
-                        value
-                    )
+                    (var_ptr.str_type.clone(), value)
                 } else {
                     GenError::throw(
                         format!("Undefined variable with id: `{}`!", id),
@@ -1530,10 +1529,10 @@ impl<'ctx> Compiler<'ctx> {
                     _ => unreachable!(),
                 }
             }
-            _ if Compiler::__is_ptr_type(&datatype) => {
-                let unwrapped_type = Compiler::__unwrap_ptr_type(&datatype);
+            _ if Compiler::__is_ptr_type(datatype) => {
+                let unwrapped_type = Compiler::__unwrap_ptr_type(datatype);
                 self.get_basic_type(&unwrapped_type, line)
-            },
+            }
             "int8" => self.context.i8_type().into(),
             "int16" => self.context.i16_type().into(),
             "int32" => self.context.i32_type().into(),
@@ -1798,7 +1797,7 @@ impl<'ctx> Compiler<'ctx> {
     fn __unwrap_ptr_type(type_str: &str) -> String {
         if Compiler::__is_ptr_type(type_str) {
             let chars = type_str.chars().collect::<Vec<char>>();
-            return chars[0..chars.len() - 1].into_iter().collect::<String>();
+            return chars[0..chars.len() - 1].iter().collect::<String>();
         };
         type_str.to_string()
     }
