@@ -47,7 +47,7 @@ jobs:
 
       - name: 🔨 Project Build
         run: |
-          cargo build --release
+          cargo +nightly build --release
 
       - name: 📂 Publish Artifacts
         uses: actions/upload-artifact@v4
