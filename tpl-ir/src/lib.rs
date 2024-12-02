@@ -16,7 +16,7 @@ use inkwell::{
     builder::Builder,
     context::Context,
     module::Module,
-    types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
     values::{
         BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue,
     },
@@ -358,6 +358,69 @@ impl<'ctx> Compiler<'ctx> {
                         let _ = self.builder.build_store(var_ptr.pointer, expr_value.1);
                     }
                 }
+            }
+            Statements::DerefAssignStatement { identifier, value, line } => {
+                if let Some(var_ptr) = self.variables.clone().get(&identifier) {
+                    if let Some(expr) = value {
+                        let expr_value = self.compile_expression(
+                            *expr,
+                            line,
+                            function,
+                            Some(var_ptr.str_type.clone()),
+                        );
+
+                        // matching datatypes
+
+                        let raw_type = Compiler::__unwrap_ptr_type(&var_ptr.str_type);
+                        if expr_value.0 != raw_type {
+                            GenError::throw(
+                                format!(
+                                    "Expected type `{}`, but found `{}`!",
+                                    var_ptr.str_type, expr_value.0
+                                ),
+                                ErrorType::TypeError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line,
+                            );
+                            std::process::exit(1);
+                        }
+
+                        // loading pointer from a pointer
+
+
+                        let ptr_type = self.context.ptr_type(AddressSpace::default()).as_basic_type_enum();
+                        let raw_ptr = self.builder.build_load(
+                            ptr_type,
+                            var_ptr.pointer,
+                            &format!("*ptr_{}", var_ptr.str_type)
+                        )
+                        .unwrap_or_else(|_| {
+                            GenError::throw(
+                                "Unable to load a pointer!",
+                                ErrorType::BuildError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line
+                            );
+                            std::process::exit(1);
+                        });
+
+                        // storing value
+
+                        let _ = self.builder.build_store(raw_ptr.into_pointer_value(), expr_value.1);
+                    }
+                } else {
+                    GenError::throw(
+                        format!("Variable `{}` is not defined!", identifier),
+                        ErrorType::NotDefined,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                }
+
             }
 
             // NOTE: Functions

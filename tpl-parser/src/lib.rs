@@ -95,6 +95,12 @@ impl Parser {
             current_line,
             self.position,
         ));
+
+        // skipping whole statement
+        while !self.expect(END_STATEMENT) {
+            let _ = self.next();
+        }
+        let _ = self.next();
     }
 
     // helpful functions
@@ -135,6 +141,7 @@ impl Parser {
 
     fn statement(&mut self) -> Statements {
         let current = self.current();
+        
         match current.token_type {
             TokenType::Keyword => {
                 match current.value.as_str() {
@@ -183,6 +190,36 @@ impl Parser {
                         Statements::BreakStatement { line: current.line }
                     }
                     _ => Statements::None,
+                }
+            }
+            TokenType::Multiply => {
+                // Possibly dereference assignment
+                let _ = self.next();
+
+                match self.current().token_type {
+                    TokenType::Identifier => {
+                        let stmt = self.statement();
+
+                        match stmt {
+                            Statements::AssignStatement { identifier, value, line } => {
+                                Statements::DerefAssignStatement { identifier, value, line }
+                            }
+                            Statements::BinaryAssignStatement { identifier, operand, value, line } => {
+                                // i'll implement it in future
+                                self.error("Binary Assignment isn't supported for dereference!");
+                                Statements::None
+                            }
+                            _ => {
+                                self.error("Unexpected statement found for dereference!");
+                                Statements::None
+                            }
+                        }
+
+                    },
+                    _ => {
+                        self.error("Unexpected dereference value in statement found!");
+                        Statements::None
+                    }
                 }
             }
             TokenType::Function => self.function_call_statement(current.value),
@@ -272,7 +309,7 @@ impl Parser {
             TokenType::Ampersand => {
                 let _ = self.next();
                 return Expressions::Reference {
-                    object: Box::new(self.expression()),
+                    object: Box::new(self.term()),
                     line: current.line,
                 };
             }
@@ -325,7 +362,6 @@ impl Parser {
                     self.current().value,
                     self.current().token_type
                 ));
-                let _ = self.next();
                 return Expressions::None;
             }
         }
@@ -346,7 +382,6 @@ impl Parser {
                 if let Expressions::Value(Value::Keyword(keyword)) = node.clone() {
                     if !DATATYPES.contains(&keyword.as_str()) {
                         self.error(format!("Unexpected keyword `{}` in expression", keyword));
-                        let _ = self.next();
                         return Expressions::None;
                     }
 
@@ -377,7 +412,6 @@ impl Parser {
 
                     if !self.expect(TokenType::LBrace) {
                         self.error("Expected block after lambda function definition!");
-                        let _ = self.next();
                         return Expressions::None;
                     }
 
@@ -404,7 +438,6 @@ impl Parser {
                 }
 
                 self.error("Unexpected parentheses in expression found".to_string());
-                let _ = self.next();
                 return Expressions::None;
             }
             TokenType::Dot => {
@@ -475,7 +508,6 @@ impl Parser {
             }
             _ => {
                 self.error("Unexpected token at binary expression!");
-                self.next();
                 Expressions::None
             }
         }
@@ -527,9 +559,6 @@ impl Parser {
             TokenType::LParen => {}
             _ => {
                 self.error(format!("Unexpected usage of `{}` statement", function_name));
-                while self.current().token_type != END_STATEMENT {
-                    self.next();
-                }
                 return Statements::None;
             }
         }
@@ -563,7 +592,6 @@ impl Parser {
 
                     if !self.expect(TokenType::Keyword) {
                         self.error("Unexpected nested datatype found!");
-                        self.next();
 
                         return String::new();
                     }
@@ -572,7 +600,6 @@ impl Parser {
 
                     if !self.expect(TokenType::Bt) {
                         self.error("Wrong nested type definition! Must be like: fn<int32>");
-                        self.next();
 
                         return String::new();
                     }
@@ -596,7 +623,6 @@ impl Parser {
                         TokenType::RBrack => {}
                         _ => {
                             self.error("Unexpected array annotation found!");
-                            let _ = self.next();
                             return String::new();
                         }
                     }
@@ -634,7 +660,6 @@ impl Parser {
 
             if !self.expect(TokenType::Identifier) {
                 self.error("Identifier expected after type keyword!");
-                self.next();
 
                 return Statements::None;
             }
@@ -668,7 +693,6 @@ impl Parser {
                 _ => {
                     self.error("Expected `=` or `;` after variable annotation");
 
-                    self.next();
                     Statements::None
                 }
             }
@@ -687,7 +711,6 @@ impl Parser {
             }
             END_STATEMENT => {
                 self.error("Expressions expected in assign statement, but `;` found!");
-                self.next();
                 Statements::None
             }
             _ => Statements::AssignStatement {
@@ -708,7 +731,6 @@ impl Parser {
             }
             END_STATEMENT => {
                 self.error("Expressions expected in binary assignment, but `;` found!");
-                self.next();
                 Statements::None
             }
             _ => Statements::BinaryAssignStatement {
