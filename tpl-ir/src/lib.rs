@@ -934,6 +934,50 @@ impl<'ctx> Compiler<'ctx> {
 
                 (format!("{}*", value.0), alloca.into())
             }
+            Expressions::Dereference { object, line } => {
+                let value = self.compile_expression(
+                    *object,
+                    line,
+                    function,
+                    Some(
+                        String::from("*") // requesting raw pointer
+                    )
+                );
+                
+                if !Compiler::__is_ptr_type(&value.0) {
+                    GenError::throw(
+                        format!("Non pointer type `{}` cannot by dereferenced!", value.0),
+                        ErrorType::TypeError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line
+                    );
+                    std::process::exit(1);
+                }
+
+                let raw_type = Compiler::__unwrap_ptr_type(&value.0);
+                let raw_basic_type = self.get_basic_type(&raw_type, line);
+                let ptr_value = value.1.into_pointer_value();
+                let loaded_value = self
+                    .builder
+                    .build_load(
+                        raw_basic_type,
+                        ptr_value,
+                        &format!("deref_{}", raw_type)
+                    )
+                    .unwrap_or_else(|_| {
+                        GenError::throw(
+                            format!("Unable to load a pointer value for dereference!"),
+                            ErrorType::BuildError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line
+                        );
+                        std::process::exit(1);
+                    });
+
+                return (raw_type, loaded_value);
+            }
             Expressions::Binary {
                 operand,
                 lhs,
@@ -1215,6 +1259,7 @@ impl<'ctx> Compiler<'ctx> {
                                 std::process::exit(1);
                             })
                     };
+                    
                     (var_ptr.str_type.clone(), value)
                 } else {
                     GenError::throw(
