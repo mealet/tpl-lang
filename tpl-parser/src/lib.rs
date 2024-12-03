@@ -141,7 +141,7 @@ impl Parser {
 
     fn statement(&mut self) -> Statements {
         let current = self.current();
-        
+
         match current.token_type {
             TokenType::Keyword => {
                 match current.value.as_str() {
@@ -201,10 +201,21 @@ impl Parser {
                         let stmt = self.statement();
 
                         match stmt {
-                            Statements::AssignStatement { identifier, value, line } => {
-                                Statements::DerefAssignStatement { identifier, value, line }
-                            }
-                            Statements::BinaryAssignStatement { identifier, operand, value, line } => {
+                            Statements::AssignStatement {
+                                identifier,
+                                value,
+                                line,
+                            } => Statements::DerefAssignStatement {
+                                identifier,
+                                value,
+                                line,
+                            },
+                            Statements::BinaryAssignStatement {
+                                identifier,
+                                operand,
+                                value,
+                                line,
+                            } => {
                                 // i'll implement it in future
                                 self.error("Binary Assignment isn't supported for dereference!");
                                 Statements::None
@@ -214,8 +225,7 @@ impl Parser {
                                 Statements::None
                             }
                         }
-
-                    },
+                    }
                     _ => {
                         self.error("Unexpected dereference value in statement found!");
                         Statements::None
@@ -309,6 +319,13 @@ impl Parser {
             TokenType::Ampersand => {
                 let _ = self.next();
                 return Expressions::Reference {
+                    object: Box::new(self.term()),
+                    line: current.line,
+                };
+            }
+            TokenType::Multiply => {
+                let _ = self.next();
+                return Expressions::Dereference {
                     object: Box::new(self.term()),
                     line: current.line,
                 };

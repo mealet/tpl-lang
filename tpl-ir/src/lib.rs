@@ -359,7 +359,11 @@ impl<'ctx> Compiler<'ctx> {
                     }
                 }
             }
-            Statements::DerefAssignStatement { identifier, value, line } => {
+            Statements::DerefAssignStatement {
+                identifier,
+                value,
+                line,
+            } => {
                 if let Some(var_ptr) = self.variables.clone().get(&identifier) {
                     if let Some(expr) = value {
                         let expr_value = self.compile_expression(
@@ -388,27 +392,33 @@ impl<'ctx> Compiler<'ctx> {
 
                         // loading pointer from a pointer
 
-
-                        let ptr_type = self.context.ptr_type(AddressSpace::default()).as_basic_type_enum();
-                        let raw_ptr = self.builder.build_load(
-                            ptr_type,
-                            var_ptr.pointer,
-                            &format!("*ptr_{}", var_ptr.str_type)
-                        )
-                        .unwrap_or_else(|_| {
-                            GenError::throw(
-                                "Unable to load a pointer!",
-                                ErrorType::BuildError,
-                                self.module_name.clone(),
-                                self.module_source.clone(),
-                                line
-                            );
-                            std::process::exit(1);
-                        });
+                        let ptr_type = self
+                            .context
+                            .ptr_type(AddressSpace::default())
+                            .as_basic_type_enum();
+                        let raw_ptr = self
+                            .builder
+                            .build_load(
+                                ptr_type,
+                                var_ptr.pointer,
+                                &format!("*ptr_{}", var_ptr.str_type),
+                            )
+                            .unwrap_or_else(|_| {
+                                GenError::throw(
+                                    "Unable to load a pointer!",
+                                    ErrorType::BuildError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            });
 
                         // storing value
 
-                        let _ = self.builder.build_store(raw_ptr.into_pointer_value(), expr_value.1);
+                        let _ = self
+                            .builder
+                            .build_store(raw_ptr.into_pointer_value(), expr_value.1);
                     }
                 } else {
                     GenError::throw(
@@ -420,7 +430,6 @@ impl<'ctx> Compiler<'ctx> {
                     );
                     std::process::exit(1);
                 }
-
             }
 
             // NOTE: Functions

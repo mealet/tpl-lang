@@ -26,7 +26,7 @@ pub enum Statements {
     DerefAssignStatement {
         identifier: String,
         value: Option<Box<Expressions>>,
-        line: usize
+        line: usize,
     },
 
     // Annotation

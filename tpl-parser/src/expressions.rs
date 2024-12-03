@@ -46,6 +46,10 @@ pub enum Expressions {
         object: Box<Expressions>,
         line: usize,
     },
+    Dereference {
+        object: Box<Expressions>,
+        line: usize,
+    },
     Array {
         values: Vec<Expressions>,
         len: usize,
