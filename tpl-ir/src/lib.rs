@@ -940,17 +940,17 @@ impl<'ctx> Compiler<'ctx> {
                     line,
                     function,
                     Some(
-                        String::from("*") // requesting raw pointer
-                    )
+                        String::from("*"), // requesting raw pointer
+                    ),
                 );
-                
+
                 if !Compiler::__is_ptr_type(&value.0) {
                     GenError::throw(
                         format!("Non pointer type `{}` cannot by dereferenced!", value.0),
                         ErrorType::TypeError,
                         self.module_name.clone(),
                         self.module_source.clone(),
-                        line
+                        line,
                     );
                     std::process::exit(1);
                 }
@@ -960,23 +960,19 @@ impl<'ctx> Compiler<'ctx> {
                 let ptr_value = value.1.into_pointer_value();
                 let loaded_value = self
                     .builder
-                    .build_load(
-                        raw_basic_type,
-                        ptr_value,
-                        &format!("deref_{}", raw_type)
-                    )
+                    .build_load(raw_basic_type, ptr_value, &format!("deref_{}", raw_type))
                     .unwrap_or_else(|_| {
                         GenError::throw(
-                            format!("Unable to load a pointer value for dereference!"),
+                            "Unable to load a pointer value for dereference!".to_string(),
                             ErrorType::BuildError,
                             self.module_name.clone(),
                             self.module_source.clone(),
-                            line
+                            line,
                         );
                         std::process::exit(1);
                     });
 
-                return (raw_type, loaded_value);
+                (raw_type, loaded_value)
             }
             Expressions::Binary {
                 operand,
@@ -1259,7 +1255,7 @@ impl<'ctx> Compiler<'ctx> {
                                 std::process::exit(1);
                             })
                     };
-                    
+
                     (var_ptr.str_type.clone(), value)
                 } else {
                     GenError::throw(
