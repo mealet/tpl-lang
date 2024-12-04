@@ -23,11 +23,9 @@ jobs:
 
       - name: 🖱️ LLVM Install
         uses: ZhongRuoyu/setup-llvm@v0
-        with:
-          llvm-version: 18
 
       - name: 🦀 Rust Setup
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@nightly
 
       - name: 🕐 Rust Cache
         uses: swatinem/rust-cache@v2
@@ -36,8 +34,7 @@ jobs:
 
       - name: 🔨 Project Build
         run: |
-          rustup target add x86_64-apple-darwin
-          cargo build --release
+          cargo +nightly build --release
 
       - name: 📂 Publish Artifacts
         uses: actions/upload-artifact@v4
