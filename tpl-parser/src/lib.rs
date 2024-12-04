@@ -2209,7 +2209,7 @@ mod tests {
 
     #[test]
     fn error_test() {
-        let input = String::from("int0 a;");
+        let input = String::from("int32 a = ;");
         let mut lexer = Lexer::new(input.clone(), "test".to_string());
 
         let tokens = match lexer.tokenize() {
