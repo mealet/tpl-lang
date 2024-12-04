@@ -51,6 +51,7 @@ impl Lexer {
                 macros::std_symbol!(',', TokenType::Comma),
                 macros::std_symbol!('"', TokenType::Quote),
                 macros::std_symbol!(';', TokenType::Semicolon),
+                macros::std_symbol!('&', TokenType::Ampersand),
                 macros::std_symbol!('(', TokenType::LParen),
                 macros::std_symbol!(')', TokenType::RParen),
                 macros::std_symbol!('[', TokenType::LBrack),
@@ -62,6 +63,12 @@ impl Lexer {
                 // Built-In Functions
                 macros::std_function!("print"),
                 macros::std_function!("concat"),
+                macros::std_function!("type"),
+                macros::std_function!("to_str"),
+                macros::std_function!("to_int8"),
+                macros::std_function!("to_int16"),
+                macros::std_function!("to_int32"),
+                macros::std_function!("to_int64"),
                 // Constructions
                 macros::std_keyword!("if"),
                 macros::std_keyword!("else"),
@@ -133,17 +140,20 @@ impl Lexer {
 
     // helpful functions
 
-    fn get_number(&mut self) -> i64 {
-        let mut value = 0;
+    fn get_integer(&mut self) -> i64 {
+        let mut value = String::new();
         // lexer will support numbers like 10_000_000 instead 10000000
         while self.char.is_ascii_digit() || self.char == '_' {
             if self.char != '_' {
-                value = value * 10 + self.char.to_digit(10).unwrap() as i64;
+                value.push(self.char);
             }
             self.getc();
         }
 
-        value
+        value.parse().unwrap_or_else(|_| {
+            self.error("Too big integer found! Max supported number is 64-bit integer: from −9,223,372,036,854,775,808 to 9,223,372,036,854,775,807");
+            0
+        })
     }
 
     // main function
@@ -163,7 +173,7 @@ impl Lexer {
                     // possibly negative number
                     self.getc();
                     if self.char.is_ascii_digit() {
-                        let value = -self.get_number();
+                        let value = -self.get_integer();
 
                         // formatting value and matching stringify mode
                         let token_value = value.to_string();
@@ -242,12 +252,12 @@ impl Lexer {
                     }
                 }
                 _ if self.char.is_ascii_digit() => {
-                    let value = self.get_number();
+                    let value = self.get_integer();
 
                     output.push(Token::new(TokenType::Number, value.to_string(), self.line));
                 }
                 _ if self.char.is_alphabetic() => {
-                    let allowed_identifier_chars = ['!', '_', '.'];
+                    let allowed_identifier_chars = ['_'];
 
                     let mut id = String::new();
                     while self.char.is_alphanumeric()
@@ -262,6 +272,9 @@ impl Lexer {
                         output.push(matched_token);
                     } else {
                         output.push(Token::new(TokenType::Identifier, id, self.line));
+
+                        // self.getc();
+                        // This line was the main reason of failing ~30% parser tests 0_0
                     }
                 }
 
@@ -389,7 +402,7 @@ mod tests {
 
     #[test]
     fn test_datatypes() {
-        let input = String::from("int8 int16 int32 int64 int128 auto void bool str fn");
+        let input = String::from("int8 int16 int32 int64 auto void bool str fn");
         let mut lexer = Lexer::new(input, "tests".to_string());
 
         let result = lexer.tokenize().unwrap();
@@ -401,7 +414,6 @@ mod tests {
                 Token::new(TokenType::Keyword, String::from("int16"), 0),
                 Token::new(TokenType::Keyword, String::from("int32"), 0),
                 Token::new(TokenType::Keyword, String::from("int64"), 0),
-                Token::new(TokenType::Keyword, String::from("int128"), 0),
                 Token::new(TokenType::Keyword, String::from("auto"), 0),
                 Token::new(TokenType::Keyword, String::from("void"), 0),
                 Token::new(TokenType::Keyword, String::from("bool"), 0),
@@ -539,11 +551,11 @@ mod tests {
     }
 
     #[test]
-    fn get_number_test() {
+    fn get_integer_test() {
         let input = String::from("50");
         let mut lexer = Lexer::new(input, "tests".to_string());
 
-        let num = lexer.get_number();
+        let num = lexer.get_integer();
 
         assert_eq!(num, 50i64);
     }

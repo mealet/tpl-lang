@@ -4,6 +4,7 @@
 // Project licensed under the BSD-3 LICENSE.
 // Check the `LICENSE` file to more info.
 
+mod builtin;
 mod error;
 mod function;
 mod import;
@@ -14,14 +15,16 @@ use inkwell::{
     basic_block::BasicBlock,
     builder::Builder,
     context::Context,
-    module::{Linkage, Module},
-    types::{BasicMetadataTypeEnum, BasicTypeEnum, FunctionType},
-    values::{BasicMetadataValueEnum, BasicValueEnum, FunctionValue, IntValue, PointerValue},
+    module::Module,
+    types::{BasicMetadataTypeEnum, BasicType, BasicTypeEnum, FunctionType},
+    values::{
+        BasicMetadataValueEnum, BasicValue, BasicValueEnum, FunctionValue, IntValue, PointerValue,
+    },
     AddressSpace,
 };
 
-use libc::Libc;
-use std::collections::HashMap;
+use builtin::BuiltIn;
+use std::{collections::HashMap, sync::LazyLock};
 
 use error::{ErrorType, GenError};
 use function::Function;
@@ -30,48 +33,16 @@ use variable::Variable;
 
 use tpl_parser::{expressions::Expressions, statements::Statements, value::Value};
 
-const TEST_OPERATORS: [&str; 4] = [">", "<", "==", "!="];
 const LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
+const TEST_OPERATORS: [&str; 4] = [">", "<", "==", "!="];
+static INT_TYPES_ORDER: LazyLock<HashMap<&str, u8>> =
+    LazyLock::new(|| HashMap::from([("int8", 0), ("int16", 1), ("int32", 2), ("int64", 3)]));
 
-impl<'ctx> Libc for Compiler<'ctx> {
-    type Function = FunctionValue<'ctx>;
-
-    fn __c_printf(&mut self) -> FunctionValue<'ctx> {
-        if let Some(function_value) = self.built_functions.get("printf") {
-            return *function_value;
-        }
-
-        let printf_type = self.context.void_type().fn_type(
-            &[self.context.ptr_type(AddressSpace::default()).into()],
-            true,
-        );
-        let printf_fn = self
-            .module
-            .add_function("printf", printf_type, Some(Linkage::External));
-        let _ = self.built_functions.insert("printf".to_string(), printf_fn);
-
-        printf_fn
+pub fn get_int_order(o_type: &str) -> i8 {
+    if let Some(order) = INT_TYPES_ORDER.get(o_type) {
+        return *order as i8;
     }
-
-    fn __c_strcat(&mut self) -> FunctionValue<'ctx> {
-        if let Some(function_value) = self.built_functions.get("strcat") {
-            return *function_value;
-        }
-
-        let strcat_type = self.context.ptr_type(AddressSpace::default()).fn_type(
-            &[
-                self.context.ptr_type(AddressSpace::default()).into(),
-                self.context.ptr_type(AddressSpace::default()).into(),
-            ],
-            true,
-        );
-        let strcat_fn = self
-            .module
-            .add_function("strcat", strcat_type, Some(Linkage::External));
-        let _ = self.built_functions.insert("strcat".to_string(), strcat_fn);
-
-        strcat_fn
-    }
+    -1
 }
 
 #[derive(Debug)]
@@ -153,19 +124,6 @@ impl<'ctx> Compiler<'ctx> {
         let _ = self
             .builder
             .build_return(Some(&self.context.i8_type().const_int(0, false)));
-
-        if !self.main_function.verify(true) {
-            self.module.print_to_stderr();
-
-            GenError::throw(
-                "Verification failure for `main` function! Please remove all returns blocks outside definitions!",
-                ErrorType::VerificationFailure,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                0
-            );
-            std::process::exit(1);
-        }
     }
 
     fn switch_block(&mut self, dest: BasicBlock<'ctx>) {
@@ -244,16 +202,24 @@ impl<'ctx> Compiler<'ctx> {
 
                     self.variables.insert(
                         identifier.clone(),
-                        Variable::new(datatype.clone(), var_type, alloca, assigned_function),
+                        Variable::new(
+                            datatype.clone(),
+                            var_type,
+                            alloca,
+                            assigned_function.clone(),
+                        ),
                     );
 
                     if let Some(intial_value) = value {
-                        let compiled_expression = self.compile_expression(
-                            *intial_value,
-                            line,
-                            function,
-                            Some(datatype.clone()),
-                        );
+                        let expected_type = match datatype.clone().as_str() {
+                            _ if datatype.contains("[") => {
+                                Some(Compiler::clean_datatype(&datatype))
+                            }
+                            _ => Some(datatype.clone()),
+                        };
+
+                        let compiled_expression =
+                            self.compile_expression(*intial_value, line, function, expected_type);
 
                         // matching datatypes
 
@@ -273,7 +239,19 @@ impl<'ctx> Compiler<'ctx> {
                             std::process::exit(1);
                         }
 
-                        let _ = self.builder.build_store(alloca, compiled_expression.1);
+                        if Compiler::__is_ptr_type(&datatype) {
+                            self.variables.insert(
+                                identifier.clone(),
+                                Variable::new(
+                                    datatype.clone(),
+                                    var_type,
+                                    compiled_expression.1.into_pointer_value(),
+                                    assigned_function,
+                                ),
+                            );
+                        } else {
+                            let _ = self.builder.build_store(alloca, compiled_expression.1);
+                        }
 
                         // rewriting variable for assigning function
 
@@ -379,6 +357,78 @@ impl<'ctx> Compiler<'ctx> {
 
                         let _ = self.builder.build_store(var_ptr.pointer, expr_value.1);
                     }
+                }
+            }
+            Statements::DerefAssignStatement {
+                identifier,
+                value,
+                line,
+            } => {
+                if let Some(var_ptr) = self.variables.clone().get(&identifier) {
+                    if let Some(expr) = value {
+                        let expr_value = self.compile_expression(
+                            *expr,
+                            line,
+                            function,
+                            Some(var_ptr.str_type.clone()),
+                        );
+
+                        // matching datatypes
+
+                        let raw_type = Compiler::__unwrap_ptr_type(&var_ptr.str_type);
+                        if expr_value.0 != raw_type {
+                            GenError::throw(
+                                format!(
+                                    "Expected type `{}`, but found `{}`!",
+                                    var_ptr.str_type, expr_value.0
+                                ),
+                                ErrorType::TypeError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line,
+                            );
+                            std::process::exit(1);
+                        }
+
+                        // loading pointer from a pointer
+
+                        let ptr_type = self
+                            .context
+                            .ptr_type(AddressSpace::default())
+                            .as_basic_type_enum();
+                        let raw_ptr = self
+                            .builder
+                            .build_load(
+                                ptr_type,
+                                var_ptr.pointer,
+                                &format!("*ptr_{}", var_ptr.str_type),
+                            )
+                            .unwrap_or_else(|_| {
+                                GenError::throw(
+                                    "Unable to load a pointer!",
+                                    ErrorType::BuildError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            });
+
+                        // storing value
+
+                        let _ = self
+                            .builder
+                            .build_store(raw_ptr.into_pointer_value(), expr_value.1);
+                    }
+                } else {
+                    GenError::throw(
+                        format!("Variable `{}` is not defined!", identifier),
+                        ErrorType::NotDefined,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
                 }
             }
 
@@ -770,6 +820,33 @@ impl<'ctx> Compiler<'ctx> {
                 }
             }
 
+            Statements::Expression(expr) => match expr {
+                Expressions::SubElement {
+                    parent,
+                    child,
+                    line,
+                } => {
+                    self.compile_subelement(
+                        Expressions::SubElement {
+                            parent,
+                            child,
+                            line,
+                        },
+                        function,
+                    );
+                }
+                _ => {
+                    GenError::throw(
+                        "Unsupported expression found! Please open issue with your code on Github!",
+                        ErrorType::NotSupported,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        0,
+                    );
+                    std::process::exit(1);
+                }
+            },
+
             // NOTE: Not supported
             _ => {
                 GenError::throw(
@@ -822,6 +899,81 @@ impl<'ctx> Compiler<'ctx> {
                     self.context.i8_type().const_zero().into(),
                 )
             }
+            Expressions::Reference { object, line } => {
+                let value = self.compile_expression(*object, line, function, expected_datatype);
+                let alloca = self
+                    .builder
+                    .build_alloca(
+                        self.get_basic_type(&value.0, line),
+                        &format!("ref_{}", value.0),
+                    )
+                    .unwrap_or_else(|_| {
+                        GenError::throw(
+                            "Unable to create an allocation for reference!",
+                            ErrorType::BuildError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    });
+
+                let _ = self
+                    .builder
+                    .build_store(alloca, value.1)
+                    .unwrap_or_else(|_| {
+                        GenError::throw(
+                            "Unable to store pointer to reference alloca!",
+                            ErrorType::BuildError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    });
+
+                (format!("{}*", value.0), alloca.into())
+            }
+            Expressions::Dereference { object, line } => {
+                let value = self.compile_expression(
+                    *object,
+                    line,
+                    function,
+                    Some(
+                        String::from("*"), // requesting raw pointer
+                    ),
+                );
+
+                if !Compiler::__is_ptr_type(&value.0) {
+                    GenError::throw(
+                        format!("Non pointer type `{}` cannot by dereferenced!", value.0),
+                        ErrorType::TypeError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                }
+
+                let raw_type = Compiler::__unwrap_ptr_type(&value.0);
+                let raw_basic_type = self.get_basic_type(&raw_type, line);
+                let ptr_value = value.1.into_pointer_value();
+                let loaded_value = self
+                    .builder
+                    .build_load(raw_basic_type, ptr_value, &format!("deref_{}", raw_type))
+                    .unwrap_or_else(|_| {
+                        GenError::throw(
+                            "Unable to load a pointer value for dereference!".to_string(),
+                            ErrorType::BuildError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    });
+
+                (raw_type, loaded_value)
+            }
             Expressions::Binary {
                 operand,
                 lhs,
@@ -834,11 +986,9 @@ impl<'ctx> Compiler<'ctx> {
                 // matching types
                 match left.0.as_str() {
                     // int
-                    "int8" | "int16" | "int32" | "int64" | "int128" => {
+                    "int8" | "int16" | "int32" | "int64" => {
                         // checking if all sides are the same type
-                        if !["int8", "int16", "int32", "int64", "int128"]
-                            .contains(&right.0.as_str())
-                        {
+                        if !["int8", "int16", "int32", "int64"].contains(&right.0.as_str()) {
                             GenError::throw(
                                 "Left and Right sides must be the same types in Binary Expression!"
                                     .to_string(),
@@ -936,6 +1086,62 @@ impl<'ctx> Compiler<'ctx> {
                     }
                 }
             }
+            Expressions::SubElement {
+                parent,
+                child,
+                line,
+            } => self.compile_subelement(
+                Expressions::SubElement {
+                    parent,
+                    child,
+                    line,
+                },
+                function,
+            ),
+            Expressions::Array { values, len, line } => {
+                let mut compiled_values = Vec::new();
+                for val in values {
+                    let compiled =
+                        self.compile_expression(val, line, function, expected_datatype.clone());
+                    compiled_values.push(compiled);
+                }
+
+                let types: Vec<String> = compiled_values.iter().map(|x| x.0.clone()).collect();
+                let values: Vec<BasicValueEnum> = compiled_values.iter().map(|x| x.1).collect();
+
+                let arr_type = types[0].clone();
+                let arr_type_basic = match self.get_basic_type(&arr_type, line) {
+                    BasicTypeEnum::IntType(int) => int.vec_type(len as u32),
+                    BasicTypeEnum::PointerType(ptr) => ptr.vec_type(len as u32),
+                    _ => unreachable!(),
+                };
+
+                if !Compiler::validate_types(&types, arr_type.clone()) {
+                    GenError::throw(
+                        format!(
+                            "Array has type `{}`, but found: {}",
+                            &arr_type,
+                            types.join(", ")
+                        ),
+                        ErrorType::TypeError,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                }
+
+                let expr_type = format!("{}[{}]", arr_type, len);
+                let mut expr_value = arr_type_basic.const_zero().as_basic_value_enum();
+
+                for (index, value) in values.iter().enumerate() {
+                    let index = self.context.i8_type().const_int(index as u64, false);
+                    expr_value = expr_value
+                        .into_vector_value()
+                        .const_insert_element(index, *value);
+                }
+
+                (expr_type, expr_value)
+            }
             _ => {
                 GenError::throw(
                     format!("`{:?}` is not supported!", expr),
@@ -949,6 +1155,10 @@ impl<'ctx> Compiler<'ctx> {
         }
     }
 
+    fn clean_datatype(val: &str) -> String {
+        val.split("[").collect::<Vec<&str>>()[0].to_string()
+    }
+
     fn compile_value(
         &self,
         value: Value,
@@ -959,9 +1169,28 @@ impl<'ctx> Compiler<'ctx> {
             Value::Integer(i) => {
                 if let Some(exp) = expected {
                     if exp != "void" {
+                        let unwrapped_type = Compiler::__unwrap_ptr_type(&exp);
                         let basic_type = self.get_basic_type(exp.as_str(), line).into_int_type();
+                        let avaible_type = self.compile_value(Value::Integer(i), line, None);
 
-                        return (exp.to_string(), basic_type.const_int(i as u64, true).into());
+                        if get_int_order(&avaible_type.0) > get_int_order(&unwrapped_type) {
+                            GenError::throw(
+                                format!(
+                                    "Unable to compile `{}` value on `{}` type!",
+                                    avaible_type.0, exp
+                                ),
+                                ErrorType::TypeError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line,
+                            );
+                            std::process::exit(1)
+                        }
+
+                        return (
+                            unwrapped_type.to_string(),
+                            basic_type.const_int(i as u64, true).into(),
+                        );
                     }
                 }
 
@@ -978,26 +1207,10 @@ impl<'ctx> Compiler<'ctx> {
                         "int32".to_string(),
                         self.context.i32_type().const_int(i as u64, true).into(),
                     ),
-                    -9_223_372_036_854_775_808..9_223_372_036_854_775_808 => (
+                    i64::MIN..=i64::MAX => (
                         "int64".to_string(),
                         self.context.i64_type().const_int(i as u64, true).into(),
                     ),
-                    -170_141_183_460_469_231_731_687_303_715_884_105_728
-                        ..=170_141_183_460_469_231_731_687_303_715_884_105_727 => (
-                        "int128".to_string(),
-                        self.context.i128_type().const_int(i as u64, true).into(),
-                    ), // Even the compiler says that number bigger 128-bits is unreachable. xD
-
-                       // _ => {
-                       //     GenError::throw(
-                       //         "Provided integer is too big! Max supported type is 128-bit number!",
-                       //         ErrorType::TypeError,
-                       //         self.module_name.clone(),
-                       //         self.module_source.clone(),
-                       //         line
-                       //     );
-                       //     std::process::exit(1);
-                       // }
                 }
             }
             Value::Boolean(b) => (
@@ -1024,8 +1237,11 @@ impl<'ctx> Compiler<'ctx> {
             }
             Value::Identifier(id) => {
                 if let Some(var_ptr) = self.variables.get(&id) {
-                    (
-                        var_ptr.str_type.clone(),
+                    let exp = expected.unwrap_or_default();
+
+                    let value = if Compiler::__is_ptr_type(&exp) {
+                        var_ptr.pointer.into()
+                    } else {
                         self.builder
                             .build_load(var_ptr.basic_type, var_ptr.pointer, &id)
                             .unwrap_or_else(|_| {
@@ -1037,8 +1253,10 @@ impl<'ctx> Compiler<'ctx> {
                                     line,
                                 );
                                 std::process::exit(1);
-                            }),
-                    )
+                            })
+                    };
+
+                    (var_ptr.str_type.clone(), value)
                 } else {
                     GenError::throw(
                         format!("Undefined variable with id: `{}`!", id),
@@ -1051,6 +1269,54 @@ impl<'ctx> Compiler<'ctx> {
                 }
             }
             _ => todo!(),
+        }
+    }
+
+    fn compile_subelement(
+        &mut self,
+        subelement: Expressions,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        match subelement {
+            Expressions::SubElement {
+                parent,
+                child,
+                line,
+            } => {
+                match *child {
+                    Expressions::Call {
+                        function_name,
+                        arguments,
+                        line,
+                    } => {
+                        // inserting parent as a first argument
+                        let modified_args = [vec![*parent], arguments].concat();
+                        let call = self.fn_call(function_name, modified_args, line, function);
+
+                        call
+                    }
+                    _ => {
+                        GenError::throw(
+                            "Unsupported subelement found! Please open issue on github repo for bug report!",
+                            ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            }
+            _ => {
+                GenError::throw(
+                    "`compile_subelement` takes only 'SubElement' expression!",
+                    ErrorType::BuildError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    0,
+                );
+                std::process::exit(1);
+            }
         }
     }
 
@@ -1090,8 +1356,7 @@ impl<'ctx> Compiler<'ctx> {
                     ("int8", "int8")
                     | ("int16", "int16")
                     | ("int32", "int32")
-                    | ("int64", "int64")
-                    | ("int128", "int128") => {
+                    | ("int64", "int64") => {
                         // matching operand
                         let predicate = match operand.as_str() {
                             ">" => inkwell::IntPredicate::SGT,
@@ -1189,6 +1454,7 @@ impl<'ctx> Compiler<'ctx> {
         if !self.functions.contains_key(&function_name) {
             match function_name.as_str() {
                 "concat" => return self.build_concat_call(arguments, line, function),
+                "type" => return self.build_type_call(arguments, line, function),
                 "print" => {
                     GenError::throw(
                         "Function `print` is 'void' type!",
@@ -1199,6 +1465,12 @@ impl<'ctx> Compiler<'ctx> {
                     );
                     std::process::exit(1);
                 }
+
+                "to_str" => return self.build_to_str_call(arguments, line, function),
+                "to_int8" => return self.build_to_int8_call(arguments, line, function),
+                "to_int16" => return self.build_to_int16_call(arguments, line, function),
+                "to_int32" => return self.build_to_int32_call(arguments, line, function),
+                "to_int64" => return self.build_to_int64_call(arguments, line, function),
                 _ => {
                     if let Some(var) = self.variables.get(&function_name) {
                         if var.assigned_function.is_some() {
@@ -1348,18 +1620,40 @@ impl<'ctx> Compiler<'ctx> {
                 let fn_type = datatype.replace("fn<", "").replace(">", "");
                 self.get_basic_type(fn_type.as_str(), line)
             }
+            _ if datatype.contains("[") => {
+                let type_parts = datatype.split("[").collect::<Vec<&str>>();
+                let raw_type = type_parts[0];
+                let array_len: u32 = type_parts[1].split("]").collect::<Vec<&str>>()[0]
+                    .parse()
+                    .unwrap_or_else(|_| {
+                        GenError::throw(
+                            "Unable to compile array's length!",
+                            ErrorType::BuildError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    });
+
+                match self.get_basic_type(raw_type, line) {
+                    BasicTypeEnum::IntType(int) => int.vec_type(array_len).into(),
+                    BasicTypeEnum::PointerType(ptr) => ptr.vec_type(array_len).into(),
+                    _ => unreachable!(),
+                }
+            }
+            _ if Compiler::__is_ptr_type(datatype) => {
+                let unwrapped_type = Compiler::__unwrap_ptr_type(datatype);
+                self.get_basic_type(&unwrapped_type, line)
+            }
             "int8" => self.context.i8_type().into(),
             "int16" => self.context.i16_type().into(),
             "int32" => self.context.i32_type().into(),
             "int64" => self.context.i64_type().into(),
-            "int128" => self.context.i128_type().into(),
             "bool" => self.context.bool_type().into(),
             "str" => self.context.ptr_type(AddressSpace::default()).into(),
             "auto" => self.context.i8_type().into(),
             "void" => self.context.ptr_type(AddressSpace::default()).into(),
-            // Yep, this seems like a very bad idea, but
-            // `void` type requires AnyTypeEnum, which is not allowed for the whole builder's
-            // functions
             _ => {
                 GenError::throw(
                     format!("Unsupported `{}` datatype!", datatype),
@@ -1386,7 +1680,6 @@ impl<'ctx> Compiler<'ctx> {
             "int16" => self.context.i16_type().fn_type(params, is_var_args),
             "int32" => self.context.i32_type().fn_type(params, is_var_args),
             "int64" => self.context.i64_type().fn_type(params, is_var_args),
-            "int128" => self.context.i128_type().fn_type(params, is_var_args),
             "bool" => self.context.bool_type().fn_type(params, is_var_args),
             "void" => self.context.void_type().fn_type(params, is_var_args),
             "str" => self
@@ -1404,170 +1697,6 @@ impl<'ctx> Compiler<'ctx> {
                 std::process::exit(1);
             }
         }
-    }
-
-    // built-in functions
-
-    fn build_concat_call(
-        &mut self,
-        arguments: Vec<Expressions>,
-        line: usize,
-        function: FunctionValue<'ctx>,
-    ) -> (String, BasicValueEnum<'ctx>) {
-        if arguments.len() != 2 {
-            GenError::throw(
-                "`concat` function takes 2 arguments!",
-                ErrorType::NotExpected,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                line,
-            );
-        }
-
-        let left_arg = self.compile_expression(
-            arguments[0].clone(),
-            line,
-            function,
-            self.current_expectation_value.clone(),
-        );
-        let right_arg = self.compile_expression(
-            arguments[1].clone(),
-            line,
-            function,
-            self.current_expectation_value.clone(),
-        );
-
-        let strcat_fn = self.__c_strcat();
-
-        if !Compiler::validate_types(&[left_arg.0, right_arg.0], "str".to_string()) {
-            GenError::throw(
-                "`concat` function takes only string types!",
-                ErrorType::TypeError,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                line,
-            );
-        }
-
-        let val: BasicValueEnum<'ctx> = self
-            .builder
-            .build_direct_call(
-                strcat_fn,
-                &[left_arg.1.into(), right_arg.1.into()],
-                "concat",
-            )
-            .unwrap_or_else(|_| {
-                GenError::throw(
-                    "An error occured while calling `concat` function!",
-                    ErrorType::BuildError,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
-            })
-            .try_as_basic_value()
-            .left()
-            .unwrap_or_else(|| {
-                GenError::throw(
-                    "Unable to get basic value from `concat` function!",
-                    ErrorType::BuildError,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
-            });
-
-        (String::from("str"), val)
-
-        // `strcat` provides concatenating left and right values to left variable, which
-        // means that call `concat(a, b)` will insert result into variable 'a'.
-        // To fix it we need to copy both of values and use it in function (and try to free memory)
-    }
-
-    fn build_print_call(
-        &mut self,
-        arguments: Vec<Expressions>,
-        line: usize,
-        function: FunctionValue<'ctx>,
-    ) {
-        let mut fmts: Vec<&str> = Vec::new();
-        let mut values: Vec<BasicMetadataValueEnum<'ctx>> = Vec::new();
-        let printf_fn = self.__c_printf();
-
-        for arg in arguments {
-            let compiled_arg = self.compile_expression(
-                arg,
-                line,
-                function,
-                self.current_expectation_value.clone(),
-            );
-            let mut basic_value = compiled_arg.1;
-
-            if compiled_arg.0 == *"void" {
-                continue;
-            }
-
-            let format_string = match compiled_arg.0.as_str() {
-                "int8" => "%d",
-                "int16" => "%hd",
-                "int32" => "%d",
-                "int64" => "%lld",
-                "int128" => "%lld", // now int128 isn't supported for print
-                "bool" => {
-                    let (_true, _false) = self.__boolean_strings();
-
-                    if let BasicValueEnum::IntValue(int) = basic_value {
-                        basic_value = self
-                            .builder
-                            .build_select(int, _true, _false, "bool_fmt_str")
-                            .unwrap();
-                    }
-
-                    "%s"
-                }
-                "str" => "%s",
-                _ => {
-                    GenError::throw(
-                        format!(
-                            "Type `{}` is not supported for 'print' function!",
-                            compiled_arg.0
-                        ),
-                        ErrorType::NotSupported,
-                        self.module_name.clone(),
-                        self.module_source.clone(),
-                        line,
-                    );
-                    std::process::exit(1);
-                }
-            };
-
-            fmts.push(format_string);
-            values.push(basic_value.into());
-        }
-
-        let complete_fmt_string = self
-            .builder
-            .build_global_string_ptr(format!("{}\n", fmts.join(" ")).as_str(), "printf_fmt")
-            .unwrap_or_else(|_| {
-                GenError::throw(
-                    "Unable to create format string for C function!",
-                    ErrorType::BuildError,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
-            })
-            .as_pointer_value();
-
-        let mut printf_arguments = vec![complete_fmt_string.into()];
-        printf_arguments.append(&mut values);
-
-        let _ = self
-            .builder
-            .build_call(printf_fn, &printf_arguments, "printf_call");
     }
 
     pub fn define_user_function(
@@ -1688,7 +1817,7 @@ impl<'ctx> Compiler<'ctx> {
             let _ = self
                 .builder
                 .build_return(Some(&match function_type.as_str() {
-                    "int8" | "int16" | "int32" | "int64" | "int128" => {
+                    "int8" | "int16" | "int32" | "int64" => {
                         self.compile_value(Value::Integer(0), line, Some(function_type.clone()))
                             .1
                     }
@@ -1771,6 +1900,38 @@ impl<'ctx> Compiler<'ctx> {
     }
 
     #[allow(non_snake_case)]
+    #[inline]
+    fn __is_ptr_type(type_str: &str) -> bool {
+        type_str.chars().last().unwrap_or('\0') == '*'
+    }
+
+    #[allow(non_snake_case)]
+    #[inline]
+    fn __unwrap_ptr_type(type_str: &str) -> String {
+        if Compiler::__is_ptr_type(type_str) {
+            let chars = type_str.chars().collect::<Vec<char>>();
+            return chars[0..chars.len() - 1].iter().collect::<String>();
+        };
+        type_str.to_string()
+    }
+
+    #[allow(non_snake_case)]
+    #[inline]
+    fn __type_fmt(type_str: &str) -> String {
+        match type_str {
+            "int8" => "%d",
+            "int16" => "%hd",
+            "int32" => "%d",
+            "int64" => "%lld",
+            "bool" => "%s",
+            "str" => "%s",
+            _ => unreachable!(),
+        }
+        .to_string()
+    }
+
+    #[allow(non_snake_case)]
+    #[inline]
     fn __boolean_strings(&mut self) -> (PointerValue<'ctx>, PointerValue<'ctx>) {
         if let Some(allocated_values) = self.boolean_strings_ptr {
             return allocated_values;
@@ -1799,6 +1960,8 @@ impl<'ctx> Compiler<'ctx> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use inkwell::module::Linkage;
+    use libc::Libc;
 
     #[test]
     fn validate_types_test() {
@@ -1942,7 +2105,6 @@ mod tests {
         let int16 = compiler.compile_value(Value::Integer(256), 0, None);
         let int32 = compiler.compile_value(Value::Integer(65_535), 0, None);
         let int64 = compiler.compile_value(Value::Integer(2_147_483_648), 0, None);
-        let int128 = compiler.compile_value(Value::Integer(9_223_372_036_854_775_808), 0, None);
 
         let boolean_true = compiler.compile_value(Value::Boolean(true), 0, None);
         let boolean_false = compiler.compile_value(Value::Boolean(false), 0, None);
@@ -1955,7 +2117,6 @@ mod tests {
                 int16.0,
                 int32.0,
                 int64.0,
-                int128.0,
                 boolean_true.0,
                 boolean_false.0,
                 str.0
@@ -1965,7 +2126,6 @@ mod tests {
                 String::from("int16"),
                 String::from("int32"),
                 String::from("int64"),
-                String::from("int128"),
                 String::from("bool"),
                 String::from("bool"),
                 String::from("str"),
@@ -1976,7 +2136,6 @@ mod tests {
         assert!(int16.1.is_int_value());
         assert!(int32.1.is_int_value());
         assert!(int64.1.is_int_value());
-        assert!(int128.1.is_int_value());
         assert!(boolean_true.1.is_int_value());
         assert!(boolean_false.1.is_int_value());
         assert!(str.1.is_pointer_value());
@@ -2021,5 +2180,42 @@ mod tests {
                 .unwrap(),
             0
         );
+    }
+
+    #[test]
+    fn compile_array_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let array_expr = Expressions::Array {
+            values: vec![
+                Expressions::Value(Value::Integer(5)),
+                Expressions::Value(Value::Integer(3)),
+                Expressions::Value(Value::Integer(4)),
+            ],
+            len: 3,
+            line: 0,
+        };
+
+        let compiled = compiler.compile_expression(array_expr, 0, compiler.main_function, None);
+        assert_eq!(compiled.0, String::from("int8[3]"))
+    }
+
+    #[test]
+    fn type_function_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let value_int8 = Expressions::Value(Value::Integer(0));
+
+        let call_result = compiler.build_type_call(vec![value_int8], 0, compiler.main_function);
+        let ptr_value = call_result.1.into_pointer_value().to_string();
+
+        assert_eq!(call_result.0, "str".to_string());
+        assert!(ptr_value.contains("int8"));
     }
 }

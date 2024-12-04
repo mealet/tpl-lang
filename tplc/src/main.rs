@@ -121,8 +121,8 @@ fn main() {
             compiler.generate(stmts);
             let module = compiler.get_module();
 
-            // // debug
-            // module.print_to_stderr();
+            // debug
+            module.print_to_stderr();
 
             // compiling module to object file
 

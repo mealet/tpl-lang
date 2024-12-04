@@ -95,6 +95,12 @@ impl Parser {
             current_line,
             self.position,
         ));
+
+        // skipping whole statement
+        while !self.expect(END_STATEMENT) {
+            let _ = self.next();
+        }
+        let _ = self.next();
     }
 
     // helpful functions
@@ -135,6 +141,7 @@ impl Parser {
 
     fn statement(&mut self) -> Statements {
         let current = self.current();
+
         match current.token_type {
             TokenType::Keyword => {
                 match current.value.as_str() {
@@ -185,12 +192,61 @@ impl Parser {
                     _ => Statements::None,
                 }
             }
+            TokenType::Multiply => {
+                // Possibly dereference assignment
+                let _ = self.next();
+
+                match self.current().token_type {
+                    TokenType::Identifier => {
+                        let stmt = self.statement();
+
+                        match stmt {
+                            Statements::AssignStatement {
+                                identifier,
+                                value,
+                                line,
+                            } => Statements::DerefAssignStatement {
+                                identifier,
+                                value,
+                                line,
+                            },
+                            Statements::BinaryAssignStatement {
+                                identifier,
+                                operand,
+                                value,
+                                line,
+                            } => {
+                                // i'll implement it in future
+                                self.error("Binary Assignment isn't supported for dereference!");
+                                Statements::None
+                            }
+                            _ => {
+                                self.error("Unexpected statement found for dereference!");
+                                Statements::None
+                            }
+                        }
+                    }
+                    _ => {
+                        self.error("Unexpected dereference value in statement found!");
+                        Statements::None
+                    }
+                }
+            }
             TokenType::Function => self.function_call_statement(current.value),
             TokenType::Identifier => {
                 let next = self.next();
 
                 match next.token_type {
                     TokenType::Equal => self.assign_statement(current.value),
+                    TokenType::Dot => {
+                        // subelement
+                        let sub_expr = self.subelement_expression(
+                            Expressions::Value(Value::Identifier(current.value)),
+                            TokenType::Dot,
+                        );
+
+                        Statements::Expression(sub_expr)
+                    }
                     TokenType::LParen => self.call_statement(current.value),
                     _ if BINARY_OPERATORS.contains(&next.token_type) => {
                         match self.next().token_type {
@@ -260,6 +316,20 @@ impl Parser {
             TokenType::Boolean => {
                 output = Expressions::Value(Value::Boolean(current.value == "true"))
             }
+            TokenType::Ampersand => {
+                let _ = self.next();
+                return Expressions::Reference {
+                    object: Box::new(self.term()),
+                    line: current.line,
+                };
+            }
+            TokenType::Multiply => {
+                let _ = self.next();
+                return Expressions::Dereference {
+                    object: Box::new(self.term()),
+                    line: current.line,
+                };
+            }
             TokenType::Identifier => {
                 output = Expressions::Value(Value::Identifier(current.value.clone()));
 
@@ -271,6 +341,15 @@ impl Parser {
                 }
 
                 return output;
+            }
+            TokenType::LBrack => {
+                // array
+                let line = self.current().line;
+                let values =
+                    self.expressions_enum(TokenType::LBrack, TokenType::RBrack, TokenType::Comma);
+                let len = values.len();
+
+                return Expressions::Array { values, len, line };
             }
             _ if DATATYPES.contains(&current.value.as_str()) => {
                 // parsing argument
@@ -296,10 +375,10 @@ impl Parser {
             }
             _ => {
                 self.error(format!(
-                    "Unexpected term '{:?}' found",
-                    self.current().value
+                    "Unexpected term found: '{}' -> @{}",
+                    self.current().value,
+                    self.current().token_type
                 ));
-                let _ = self.next();
                 return Expressions::None;
             }
         }
@@ -320,7 +399,6 @@ impl Parser {
                 if let Expressions::Value(Value::Keyword(keyword)) = node.clone() {
                     if !DATATYPES.contains(&keyword.as_str()) {
                         self.error(format!("Unexpected keyword `{}` in expression", keyword));
-                        let _ = self.next();
                         return Expressions::None;
                     }
 
@@ -351,7 +429,6 @@ impl Parser {
 
                     if !self.expect(TokenType::LBrace) {
                         self.error("Expected block after lambda function definition!");
-                        let _ = self.next();
                         return Expressions::None;
                     }
 
@@ -378,8 +455,10 @@ impl Parser {
                 }
 
                 self.error("Unexpected parentheses in expression found".to_string());
-                let _ = self.next();
                 return Expressions::None;
+            }
+            TokenType::Dot => {
+                node = self.subelement_expression(node, TokenType::Dot);
             }
             END_STATEMENT => {
                 self.next();
@@ -446,7 +525,6 @@ impl Parser {
             }
             _ => {
                 self.error("Unexpected token at binary expression!");
-                self.next();
                 Expressions::None
             }
         }
@@ -498,9 +576,6 @@ impl Parser {
             TokenType::LParen => {}
             _ => {
                 self.error(format!("Unexpected usage of `{}` statement", function_name));
-                while self.current().token_type != END_STATEMENT {
-                    self.next();
-                }
                 return Statements::None;
             }
         }
@@ -519,44 +594,89 @@ impl Parser {
         }
     }
 
+    fn parse_datatype(&mut self) -> String {
+        let line = self.current().line;
+        let current = self.current();
+
+        if DATATYPES.contains(&current.value.as_str()) {
+            let mut datatype = self.current().value;
+            let _ = self.next();
+
+            match self.current().token_type {
+                TokenType::Lt => {
+                    // example: fn<int32>
+                    let _ = self.next();
+
+                    if !self.expect(TokenType::Keyword) {
+                        self.error("Unexpected nested datatype found!");
+
+                        return String::new();
+                    }
+
+                    let subtype = self.parse_datatype();
+
+                    if !self.expect(TokenType::Bt) {
+                        self.error("Wrong nested type definition! Must be like: fn<int32>");
+
+                        return String::new();
+                    }
+
+                    let _ = self.next();
+                    datatype = format!("{}<{}>", datatype, subtype);
+                }
+                TokenType::LBrack => {
+                    // example: int32[] or int32[1]
+                    //                           ↑
+                    //                    array's length
+
+                    let mut array_len = String::from("auto");
+                    let _ = self.next();
+
+                    match self.current().token_type {
+                        TokenType::Number => {
+                            array_len = self.current().value;
+                            let _ = self.next();
+                        }
+                        TokenType::RBrack => {}
+                        _ => {
+                            self.error("Unexpected array annotation found!");
+                            return String::new();
+                        }
+                    }
+
+                    if !self.expect(TokenType::RBrack) {
+                        self.error("Unexpected brackets end at annoation found!");
+                        let _ = self.next();
+                        return String::new();
+                    }
+
+                    let _ = self.next();
+                    datatype = format!("{}[{}]", datatype, array_len);
+                }
+                _ => {}
+            }
+
+            if self.expect(TokenType::Multiply) {
+                // yay, we've found a pointer!
+                datatype = format!("{}*", datatype);
+                let _ = self.next();
+            }
+
+            datatype
+        } else {
+            self.error(format!("Datatype `{}` not found!", current.value));
+            String::new()
+        }
+    }
+
     fn annotation_statement(&mut self) -> Statements {
         let line = self.current().line;
 
         if DATATYPES.contains(&self.current().value.as_str()) {
-            let mut datatype = self.current().value;
-            let _ = self.next();
-
-            if self.expect(TokenType::Lt) {
-                // example: fn<int32>
-
-                // In future there must be a special function for parsing nested datatypes
-
-                let _ = self.next();
-
-                if !self.expect(TokenType::Keyword) {
-                    self.error("Unexpected nested datatype found!");
-                    self.next();
-
-                    return Statements::None;
-                }
-
-                let subtype = self.current().value;
-                let _ = self.next();
-
-                if !self.expect(TokenType::Bt) {
-                    self.error("Wrong nested type definition! Must be like: fn<int32>");
-                    self.next();
-
-                    return Statements::None;
-                }
-
-                let _ = self.next();
-                datatype = format!("{}<{}>", datatype, subtype);
-            }
+            let mut datatype = self.parse_datatype();
 
             if !self.expect(TokenType::Identifier) {
                 self.error("Identifier expected after type keyword!");
-                self.next();
 
                 return Statements::None;
             }
@@ -590,7 +710,6 @@ impl Parser {
                 _ => {
                     self.error("Expected `=` or `;` after variable annotation");
 
-                    self.next();
                     Statements::None
                 }
             }
@@ -609,7 +728,6 @@ impl Parser {
             }
             END_STATEMENT => {
                 self.error("Expressions expected in assign statement, but `;` found!");
-                self.next();
                 Statements::None
             }
             _ => Statements::AssignStatement {
@@ -630,7 +748,6 @@ impl Parser {
             }
             END_STATEMENT => {
                 self.error("Expressions expected in binary assignment, but `;` found!");
-                self.next();
                 Statements::None
             }
             _ => Statements::BinaryAssignStatement {
@@ -1066,6 +1183,22 @@ impl Parser {
         output
     }
 
+    fn subelement_expression(&mut self, parent: Expressions, separator: TokenType) -> Expressions {
+        let line = self.current().line;
+
+        if self.expect(separator) {
+            let _ = self.next();
+        }
+
+        let child = self.expression();
+
+        Expressions::SubElement {
+            parent: Box::new(parent),
+            child: Box::new(child),
+            line,
+        }
+    }
+
     // main function
 
     pub fn parse(&mut self) -> Result<Vec<Statements>, ParseErrorHandler> {
@@ -1091,6 +1224,87 @@ impl Parser {
 mod tests {
     use super::*;
     use tpl_lexer::{token::Token, token_type::TokenType, Lexer};
+
+    #[test]
+    fn subelement_expr_test() {
+        let input = String::from("a.b");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::Expression(Expressions::SubElement {
+                parent: Box::new(Expressions::Value(Value::Identifier("a".to_string()))),
+                child: Box::new(Expressions::Value(Value::Identifier("b".to_string()))),
+                line: 0
+            })
+        );
+    }
+
+    #[test]
+    fn subelement_function_call_test() {
+        let input = String::from("a.b()");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::Expression(Expressions::SubElement {
+                parent: Box::new(Expressions::Value(Value::Identifier("a".to_string()))),
+                child: Box::new(Expressions::Call {
+                    function_name: String::from("b"),
+                    arguments: Vec::new(),
+                    line: 0
+                }),
+                line: 0
+            })
+        );
+    }
+
+    #[test]
+    fn subelement_adv_expr_test() {
+        let input = String::from("a.b.c.d");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::Expression(Expressions::SubElement {
+                parent: Box::new(Expressions::Value(Value::Identifier("a".to_string()))),
+                child: Box::new(Expressions::SubElement {
+                    parent: Box::new(Expressions::Value(Value::Identifier("b".to_string()))),
+                    child: Box::new(Expressions::SubElement {
+                        parent: Box::new(Expressions::Value(Value::Identifier("c".to_string()))),
+                        child: Box::new(Expressions::Value(Value::Identifier("d".to_string()))),
+                        line: 0
+                    }),
+                    line: 0
+                }),
+                line: 0
+            })
+        );
+    }
 
     #[test]
     fn peek_fn_test() {
@@ -1995,7 +2209,7 @@ mod tests {
 
     #[test]
     fn error_test() {
-        let input = String::from("int0 a;");
+        let input = String::from("int32 a = ;");
         let mut lexer = Lexer::new(input.clone(), "test".to_string());
 
         let tokens = match lexer.tokenize() {
@@ -2022,5 +2236,164 @@ mod tests {
 
         let mut parser = Parser::new(tokens, "test".to_string(), input);
         let _ = parser.parse().unwrap();
+    }
+
+    #[test]
+    fn array_annotation_test() {
+        let input = String::from("int32[] a;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32[auto]"),
+                value: None,
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn array_annotation_with_len_test() {
+        let input = String::from("int32[5] a;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32[5]"),
+                value: None,
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn array_annotation_with_values_test() {
+        let input = String::from("int32[] a = [1,2,3];");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32[auto]"),
+                value: Some(Box::new(Expressions::Array {
+                    values: vec![
+                        Expressions::Value(Value::Integer(1)),
+                        Expressions::Value(Value::Integer(2)),
+                        Expressions::Value(Value::Integer(3)),
+                    ],
+                    len: 3,
+                    line: 0
+                })),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn array_annotation_with_empty_test() {
+        let input = String::from("int32[] a = [];");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32[auto]"),
+                value: Some(Box::new(Expressions::Array {
+                    values: vec![],
+                    len: 0,
+                    line: 0
+                })),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn pointer_annotation_test() {
+        let input = String::from("int32* a;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32*"),
+                value: None,
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn pointer_on_ref_annotation_test() {
+        let input = String::from("int32* a = &5;");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32*"),
+                value: Some(Box::new(Expressions::Reference {
+                    object: Box::new(Expressions::Value(Value::Integer(5))),
+                    line: 0
+                })),
+                line: 0
+            }
+        );
     }
 }
