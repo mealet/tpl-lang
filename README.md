@@ -47,7 +47,6 @@ cargo build --release
 
 <details>
  <summary><h2>👾 Examples</h2></summary>
- You can also check snapped code in <a href="./examples">Examples</a>
 
 ### Types
 ```c
