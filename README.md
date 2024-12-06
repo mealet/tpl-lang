@@ -49,7 +49,19 @@ cargo build --release
  <summary><h2>👾 Examples</h2></summary>
  You can also check snapped code in <a href="./examples">Examples</a>
 
- ### Boolean Operations
+### Types
+```c
+int8 // - 8 bit integer number
+int16 // - 16 bit integer number
+int32 // - 32 bit integer number
+int64 // - 64 bit integer number
+
+str // - string type
+bool // - boolean type (true, false)
+void // - void type (better for functions)
+```
+
+### Boolean Operations
 ```c
 int32 a = 10;
 int32 b = 2;
@@ -80,6 +92,22 @@ if a < b {
 };
 
 // "less"
+```
+
+### Loops
+```c
+int32 counter = 0;
+
+// while
+while counter < 10 {
+ print(counter);
+ counter += 1;
+};
+
+// for
+for count in 10 {
+ print(count);
+};
 ```
 
 ### Strings
@@ -117,6 +145,60 @@ bool a = true;
 bool b = false;
 
 print(a, b) // true false
+```
+
+### Pointers
+```c
+int32 a = 5;
+int32* b = &a;
+
+print(a); // 5
+
+*b = 100;
+
+print(a); // 100
+```
+
+### Sub-functions
+```c
+define int32 foo(int32 a) {
+ return a * 2;
+};
+
+int32 value = 5;
+
+print(value.foo()); // 10
+```
+
+### Arrays
+```c
+int32[5] a = [1, 2, 3, 4, 5];
+// or
+auto a = [1, 2, 3, 4, 5];
+
+print(a); // [1, 2, 3, 4, 5];
+```
+
+### Type function
+```c
+int32 a = 5;
+int8 b;
+bool c = false;
+
+print(a.type()); // int32
+print(b.type()); // int8
+print(c.type()); // bool
+```
+
+### Conversions
+```
+int32 a = 5;
+int8 b = a.to_int8();
+str c = b.to_str();
+
+print(a.type()); // int32
+print(b.type()); // int8
+print(c.type()); // str
 ```
 
 </details>
