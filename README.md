@@ -125,7 +125,7 @@ fn<int64> fib = int64 ( int64 index ) {
  int64 right = 1;
  int64 result = 0;
 
- for i index {
+ for i in index {
   result = left + right;
   left = right;
   right = result;
