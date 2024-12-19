@@ -31,7 +31,7 @@ jobs:
         uses: dtolnay/rust-toolchain@5aa646dfb739dff33bfae50a6193d9673a68e344
 
       - name: 🕐 Rust Cache
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@e8e63cdbf2788df3801e6f9a81516b2ca8391886
         with:
           workspaces: './target'
 
