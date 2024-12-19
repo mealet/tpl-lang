@@ -8,6 +8,9 @@ env:
 
 jobs:
   build:
+    permissions:
+      contents: read
+
     name: • ${{ matrix.target }}
     runs-on: ${{ matrix.target }}
     strategy:
@@ -22,10 +25,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: 🖱️ LLVM Install
-        uses: ZhongRuoyu/setup-llvm@v0
+        uses: ZhongRuoyu/setup-llvm@405ac952f13f3ee4d376adc2b7a96e5f48d1f73f
 
       - name: 🦀 Rust Setup
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@5aa646dfb739dff33bfae50a6193d9673a68e344
 
       - name: 🕐 Rust Cache
         uses: swatinem/rust-cache@v2
