@@ -60,7 +60,7 @@ bool // - boolean type (true, false)
 void // - void type (better for functions)
 ```
 
-### Boolean Operations
+### Binary Operations
 ```c
 int32 a = 10;
 int32 b = 2;
@@ -79,7 +79,7 @@ define int32 foo(int32 a, int32 b) {
 print(foo(5, 10)) // 50
 ```
 
-### Compares
+### Boolean Operations
 ```c
 int32 a = 5;
 int32 b = 10;
@@ -91,6 +91,12 @@ if a < b {
 };
 
 // "less"
+
+// also supported
+a < b
+a > b
+a == b
+a != b
 ```
 
 ### Loops
