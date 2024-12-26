@@ -308,7 +308,17 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
         let _ = self
             .builder
-            .build_call(printf_fn, &printf_arguments, "printf_call");
+            .build_direct_call(printf_fn, &printf_arguments, "")
+            .unwrap_or_else(|_| {
+                GenError::throw(
+                    "Unable to call `print` function!",
+                    ErrorType::BuildError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line
+                );
+                std::process::exit(1);
+            });
     }
 
     fn build_type_call(

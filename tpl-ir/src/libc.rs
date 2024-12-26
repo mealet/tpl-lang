@@ -39,7 +39,7 @@ impl<'ctx> Libc for Compiler<'ctx> {
             return *function_value;
         }
 
-        let printf_type = self.context.void_type().fn_type(
+        let printf_type = self.context.i32_type().fn_type(
             &[self.context.ptr_type(AddressSpace::default()).into()],
             true,
         );

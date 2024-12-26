@@ -83,7 +83,7 @@ impl<'ctx> Compiler<'ctx> {
         let builder = context.create_builder();
 
         // main function creation
-        let main_fn_type = context.i8_type();
+        let main_fn_type = context.i32_type();
         let fn_type = main_fn_type.fn_type(&[], false);
         let function = module.add_function("main", fn_type, None);
         let basic_block = context.append_basic_block(function, "entry");
@@ -123,7 +123,7 @@ impl<'ctx> Compiler<'ctx> {
         // returning 0
         let _ = self
             .builder
-            .build_return(Some(&self.context.i8_type().const_int(0, false)));
+            .build_return(Some(&self.context.i32_type().const_int(0, false)));
     }
 
     fn switch_block(&mut self, dest: BasicBlock<'ctx>) {
@@ -180,7 +180,12 @@ impl<'ctx> Compiler<'ctx> {
 
                     let _ = self.builder.build_store(alloca, compiled_expression.1);
                 } else {
-                    let var_type = self.get_basic_type(&datatype, line);
+                    let var_type = if Compiler::__is_ptr_type(&datatype) {
+                        self.context.ptr_type(AddressSpace::default()).as_basic_type_enum()
+                    } else {
+                        self.get_basic_type(&datatype, line)
+                    };
+
                     let alloca = self
                         .builder
                         .build_alloca(var_type, &identifier)
@@ -245,10 +250,13 @@ impl<'ctx> Compiler<'ctx> {
                                 Variable::new(
                                     datatype.clone(),
                                     var_type,
-                                    compiled_expression.1.into_pointer_value(),
+                                    alloca,
+                                    // compiled_expression.1.into_pointer_value(),
                                     assigned_function,
                                 ),
                             );
+                            let _ = self.builder.build_store(alloca, compiled_expression.1);
+
                         } else {
                             let _ = self.builder.build_store(alloca, compiled_expression.1);
                         }
@@ -401,7 +409,7 @@ impl<'ctx> Compiler<'ctx> {
                             .build_load(
                                 ptr_type,
                                 var_ptr.pointer,
-                                &format!("*ptr_{}", var_ptr.str_type),
+                                ""
                             )
                             .unwrap_or_else(|_| {
                                 GenError::throw(
@@ -900,39 +908,39 @@ impl<'ctx> Compiler<'ctx> {
                 )
             }
             Expressions::Reference { object, line } => {
-                let value = self.compile_expression(*object, line, function, expected_datatype);
-                let alloca = self
-                    .builder
-                    .build_alloca(
-                        self.get_basic_type(&value.0, line),
-                        &format!("ref_{}", value.0),
-                    )
-                    .unwrap_or_else(|_| {
+                match *object {
+                    Expressions::Value(
+                        Value::Identifier(id)
+                    ) => {
+                        // referencing to a variable
+
+                        let variable = self.variables.get(&id).unwrap_or_else(|| {
+                            GenError::throw(
+                                format!("Variable `{}` is not defined!", id),
+                                ErrorType::NotDefined,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line,
+                            );
+                            std::process::exit(1);
+                        });
+
+                        (
+                            format!("{}*", variable.str_type),
+                            variable.pointer.into()
+                        )
+                    },
+                    _ => {
                         GenError::throw(
-                            "Unable to create an allocation for reference!",
-                            ErrorType::BuildError,
+                            "Unsupported expression for reference found",
+                            ErrorType::NotSupported,
                             self.module_name.clone(),
                             self.module_source.clone(),
-                            line,
+                            line
                         );
                         std::process::exit(1);
-                    });
-
-                let _ = self
-                    .builder
-                    .build_store(alloca, value.1)
-                    .unwrap_or_else(|_| {
-                        GenError::throw(
-                            "Unable to store pointer to reference alloca!",
-                            ErrorType::BuildError,
-                            self.module_name.clone(),
-                            self.module_source.clone(),
-                            line,
-                        );
-                        std::process::exit(1);
-                    });
-
-                (format!("{}*", value.0), alloca.into())
+                    }
+                }
             }
             Expressions::Dereference { object, line } => {
                 let value = self.compile_expression(
@@ -957,13 +965,34 @@ impl<'ctx> Compiler<'ctx> {
 
                 let raw_type = Compiler::__unwrap_ptr_type(&value.0);
                 let raw_basic_type = self.get_basic_type(&raw_type, line);
+
                 let ptr_value = value.1.into_pointer_value();
-                let loaded_value = self
+                let ptr_type = self.context.ptr_type(AddressSpace::default());
+
+                let loaded_ptr = self
                     .builder
-                    .build_load(raw_basic_type, ptr_value, &format!("deref_{}", raw_type))
+                    .build_load(
+                        ptr_type,
+                        ptr_value,
+                        ""
+                    )
                     .unwrap_or_else(|_| {
                         GenError::throw(
-                            "Unable to load a pointer value for dereference!".to_string(),
+                            "Unable to load pointer for dereference!",
+                            ErrorType::BuildError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    });
+
+                let loaded_value = self
+                    .builder
+                    .build_load(raw_basic_type, loaded_ptr.into_pointer_value(), "")
+                    .unwrap_or_else(|_| {
+                        GenError::throw(
+                            "Unable to load a pointer value for dereference!",
                             ErrorType::BuildError,
                             self.module_name.clone(),
                             self.module_source.clone(),
@@ -1243,7 +1272,7 @@ impl<'ctx> Compiler<'ctx> {
                         var_ptr.pointer.into()
                     } else {
                         self.builder
-                            .build_load(var_ptr.basic_type, var_ptr.pointer, &id)
+                            .build_load(var_ptr.basic_type, var_ptr.pointer, "")
                             .unwrap_or_else(|_| {
                                 GenError::throw(
                                     format!("Error with loading `{}` variable", id),
