@@ -315,7 +315,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     ErrorType::BuildError,
                     self.module_name.clone(),
                     self.module_source.clone(),
-                    line
+                    line,
                 );
                 std::process::exit(1);
             });

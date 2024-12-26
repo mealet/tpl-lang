@@ -181,7 +181,9 @@ impl<'ctx> Compiler<'ctx> {
                     let _ = self.builder.build_store(alloca, compiled_expression.1);
                 } else {
                     let var_type = if Compiler::__is_ptr_type(&datatype) {
-                        self.context.ptr_type(AddressSpace::default()).as_basic_type_enum()
+                        self.context
+                            .ptr_type(AddressSpace::default())
+                            .as_basic_type_enum()
                     } else {
                         self.get_basic_type(&datatype, line)
                     };
@@ -256,7 +258,6 @@ impl<'ctx> Compiler<'ctx> {
                                 ),
                             );
                             let _ = self.builder.build_store(alloca, compiled_expression.1);
-
                         } else {
                             let _ = self.builder.build_store(alloca, compiled_expression.1);
                         }
@@ -406,11 +407,7 @@ impl<'ctx> Compiler<'ctx> {
                             .as_basic_type_enum();
                         let raw_ptr = self
                             .builder
-                            .build_load(
-                                ptr_type,
-                                var_ptr.pointer,
-                                ""
-                            )
+                            .build_load(ptr_type, var_ptr.pointer, "")
                             .unwrap_or_else(|_| {
                                 GenError::throw(
                                     "Unable to load a pointer!",
@@ -909,9 +906,7 @@ impl<'ctx> Compiler<'ctx> {
             }
             Expressions::Reference { object, line } => {
                 match *object {
-                    Expressions::Value(
-                        Value::Identifier(id)
-                    ) => {
+                    Expressions::Value(Value::Identifier(id)) => {
                         // referencing to a variable
 
                         let variable = self.variables.get(&id).unwrap_or_else(|| {
@@ -925,18 +920,15 @@ impl<'ctx> Compiler<'ctx> {
                             std::process::exit(1);
                         });
 
-                        (
-                            format!("{}*", variable.str_type),
-                            variable.pointer.into()
-                        )
-                    },
+                        (format!("{}*", variable.str_type), variable.pointer.into())
+                    }
                     _ => {
                         GenError::throw(
                             "Unsupported expression for reference found",
                             ErrorType::NotSupported,
                             self.module_name.clone(),
                             self.module_source.clone(),
-                            line
+                            line,
                         );
                         std::process::exit(1);
                     }
@@ -971,11 +963,7 @@ impl<'ctx> Compiler<'ctx> {
 
                 let loaded_ptr = self
                     .builder
-                    .build_load(
-                        ptr_type,
-                        ptr_value,
-                        ""
-                    )
+                    .build_load(ptr_type, ptr_value, "")
                     .unwrap_or_else(|_| {
                         GenError::throw(
                             "Unable to load pointer for dereference!",

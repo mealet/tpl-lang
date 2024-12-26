@@ -39,7 +39,9 @@ impl ObjectCompiler {
             .expect("Failed to create target machine");
 
         let path = Path::new(name);
-        let _ = target_machine.write_to_file(module, inkwell::targets::FileType::Object, path).unwrap();
+        target_machine
+            .write_to_file(module, inkwell::targets::FileType::Object, path)
+            .unwrap();
     }
 }
 
