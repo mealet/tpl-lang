@@ -197,7 +197,7 @@ print(c.type()); // bool
 ```
 
 ### Conversions
-```
+```c
 int32 a = 5;
 int8 b = a.to_int8();
 str c = b.to_str();
