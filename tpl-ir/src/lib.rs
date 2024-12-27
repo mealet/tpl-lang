@@ -2050,7 +2050,7 @@ mod tests {
         );
         assert_eq!(
             printf_function.get_type(),
-            compiler.context.void_type().fn_type(
+            compiler.context.i32_type().fn_type(
                 &[compiler.context.ptr_type(AddressSpace::default()).into()],
                 true
             )

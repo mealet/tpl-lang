@@ -52,6 +52,7 @@ impl Lexer {
                 macros::std_symbol!('"', TokenType::Quote),
                 macros::std_symbol!(';', TokenType::Semicolon),
                 macros::std_symbol!('&', TokenType::Ampersand),
+                macros::std_symbol!('|', TokenType::Verbar),
                 macros::std_symbol!('(', TokenType::LParen),
                 macros::std_symbol!(')', TokenType::RParen),
                 macros::std_symbol!('[', TokenType::LBrack),
@@ -235,6 +236,42 @@ impl Lexer {
                                     self.line,
                                 ));
                                 self.getc();
+                            } else {
+                                let mut formatted_token = matched_token;
+                                formatted_token.line = self.line;
+
+                                output.push(formatted_token);
+                            }
+                        }
+                        TokenType::Verbar => {
+                            // checking if next symbol is the same
+                            self.getc();
+
+                            if self.char == '|' {
+                                output.push(Token::new(
+                                    TokenType::Or,
+                                    String::from("||"),
+                                    self.line
+                                ));
+                                self.getc();
+                            } else {
+                                let mut formatted_token = matched_token;
+                                formatted_token.line = self.line;
+
+                                output.push(formatted_token);
+                            }
+                        }
+                        TokenType::Ampersand => {
+                            // checking if next symbol is the same
+                            self.getc();
+
+                            if self.char == '&' {
+                                output.push(Token::new(
+                                    TokenType::And,
+                                    String::from("&&"),
+                                    self.line
+                                ));
+                                self.getc()
                             } else {
                                 let mut formatted_token = matched_token;
                                 formatted_token.line = self.line;
@@ -580,5 +617,42 @@ mod tests {
         lexer.getc();
 
         assert_eq!(lexer.char, '0');
+    }
+
+    #[test]
+    fn logical_or_test() {
+        let input = String::from("a || b");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let tokens = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::new(TokenType::Identifier, String::from("a"), 0),
+                Token::new(TokenType::Or, String::from("||"), 0),
+                Token::new(TokenType::Identifier, String::from("b"), 0),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
+    }
+
+
+    #[test]
+    fn logical_and_test() {
+        let input = String::from("a && b");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let tokens = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::new(TokenType::Identifier, String::from("a"), 0),
+                Token::new(TokenType::And, String::from("&&"), 0),
+                Token::new(TokenType::Identifier, String::from("b"), 0),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
     }
 }

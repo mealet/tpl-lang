@@ -23,9 +23,12 @@ pub enum TokenType {
     Bt, // >
     Eq, // ==
     Ne, // !=
+    Or, // ||
+    And, // &&
 
     Semicolon, // ;
     Ampersand, // &
+    Verbar, // |
     Dot,       // .
     Comma,     // ,
     Quote,     // "
