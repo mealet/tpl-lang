@@ -8,6 +8,9 @@ body:
     attributes:
       label: Update Plan
       description: Detailed Plan for the next update
+      value: |
+        - [ ] Task 1
+        - [x] Task 2
     validations:
       required: true
   - type: textarea
