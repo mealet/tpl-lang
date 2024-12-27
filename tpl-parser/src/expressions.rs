@@ -17,9 +17,10 @@ pub enum Expressions {
         rhs: Box<Expressions>,
         line: usize,
     },
-    Unary {
+    Boolean {
         operand: String,
-        value: Value,
+        lhs: Box<Expressions>,
+        rhs: Box<Expressions>,
         line: usize,
     },
     Argument {

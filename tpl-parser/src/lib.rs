@@ -20,7 +20,7 @@ use value::Value;
 // globals
 
 lazy_static! {
-    static ref DATATYPES: Vec<&'static str> = vec![
+    static ref DATATYPES: [&'static str; 10] = [
         "int8",
         "int16",
         "int32",
@@ -34,18 +34,24 @@ lazy_static! {
         "void",
         "fn"
     ];
-    static ref BINARY_OPERATORS: Vec<TokenType> = vec![
+    static ref BINARY_OPERATORS: [TokenType; 4] = [
         TokenType::Plus, // +
         TokenType::Minus, // -
-        TokenType::Divide, // *
-        TokenType::Multiply, // /
+        TokenType::Divide, // /
+        TokenType::Multiply, // *
+    ];
 
+    static ref BOOLEAN_OPERATORS: [TokenType; 6] = [
         TokenType::Lt, // <
         TokenType::Bt, // >
         TokenType::Eq, // ==
-        TokenType::Ne // !
+        TokenType::Ne, // !
+        TokenType::Or, // ||
+        TokenType::And, // &&
     ];
-    static ref PRIORITY_BINARY_OPERATORS: Vec<String> = vec!["*".to_string(), "/".to_string()];
+    
+    static ref PRIORITY_BINARY_OPERATORS: [TokenType; 2] = [TokenType::Multiply, TokenType::Divide];
+    static ref PRIORITY_BOOLEAN_OPERATORS: [TokenType; 2] = [TokenType::Or, TokenType::And];
 }
 
 const END_STATEMENT: TokenType = TokenType::Semicolon;
@@ -126,8 +132,16 @@ impl Parser {
         BINARY_OPERATORS.contains(&token_type)
     }
 
-    fn is_priority_binary_operand(&self, operand: String) -> bool {
+    fn is_boolean_operand(&self, token_type: TokenType) -> bool {
+        BOOLEAN_OPERATORS.contains(&token_type)
+    }
+
+    fn is_priority_binary_operand(&self, operand: TokenType) -> bool {
         PRIORITY_BINARY_OPERATORS.contains(&operand)
+    }
+
+    fn is_priority_boolean_operand(&self, operand: TokenType) -> bool {
+        PRIORITY_BOOLEAN_OPERATORS.contains(&operand)
     }
 
     fn skip_eos(&mut self) {
@@ -395,6 +409,10 @@ impl Parser {
             _ if self.is_binary_operand(current.token_type) => {
                 node = self.binary_expression(node);
             }
+            _ if self.is_boolean_operand(current.token_type) => {
+                node = self.boolean_expression(node);
+            }
+
             TokenType::LParen => {
                 if let Expressions::Value(Value::Keyword(keyword)) = node.clone() {
                     if !DATATYPES.contains(&keyword.as_str()) {
@@ -482,7 +500,7 @@ impl Parser {
                 let lhs = node;
                 let rhs = self.expression();
 
-                if self.is_priority_binary_operand(current_token.clone().value) {
+                if self.is_priority_binary_operand(current_token.token_type) {
                     let mut new_node = rhs.clone();
                     let old_lhs = lhs.clone();
 
@@ -529,6 +547,55 @@ impl Parser {
             }
         }
     }
+
+    fn boolean_expression(&mut self, node: Expressions) -> Expressions {
+        let current_token = self.current();
+        let current_line = current_token.line;
+
+        match current_token.token_type {
+            op if self.is_priority_boolean_operand(op) => {
+                Expressions::None
+            }
+            op if self.is_boolean_operand(op) => {
+                let _ = self.next();
+
+                let lhs = node;
+                let rhs = self.expression();
+
+                if self.is_priority_boolean_operand(self.current().token_type) {
+                    let operand = self.current().value;
+                    let lhs_node = Expressions::Boolean {
+                        operand: current_token.value.clone(),
+                        lhs: Box::new(lhs),
+                        rhs: Box::new(rhs),
+                        line: current_line
+                    };
+
+                    let _ = self.next();
+                    let rhs_node = self.expression();
+
+                    return Expressions::Boolean {
+                        operand,
+                        lhs: Box::new(lhs_node),
+                        rhs: Box::new(rhs_node),
+                        line: current_line
+                    };
+                }
+
+                Expressions::Boolean {
+                    operand: current_token.value,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                    line: current_line,
+                }
+            }
+            _ => {
+                self.error("Unexpected token at binary expression!");
+                Expressions::None
+            }
+        }
+    }
+
 
     fn call_expression(&mut self, function_name: String) -> Expressions {
         let line = self.current().line;
@@ -1428,10 +1495,34 @@ mod tests {
         assert!(parser.is_binary_operand(TokenType::Minus));
         assert!(parser.is_binary_operand(TokenType::Multiply));
         assert!(parser.is_binary_operand(TokenType::Divide));
-        assert!(parser.is_binary_operand(TokenType::Eq));
-        assert!(parser.is_binary_operand(TokenType::Ne));
-        assert!(parser.is_binary_operand(TokenType::Lt));
-        assert!(parser.is_binary_operand(TokenType::Bt));
+        assert!(!parser.is_binary_operand(TokenType::Eq));
+        assert!(!parser.is_binary_operand(TokenType::Ne));
+        assert!(!parser.is_binary_operand(TokenType::Lt));
+        assert!(!parser.is_binary_operand(TokenType::Bt));
+        assert!(!parser.is_binary_operand(TokenType::And));
+        assert!(!parser.is_binary_operand(TokenType::Or));
+    }
+
+    #[test]
+    fn is_bool_operand_test() {
+        let input = String::from("a b");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let parser = Parser::new(tokens, "test".to_string(), input);
+
+        assert!(!parser.is_boolean_operand(TokenType::Plus));
+        assert!(!parser.is_boolean_operand(TokenType::Minus));
+        assert!(!parser.is_boolean_operand(TokenType::Multiply));
+        assert!(!parser.is_boolean_operand(TokenType::Divide));
+        assert!(parser.is_boolean_operand(TokenType::Eq));
+        assert!(parser.is_boolean_operand(TokenType::Ne));
+        assert!(parser.is_boolean_operand(TokenType::Lt));
+        assert!(parser.is_boolean_operand(TokenType::Bt));
     }
 
     #[test]
@@ -1446,10 +1537,10 @@ mod tests {
 
         let parser = Parser::new(tokens, "test".to_string(), input);
 
-        assert!(parser.is_priority_binary_operand("/".to_string()));
-        assert!(parser.is_priority_binary_operand("*".to_string()));
-        assert!(!parser.is_priority_binary_operand("+".to_string()));
-        assert!(!parser.is_priority_binary_operand("-".to_string()));
+        assert!(parser.is_priority_binary_operand(TokenType::Multiply));
+        assert!(parser.is_priority_binary_operand(TokenType::Divide));
+        assert!(!parser.is_priority_binary_operand(TokenType::Plus));
+        assert!(!parser.is_priority_binary_operand(TokenType::Minus));
     }
 
     #[test]
@@ -1804,7 +1895,7 @@ mod tests {
         assert_eq!(
             ast[0],
             Statements::IfStatement {
-                condition: Expressions::Binary {
+                condition: Expressions::Boolean {
                     operand: String::from("<"),
                     lhs: Box::new(Expressions::Value(Value::Integer(1))),
                     rhs: Box::new(Expressions::Value(Value::Integer(2))),
@@ -1833,7 +1924,7 @@ mod tests {
         assert_eq!(
             ast[0],
             Statements::IfStatement {
-                condition: Expressions::Binary {
+                condition: Expressions::Boolean {
                     operand: String::from("<"),
                     lhs: Box::new(Expressions::Value(Value::Integer(1))),
                     rhs: Box::new(Expressions::Value(Value::Integer(2))),
@@ -1862,7 +1953,7 @@ mod tests {
         assert_eq!(
             ast[0],
             Statements::IfStatement {
-                condition: Expressions::Binary {
+                condition: Expressions::Boolean {
                     operand: String::from("<"),
                     lhs: Box::new(Expressions::Value(Value::Integer(1))),
                     rhs: Box::new(Expressions::Value(Value::Integer(2))),
@@ -1999,7 +2090,7 @@ mod tests {
         assert_eq!(
             ast[0],
             Statements::WhileStatement {
-                condition: Expressions::Binary {
+                condition: Expressions::Boolean {
                     operand: String::from("<"),
                     lhs: Box::new(Expressions::Value(Value::Integer(1))),
                     rhs: Box::new(Expressions::Value(Value::Integer(2))),
@@ -2027,7 +2118,7 @@ mod tests {
         assert_eq!(
             ast[0],
             Statements::WhileStatement {
-                condition: Expressions::Binary {
+                condition: Expressions::Boolean {
                     operand: String::from("<"),
                     lhs: Box::new(Expressions::Value(Value::Integer(1))),
                     rhs: Box::new(Expressions::Value(Value::Integer(2))),
@@ -2395,5 +2486,21 @@ mod tests {
                 line: 0
             }
         );
+    }
+
+    #[test]
+    fn logical_or_in_condition() {
+        let input = String::from("if 1 > 2 || 2 > 1 {};");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        dbg!(&ast);
     }
 }
