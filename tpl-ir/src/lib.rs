@@ -1467,7 +1467,6 @@ impl<'ctx> Compiler<'ctx> {
                 let compiled_value = self.compile_value(val, line, None);
 
                 if compiled_value.0 != "bool" {
-                    dbg!(&compiled_value);
                     GenError::throw(
                         format!(
                             "Unsupported `{}` type found for condition!",
