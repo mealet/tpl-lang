@@ -215,3 +215,6 @@ Check out our [**Contribution Guide**](CONTRIBUTING.md)
 
 #### License
 Project licensed under the BSD-3 License. More information in [**LICENSE**](LICENSE) file
+
+#### Documentation
+Documentation is avaible on project's github pages: [**Documentation**](https://github.com/mealet/tpl-lang/wiki)
