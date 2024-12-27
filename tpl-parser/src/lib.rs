@@ -553,9 +553,7 @@ impl Parser {
         let current_line = current_token.line;
 
         match current_token.token_type {
-            op if self.is_priority_boolean_operand(op) => {
-                Expressions::None
-            }
+            op if self.is_priority_boolean_operand(op) => node,
             op if self.is_boolean_operand(op) => {
                 let _ = self.next();
 

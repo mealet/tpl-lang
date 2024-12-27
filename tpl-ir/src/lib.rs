@@ -34,7 +34,6 @@ use variable::Variable;
 use tpl_parser::{expressions::Expressions, statements::Statements, value::Value};
 
 const LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
-const TEST_OPERATORS: [&str; 4] = [">", "<", "==", "!="];
 static INT_TYPES_ORDER: LazyLock<HashMap<&str, u8>> =
     LazyLock::new(|| HashMap::from([("int8", 0), ("int16", 1), ("int32", 2), ("int64", 3)]));
 
@@ -1075,10 +1074,6 @@ impl<'ctx> Compiler<'ctx> {
                                         .into(),
                                 )
                             }
-                            _ if TEST_OPERATORS.contains(&operand.as_str()) => (
-                                "bool".to_string(),
-                                self.compile_condition(expr.clone(), line, function).into(),
-                            ),
                             _ => {
                                 GenError::throw(
                                     format!("Unsupported binary operation found: `{}`", operand),
@@ -1102,6 +1097,14 @@ impl<'ctx> Compiler<'ctx> {
                         std::process::exit(1);
                     }
                 }
+            }
+            Expressions::Boolean { operand, lhs, rhs, line } => {
+                let _ = (operand, lhs, rhs); // 0_0
+
+                (
+                    "bool".to_string(),
+                    self.compile_condition(expr.clone(), line, function).into(),
+                )
             }
             Expressions::SubElement {
                 parent,
@@ -1344,12 +1347,46 @@ impl<'ctx> Compiler<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> IntValue<'ctx> {
         match condition {
-            Expressions::Binary {
+            Expressions::Boolean {
                 operand,
                 lhs,
                 rhs,
                 line,
             } => {
+                match operand.as_str() {
+                    "&&" => {
+                        let left_condition = self.compile_condition(*lhs, line, function);
+                        let right_condition = self.compile_condition(*rhs, line, function);
+
+                        return self.builder.build_and(left_condition, right_condition, "and_cmp").unwrap_or_else(|_| {
+                            GenError::throw(
+                                "Unable to build AND comparison!",
+                                ErrorType::BuildError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line
+                            );
+                            std::process::exit(1);
+                        });
+                    },
+                    "||" => {
+                        let left_condition = self.compile_condition(*lhs, line, function);
+                        let right_condition = self.compile_condition(*rhs, line, function);
+
+                        return self.builder.build_or(left_condition, right_condition, "and_cmp").unwrap_or_else(|_| {
+                            GenError::throw(
+                                "Unable to build OR comparison!",
+                                ErrorType::BuildError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line
+                            );
+                            std::process::exit(1);
+                        });
+                    },
+                    _ => {}
+                }
+
                 let left = self.compile_expression(
                     *lhs,
                     line,
@@ -1430,6 +1467,7 @@ impl<'ctx> Compiler<'ctx> {
                 let compiled_value = self.compile_value(val, line, None);
 
                 if compiled_value.0 != "bool" {
+                    dbg!(&compiled_value);
                     GenError::throw(
                         format!(
                             "Unsupported `{}` type found for condition!",
