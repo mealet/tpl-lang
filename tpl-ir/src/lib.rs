@@ -322,6 +322,93 @@ impl<'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
             }
+            Statements::SliceAssignStatement { identifier, index, value, line } => {
+                if let Some(var_ptr) = self.variables.clone().get(&identifier) {
+                    let expr_value = self.compile_expression(
+                        *value,
+                        line,
+                        function,
+                        Some(
+                            Compiler::clean_array_datatype(&var_ptr.str_type)
+                        ),
+                    );
+
+                    // matching datatypes
+
+                    if expr_value.0 != Compiler::clean_array_datatype(&var_ptr.str_type) {
+                        GenError::throw(
+                            format!(
+                                "Expected type `{}`, but found `{}`!",
+                                var_ptr.str_type, expr_value.0
+                            ),
+                            ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    }
+
+                    // loading array from pointer
+
+                    let array = self
+                        .builder
+                        .build_load(var_ptr.basic_type, var_ptr.pointer, "")
+                        .unwrap_or_else(|_| {
+                            GenError::throw(
+                                "Unable to load pointer value!",
+                                ErrorType::BuildError,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line
+                            );
+                            std::process::exit(1);
+                        })
+                        .into_vector_value();
+
+                    let index_value = self.compile_expression(*index, line, function, None);
+
+                    // checking index value type
+
+                    if !index_value.0.starts_with("int") {
+                        GenError::throw(
+                            "Non-integer index found!",
+                            ErrorType::NotExpected,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line
+                        );
+                        std::process::exit(1);
+                    }
+
+                    let new_vector = self
+                        .builder
+                        .build_insert_element(array, expr_value.1, index_value.1.into_int_value(), "")
+                        .unwrap_or_else(|_| {
+                            GenError::throw(
+                                "Unable to insert element into vector!",
+                                ErrorType::NotExpected,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line
+                            );
+                            std::process::exit(1);
+                        });
+
+                    // storing new vector into pointer
+
+                    let _ = self.builder.build_store(var_ptr.pointer, new_vector);
+                } else {
+                    GenError::throw(
+                        format!("Variable `{}` is not defined!", identifier),
+                        ErrorType::NotDefined,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                }
+            }
             Statements::BinaryAssignStatement {
                 identifier,
                 operand,
