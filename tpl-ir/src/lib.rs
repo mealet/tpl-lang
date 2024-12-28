@@ -2269,18 +2269,18 @@ mod tests {
             Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
         compiler.builder.position_at_end(compiler.current_block);
 
-        let printf_function = compiler.__c_strcat();
+        let strcat = compiler.__c_strcat();
 
-        assert_eq!(printf_function.get_linkage(), Linkage::External);
-        assert!(!printf_function.is_null());
-        assert!(!printf_function.is_undef());
-        assert!(printf_function.verify(true));
+        assert_eq!(strcat.get_linkage(), Linkage::External);
+        assert!(!strcat.is_null());
+        assert!(!strcat.is_undef());
+        assert!(strcat.verify(true));
         assert_eq!(
-            printf_function.get_name().to_string_lossy().to_string(),
+            strcat.get_name().to_string_lossy().to_string(),
             String::from("strcat")
         );
         assert_eq!(
-            printf_function.get_type(),
+            strcat.get_type(),
             compiler.context.ptr_type(AddressSpace::default()).fn_type(
                 &[
                     compiler.context.ptr_type(AddressSpace::default()).into(),
@@ -2370,14 +2370,14 @@ mod tests {
             Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
         compiler.builder.position_at_end(compiler.current_block);
 
-        let condition_true = Expressions::Binary {
+        let condition_true = Expressions::Boolean {
             operand: String::from("=="),
             lhs: Box::new(Expressions::Value(Value::Integer(123))),
             rhs: Box::new(Expressions::Value(Value::Integer(123))),
             line: 0,
         };
 
-        let condition_false = Expressions::Binary {
+        let condition_false = Expressions::Boolean {
             operand: String::from("=="),
             lhs: Box::new(Expressions::Value(Value::Integer(0))),
             rhs: Box::new(Expressions::Value(Value::Integer(123))),
