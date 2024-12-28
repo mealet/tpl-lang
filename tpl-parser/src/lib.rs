@@ -10,7 +10,6 @@ pub mod statements;
 pub mod value;
 
 use error::ParseErrorHandler;
-use lazy_static::lazy_static;
 use tpl_lexer::{token::Token, token_type::TokenType};
 
 use expressions::Expressions;
@@ -19,40 +18,38 @@ use value::Value;
 
 // globals
 
-lazy_static! {
-    static ref DATATYPES: [&'static str; 10] = [
-        "int8",
-        "int16",
-        "int32",
-        "int64",
-        "int128",
+static DATATYPES: [&'static str; 10] = [
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "int128",
 
-        "str",
-        "bool",
+    "str",
+    "bool",
 
-        "auto",
-        "void",
-        "fn"
-    ];
-    static ref BINARY_OPERATORS: [TokenType; 4] = [
-        TokenType::Plus, // +
-        TokenType::Minus, // -
-        TokenType::Divide, // /
-        TokenType::Multiply, // *
-    ];
+    "auto",
+    "void",
+    "fn"
+];
+static BINARY_OPERATORS: [TokenType; 4] = [
+    TokenType::Plus, // +
+    TokenType::Minus, // -
+    TokenType::Divide, // /
+    TokenType::Multiply, // *
+];
 
-    static ref BOOLEAN_OPERATORS: [TokenType; 6] = [
-        TokenType::Lt, // <
-        TokenType::Bt, // >
-        TokenType::Eq, // ==
-        TokenType::Ne, // !
-        TokenType::Or, // ||
-        TokenType::And, // &&
-    ];
+static BOOLEAN_OPERATORS: [TokenType; 6] = [
+    TokenType::Lt, // <
+    TokenType::Bt, // >
+    TokenType::Eq, // ==
+    TokenType::Ne, // !
+    TokenType::Or, // ||
+    TokenType::And, // &&
+];
 
-    static ref PRIORITY_BINARY_OPERATORS: [TokenType; 2] = [TokenType::Multiply, TokenType::Divide];
-    static ref PRIORITY_BOOLEAN_OPERATORS: [TokenType; 2] = [TokenType::Or, TokenType::And];
-}
+static PRIORITY_BINARY_OPERATORS: [TokenType; 2] = [TokenType::Multiply, TokenType::Divide];
+static PRIORITY_BOOLEAN_OPERATORS: [TokenType; 2] = [TokenType::Or, TokenType::And];
 
 const END_STATEMENT: TokenType = TokenType::Semicolon;
 
