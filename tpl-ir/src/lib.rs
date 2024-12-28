@@ -219,7 +219,7 @@ impl<'ctx> Compiler<'ctx> {
                     if let Some(intial_value) = value {
                         let expected_type = match datatype.clone().as_str() {
                             _ if datatype.contains("[") => {
-                                Some(Compiler::clean_datatype(&datatype))
+                                Some(Compiler::clean_array_datatype(&datatype))
                             }
                             _ => Some(datatype.clone()),
                         };
@@ -903,6 +903,72 @@ impl<'ctx> Compiler<'ctx> {
                     self.context.i8_type().const_zero().into(),
                 )
             }
+            Expressions::Slice { object, index, line } => {
+                let obj = self.compile_expression(*object, line, function, expected_datatype.clone());
+                let idx = self.compile_expression(*index, line, function, expected_datatype);
+
+                match obj.0.as_str() {
+                    array_type if Compiler::__is_arr_type(array_type) => {
+                        let raw_type = Compiler::clean_array_datatype(array_type);
+                        let raw_len = Compiler::get_array_datatype_len(array_type);
+
+                        let int_index = match idx.0 {
+                            itype if itype.starts_with("int") => {
+                                idx.1.into_int_value()
+                            },
+                            _ => {
+                                GenError::throw(
+                                    "Non-integer slice index found!",
+                                    ErrorType::TypeError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line
+                                );
+                                std::process::exit(1);
+                            }
+                        };
+
+                        let raw_index = int_index.get_sign_extended_constant().unwrap();
+
+                        if raw_index > raw_len as i64 - 1 || raw_index < 0 {
+                            GenError::throw(
+                                format!("Wrong array index found! Array len is {} but index is {}", raw_len, raw_index),
+                                ErrorType::NotExpected,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line
+                            );
+                            std::process::exit(1);
+                        }
+                        
+                        let output_value = self
+                            .builder
+                            .build_extract_element(obj.1.into_vector_value(), int_index, "")
+                            .unwrap_or_else(|_| {
+                                GenError::throw(
+                                    "Unable to extract array element!",
+                                    ErrorType::BuildError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line
+                                );
+                                std::process::exit(1);
+                            });
+
+                        (raw_type, output_value)
+                    }
+                    _ => {
+                        GenError::throw(
+                            format!("Unsupported slicing type found: {}", obj.0),
+                            ErrorType::NotSupported,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            }
             Expressions::Reference { object, line } => {
                 match *object {
                     Expressions::Value(Value::Identifier(id)) => {
@@ -1175,8 +1241,23 @@ impl<'ctx> Compiler<'ctx> {
         }
     }
 
-    fn clean_datatype(val: &str) -> String {
+    #[inline]
+    fn clean_array_datatype(val: &str) -> String {
         val.split("[").collect::<Vec<&str>>()[0].to_string()
+    }
+
+    #[inline]
+    fn get_array_datatype_len(val: &str) -> u64 {
+        val
+            .split("[")
+            .collect::<Vec<&str>>()
+            [1]
+            .split("]")
+            .collect::<Vec<&str>>()
+            [0]
+            .trim()
+            .parse::<u64>()
+            .unwrap()
     }
 
     fn compile_value(
@@ -1957,6 +2038,12 @@ impl<'ctx> Compiler<'ctx> {
     #[inline]
     fn __is_ptr_type(type_str: &str) -> bool {
         type_str.chars().last().unwrap_or('\0') == '*'
+    }
+
+    #[allow(non_snake_case)]
+    #[inline]
+    fn __is_arr_type(type_str: &str) -> bool {
+        type_str.contains("[") && type_str.contains("]")
     }
 
     #[allow(non_snake_case)]
