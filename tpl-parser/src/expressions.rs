@@ -23,18 +23,22 @@ pub enum Expressions {
         rhs: Box<Expressions>,
         line: usize,
     },
+
+
     Argument {
         name: String,
         datatype: String,
     },
-    Call {
-        function_name: String,
-        arguments: Vec<Expressions>,
-        line: usize,
-    },
     SubElement {
         parent: Box<Expressions>,
         child: Box<Expressions>,
+        line: usize,
+    },
+
+
+    Call {
+        function_name: String,
+        arguments: Vec<Expressions>,
         line: usize,
     },
     Lambda {
@@ -43,6 +47,8 @@ pub enum Expressions {
         ftype: String,
         line: usize,
     },
+
+
     Reference {
         object: Box<Expressions>,
         line: usize,
@@ -51,11 +57,20 @@ pub enum Expressions {
         object: Box<Expressions>,
         line: usize,
     },
+
+
     Array {
         values: Vec<Expressions>,
         len: usize,
         line: usize,
     },
+    Slice {
+        object: Box<Expressions>,
+        index: Box<Expressions>,
+        line: usize,
+    },
+    
+
     Value(Value),
     None,
 }

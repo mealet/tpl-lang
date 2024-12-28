@@ -349,9 +349,16 @@ impl Parser {
 
                 let next = self.next();
 
-                if let TokenType::LParen = next.token_type {
-                    // calling function
-                    return self.call_expression(current.value);
+                match next.token_type {
+                    TokenType::LParen => {
+                        // calling function
+                        return self.call_expression(current.value);
+                    }
+                    TokenType::LBrack => {
+                        // slicing from object
+                        return self.slice_expression(output);
+                    }
+                    _ => {}
                 }
 
                 return output;
@@ -625,6 +632,25 @@ impl Parser {
             arguments,
             line,
         }
+    }
+
+    fn slice_expression(&mut self, object: Expressions) -> Expressions {
+        if let TokenType::LBrack = self.current().token_type {
+            let _ = self.next();
+        }
+
+        let object = Box::new(object);
+        let index = Box::new(self.expression());
+        let line = self.current().line;
+
+        if self.current().token_type != TokenType::RBrack {
+            self.error("Wrong slice expression found!");
+            return Expressions::None;
+        }
+
+        let _ = self.next();
+
+        Expressions::Slice { object, index, line }
     }
 
     // statements
