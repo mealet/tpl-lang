@@ -108,7 +108,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
         let val: BasicValueEnum<'ctx> = self
             .builder
-            .build_direct_call(
+            .build_call(
                 strcat_fn,
                 &[left_arg.1.into(), right_arg.1.into()],
                 "concat",
@@ -168,7 +168,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     // array
                     let array_value = basic_value.into_vector_value();
                     let array_type = compiled_arg.0.split("[").collect::<Vec<&str>>()[0];
-                    dbg!(array_type);
+
                     let array_len = {
                         let left_parts = compiled_arg.0.split("[").collect::<Vec<&str>>();
 
@@ -308,17 +308,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
         let _ = self
             .builder
-            .build_direct_call(printf_fn, &printf_arguments, "")
-            .unwrap_or_else(|_| {
-                GenError::throw(
-                    "Unable to call `print` function!",
-                    ErrorType::BuildError,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
-            });
+            .build_call(printf_fn, &printf_arguments, "");
     }
 
     fn build_type_call(
