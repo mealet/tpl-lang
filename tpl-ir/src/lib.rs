@@ -322,15 +322,18 @@ impl<'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
             }
-            Statements::SliceAssignStatement { identifier, index, value, line } => {
+            Statements::SliceAssignStatement {
+                identifier,
+                index,
+                value,
+                line,
+            } => {
                 if let Some(var_ptr) = self.variables.clone().get(&identifier) {
                     let expr_value = self.compile_expression(
                         *value,
                         line,
                         function,
-                        Some(
-                            Compiler::clean_array_datatype(&var_ptr.str_type)
-                        ),
+                        Some(Compiler::clean_array_datatype(&var_ptr.str_type)),
                     );
 
                     // matching datatypes
@@ -360,7 +363,7 @@ impl<'ctx> Compiler<'ctx> {
                                 ErrorType::BuildError,
                                 self.module_name.clone(),
                                 self.module_source.clone(),
-                                line
+                                line,
                             );
                             std::process::exit(1);
                         })
@@ -376,21 +379,26 @@ impl<'ctx> Compiler<'ctx> {
                             ErrorType::NotExpected,
                             self.module_name.clone(),
                             self.module_source.clone(),
-                            line
+                            line,
                         );
                         std::process::exit(1);
                     }
 
                     let new_vector = self
                         .builder
-                        .build_insert_element(array, expr_value.1, index_value.1.into_int_value(), "")
+                        .build_insert_element(
+                            array,
+                            expr_value.1,
+                            index_value.1.into_int_value(),
+                            "",
+                        )
                         .unwrap_or_else(|_| {
                             GenError::throw(
                                 "Unable to insert element into vector!",
                                 ErrorType::NotExpected,
                                 self.module_name.clone(),
                                 self.module_source.clone(),
-                                line
+                                line,
                             );
                             std::process::exit(1);
                         });
@@ -984,8 +992,13 @@ impl<'ctx> Compiler<'ctx> {
                     self.context.i8_type().const_zero().into(),
                 )
             }
-            Expressions::Slice { object, index, line } => {
-                let obj = self.compile_expression(*object, line, function, expected_datatype.clone());
+            Expressions::Slice {
+                object,
+                index,
+                line,
+            } => {
+                let obj =
+                    self.compile_expression(*object, line, function, expected_datatype.clone());
                 let idx = self.compile_expression(*index, line, function, expected_datatype);
 
                 match obj.0.as_str() {
@@ -994,16 +1007,14 @@ impl<'ctx> Compiler<'ctx> {
                         let raw_len = Compiler::get_array_datatype_len(array_type);
 
                         let int_index = match idx.0 {
-                            itype if itype.starts_with("int") => {
-                                idx.1.into_int_value()
-                            },
+                            itype if itype.starts_with("int") => idx.1.into_int_value(),
                             _ => {
                                 GenError::throw(
                                     "Non-integer slice index found!",
                                     ErrorType::TypeError,
                                     self.module_name.clone(),
                                     self.module_source.clone(),
-                                    line
+                                    line,
                                 );
                                 std::process::exit(1);
                             }
@@ -1013,15 +1024,18 @@ impl<'ctx> Compiler<'ctx> {
 
                         if raw_index > raw_len as i64 - 1 || raw_index < 0 {
                             GenError::throw(
-                                format!("Wrong array index found! Array len is {} but index is {}", raw_len, raw_index),
+                                format!(
+                                    "Wrong array index found! Array len is {} but index is {}",
+                                    raw_len, raw_index
+                                ),
                                 ErrorType::NotExpected,
                                 self.module_name.clone(),
                                 self.module_source.clone(),
-                                line
+                                line,
                             );
                             std::process::exit(1);
                         }
-                        
+
                         let output_value = self
                             .builder
                             .build_extract_element(obj.1.into_vector_value(), int_index, "")
@@ -1031,7 +1045,7 @@ impl<'ctx> Compiler<'ctx> {
                                     ErrorType::BuildError,
                                     self.module_name.clone(),
                                     self.module_source.clone(),
-                                    line
+                                    line,
                                 );
                                 std::process::exit(1);
                             });
@@ -1044,7 +1058,7 @@ impl<'ctx> Compiler<'ctx> {
                             ErrorType::NotSupported,
                             self.module_name.clone(),
                             self.module_source.clone(),
-                            line
+                            line,
                         );
                         std::process::exit(1);
                     }
@@ -1245,7 +1259,12 @@ impl<'ctx> Compiler<'ctx> {
                     }
                 }
             }
-            Expressions::Boolean { operand, lhs, rhs, line } => {
+            Expressions::Boolean {
+                operand,
+                lhs,
+                rhs,
+                line,
+            } => {
                 let _ = (operand, lhs, rhs); // 0_0
 
                 (
@@ -1329,13 +1348,9 @@ impl<'ctx> Compiler<'ctx> {
 
     #[inline]
     fn get_array_datatype_len(val: &str) -> u64 {
-        val
-            .split("[")
-            .collect::<Vec<&str>>()
-            [1]
+        val.split("[").collect::<Vec<&str>>()[1]
             .split("]")
-            .collect::<Vec<&str>>()
-            [0]
+            .collect::<Vec<&str>>()[0]
             .trim()
             .parse::<u64>()
             .unwrap()
@@ -1520,32 +1535,38 @@ impl<'ctx> Compiler<'ctx> {
                         let left_condition = self.compile_condition(*lhs, line, function);
                         let right_condition = self.compile_condition(*rhs, line, function);
 
-                        return self.builder.build_and(left_condition, right_condition, "and_cmp").unwrap_or_else(|_| {
-                            GenError::throw(
-                                "Unable to build AND comparison!",
-                                ErrorType::BuildError,
-                                self.module_name.clone(),
-                                self.module_source.clone(),
-                                line
-                            );
-                            std::process::exit(1);
-                        });
-                    },
+                        return self
+                            .builder
+                            .build_and(left_condition, right_condition, "and_cmp")
+                            .unwrap_or_else(|_| {
+                                GenError::throw(
+                                    "Unable to build AND comparison!",
+                                    ErrorType::BuildError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            });
+                    }
                     "||" => {
                         let left_condition = self.compile_condition(*lhs, line, function);
                         let right_condition = self.compile_condition(*rhs, line, function);
 
-                        return self.builder.build_or(left_condition, right_condition, "and_cmp").unwrap_or_else(|_| {
-                            GenError::throw(
-                                "Unable to build OR comparison!",
-                                ErrorType::BuildError,
-                                self.module_name.clone(),
-                                self.module_source.clone(),
-                                line
-                            );
-                            std::process::exit(1);
-                        });
-                    },
+                        return self
+                            .builder
+                            .build_or(left_condition, right_condition, "and_cmp")
+                            .unwrap_or_else(|_| {
+                                GenError::throw(
+                                    "Unable to build OR comparison!",
+                                    ErrorType::BuildError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            });
+                    }
                     _ => {}
                 }
 

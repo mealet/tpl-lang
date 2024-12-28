@@ -19,16 +19,16 @@ pub enum TokenType {
     Divide,   // /
     Not,      // !
 
-    Lt, // <
-    Bt, // >
-    Eq, // ==
-    Ne, // !=
-    Or, // ||
+    Lt,  // <
+    Bt,  // >
+    Eq,  // ==
+    Ne,  // !=
+    Or,  // ||
     And, // &&
 
     Semicolon, // ;
     Ampersand, // &
-    Verbar, // |
+    Verbar,    // |
     Dot,       // .
     Comma,     // ,
     Quote,     // "

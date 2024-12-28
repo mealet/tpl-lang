@@ -306,9 +306,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         let mut printf_arguments = vec![complete_fmt_string.into()];
         printf_arguments.append(&mut values);
 
-        let _ = self
-            .builder
-            .build_call(printf_fn, &printf_arguments, "");
+        let _ = self.builder.build_call(printf_fn, &printf_arguments, "");
     }
 
     fn build_type_call(

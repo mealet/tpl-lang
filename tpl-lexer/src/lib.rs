@@ -251,7 +251,7 @@ impl Lexer {
                                 output.push(Token::new(
                                     TokenType::Or,
                                     String::from("||"),
-                                    self.line
+                                    self.line,
                                 ));
                                 self.getc();
                             } else {
@@ -269,7 +269,7 @@ impl Lexer {
                                 output.push(Token::new(
                                     TokenType::And,
                                     String::from("&&"),
-                                    self.line
+                                    self.line,
                                 ));
                                 self.getc()
                             } else {
@@ -636,7 +636,6 @@ mod tests {
             ]
         );
     }
-
 
     #[test]
     fn logical_and_test() {

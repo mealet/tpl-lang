@@ -49,7 +49,7 @@ lazy_static! {
         TokenType::Or, // ||
         TokenType::And, // &&
     ];
-    
+
     static ref PRIORITY_BINARY_OPERATORS: [TokenType; 2] = [TokenType::Multiply, TokenType::Divide];
     static ref PRIORITY_BOOLEAN_OPERATORS: [TokenType; 2] = [TokenType::Or, TokenType::And];
 }
@@ -575,7 +575,7 @@ impl Parser {
                         operand: current_token.value.clone(),
                         lhs: Box::new(lhs),
                         rhs: Box::new(rhs),
-                        line: current_line
+                        line: current_line,
                     };
 
                     let _ = self.next();
@@ -585,7 +585,7 @@ impl Parser {
                         operand,
                         lhs: Box::new(lhs_node),
                         rhs: Box::new(rhs_node),
-                        line: current_line
+                        line: current_line,
                     };
                 }
 
@@ -602,7 +602,6 @@ impl Parser {
             }
         }
     }
-
 
     fn call_expression(&mut self, function_name: String) -> Expressions {
         let line = self.current().line;
@@ -652,7 +651,11 @@ impl Parser {
 
         let _ = self.next();
 
-        Expressions::Slice { object, index, line }
+        Expressions::Slice {
+            object,
+            index,
+            line,
+        }
     }
 
     // statements
@@ -840,19 +843,19 @@ impl Parser {
             }
             _ => {
                 self.error("Unexpected slice end found in statement!");
-                return Statements::None
+                return Statements::None;
             }
         }
 
         let index = Box::new(self.expression());
-        
+
         if !self.expect(TokenType::RBrack) {
             self.error("Unexpected slice end found in statement!");
             return Statements::None;
         }
 
         let _ = self.next();
-        
+
         if !self.expect(TokenType::Equal) {
             self.error("Unexpected slice-assign statement found!");
             return Statements::None;
@@ -860,10 +863,15 @@ impl Parser {
 
         let _ = self.next();
         let value = Box::new(self.expression());
-        
+
         self.skip_eos();
 
-        Statements::SliceAssignStatement { identifier, index, value, line }
+        Statements::SliceAssignStatement {
+            identifier,
+            index,
+            value,
+            line,
+        }
     }
 
     fn binary_assign_statement(&mut self, identifier: String, operand: String) -> Statements {

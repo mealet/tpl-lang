@@ -32,7 +32,7 @@ pub enum Statements {
         identifier: String,
         index: Box<Expressions>,
         value: Box<Expressions>,
-        line: usize
+        line: usize,
     },
 
     // Annotation

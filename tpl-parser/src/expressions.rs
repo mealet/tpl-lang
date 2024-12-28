@@ -24,7 +24,6 @@ pub enum Expressions {
         line: usize,
     },
 
-
     Argument {
         name: String,
         datatype: String,
@@ -34,7 +33,6 @@ pub enum Expressions {
         child: Box<Expressions>,
         line: usize,
     },
-
 
     Call {
         function_name: String,
@@ -48,7 +46,6 @@ pub enum Expressions {
         line: usize,
     },
 
-
     Reference {
         object: Box<Expressions>,
         line: usize,
@@ -57,7 +54,6 @@ pub enum Expressions {
         object: Box<Expressions>,
         line: usize,
     },
-
 
     Array {
         values: Vec<Expressions>,
@@ -69,7 +65,6 @@ pub enum Expressions {
         index: Box<Expressions>,
         line: usize,
     },
-    
 
     Value(Value),
     None,
