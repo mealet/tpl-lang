@@ -285,34 +285,32 @@ impl<'ctx> Compiler<'ctx> {
                 line,
             } => {
                 if let Some(var_ptr) = self.variables.clone().get(&identifier) {
-                    if let Some(expr) = value {
-                        let expr_value = self.compile_expression(
-                            *expr,
+                    let expr_value = self.compile_expression(
+                        *value,
+                        line,
+                        function,
+                        Some(var_ptr.str_type.clone()),
+                    );
+
+                    // matching datatypes
+
+                    if expr_value.0 != var_ptr.str_type {
+                        GenError::throw(
+                            format!(
+                                "Expected type `{}`, but found `{}`!",
+                                var_ptr.str_type, expr_value.0
+                            ),
+                            ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
-                            function,
-                            Some(var_ptr.str_type.clone()),
                         );
-
-                        // matching datatypes
-
-                        if expr_value.0 != var_ptr.str_type {
-                            GenError::throw(
-                                format!(
-                                    "Expected type `{}`, but found `{}`!",
-                                    var_ptr.str_type, expr_value.0
-                                ),
-                                ErrorType::TypeError,
-                                self.module_name.clone(),
-                                self.module_source.clone(),
-                                line,
-                            );
-                            std::process::exit(1);
-                        }
-
-                        // storing value
-
-                        let _ = self.builder.build_store(var_ptr.pointer, expr_value.1);
+                        std::process::exit(1);
                     }
+
+                    // storing value
+
+                    let _ = self.builder.build_store(var_ptr.pointer, expr_value.1);
                 } else {
                     GenError::throw(
                         format!("Variable `{}` is not defined!", identifier),
@@ -331,40 +329,38 @@ impl<'ctx> Compiler<'ctx> {
                 line,
             } => {
                 if let Some(var_ptr) = self.variables.clone().get(&identifier) {
-                    if let Some(expr) = value {
-                        // building new binary expression
-                        let new_expression = Expressions::Binary {
-                            operand,
-                            lhs: Box::new(Expressions::Value(Value::Identifier(identifier))),
-                            rhs: expr.clone(),
-                            line,
-                        };
+                    // building new binary expression
+                    let new_expression = Expressions::Binary {
+                        operand,
+                        lhs: Box::new(Expressions::Value(Value::Identifier(identifier))),
+                        rhs: value.clone(),
+                        line,
+                    };
 
-                        let expr_value = self.compile_expression(
-                            new_expression,
+                    let expr_value = self.compile_expression(
+                        new_expression,
+                        line,
+                        function,
+                        self.current_expectation_value.clone(),
+                    );
+
+                    // matching types
+                    if expr_value.0 != var_ptr.str_type {
+                        GenError::throw(
+                            format!(
+                                "Expected type `{}`, but found `{}`!",
+                                var_ptr.str_type, expr_value.0
+                            ),
+                            ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
-                            function,
-                            self.current_expectation_value.clone(),
                         );
-
-                        // matching types
-                        if expr_value.0 != var_ptr.str_type {
-                            GenError::throw(
-                                format!(
-                                    "Expected type `{}`, but found `{}`!",
-                                    var_ptr.str_type, expr_value.0
-                                ),
-                                ErrorType::TypeError,
-                                self.module_name.clone(),
-                                self.module_source.clone(),
-                                line,
-                            );
-                        }
-
-                        // storing value
-
-                        let _ = self.builder.build_store(var_ptr.pointer, expr_value.1);
                     }
+
+                    // storing value
+
+                    let _ = self.builder.build_store(var_ptr.pointer, expr_value.1);
                 }
             }
             Statements::DerefAssignStatement {
@@ -373,57 +369,55 @@ impl<'ctx> Compiler<'ctx> {
                 line,
             } => {
                 if let Some(var_ptr) = self.variables.clone().get(&identifier) {
-                    if let Some(expr) = value {
-                        let expr_value = self.compile_expression(
-                            *expr,
+                    let expr_value = self.compile_expression(
+                        *value,
+                        line,
+                        function,
+                        Some(var_ptr.str_type.clone()),
+                    );
+
+                    // matching datatypes
+
+                    let raw_type = Compiler::__unwrap_ptr_type(&var_ptr.str_type);
+                    if expr_value.0 != raw_type {
+                        GenError::throw(
+                            format!(
+                                "Expected type `{}`, but found `{}`!",
+                                var_ptr.str_type, expr_value.0
+                            ),
+                            ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
-                            function,
-                            Some(var_ptr.str_type.clone()),
                         );
+                        std::process::exit(1);
+                    }
 
-                        // matching datatypes
+                    // loading pointer from a pointer
 
-                        let raw_type = Compiler::__unwrap_ptr_type(&var_ptr.str_type);
-                        if expr_value.0 != raw_type {
+                    let ptr_type = self
+                        .context
+                        .ptr_type(AddressSpace::default())
+                        .as_basic_type_enum();
+                    let raw_ptr = self
+                        .builder
+                        .build_load(ptr_type, var_ptr.pointer, "")
+                        .unwrap_or_else(|_| {
                             GenError::throw(
-                                format!(
-                                    "Expected type `{}`, but found `{}`!",
-                                    var_ptr.str_type, expr_value.0
-                                ),
-                                ErrorType::TypeError,
+                                "Unable to load a pointer!",
+                                ErrorType::BuildError,
                                 self.module_name.clone(),
                                 self.module_source.clone(),
                                 line,
                             );
                             std::process::exit(1);
-                        }
+                        });
 
-                        // loading pointer from a pointer
+                    // storing value
 
-                        let ptr_type = self
-                            .context
-                            .ptr_type(AddressSpace::default())
-                            .as_basic_type_enum();
-                        let raw_ptr = self
-                            .builder
-                            .build_load(ptr_type, var_ptr.pointer, "")
-                            .unwrap_or_else(|_| {
-                                GenError::throw(
-                                    "Unable to load a pointer!",
-                                    ErrorType::BuildError,
-                                    self.module_name.clone(),
-                                    self.module_source.clone(),
-                                    line,
-                                );
-                                std::process::exit(1);
-                            });
-
-                        // storing value
-
-                        let _ = self
-                            .builder
-                            .build_store(raw_ptr.into_pointer_value(), expr_value.1);
-                    }
+                    let _ = self
+                        .builder
+                        .build_store(raw_ptr.into_pointer_value(), expr_value.1);
                 } else {
                     GenError::throw(
                         format!("Variable `{}` is not defined!", identifier),

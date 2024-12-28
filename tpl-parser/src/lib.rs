@@ -262,6 +262,8 @@ impl Parser {
                         Statements::Expression(sub_expr)
                     }
                     TokenType::LParen => self.call_statement(current.value),
+                    TokenType::LBrack => self.slice_assign_statement(current.value),
+
                     _ if BINARY_OPERATORS.contains(&next.token_type) => {
                         match self.next().token_type {
                             TokenType::Equal => {
@@ -290,7 +292,7 @@ impl Parser {
                                 Statements::BinaryAssignStatement {
                                     identifier: current.value,
                                     operand: first_operand,
-                                    value: Some(Box::new(Expressions::Value(Value::Integer(1)))),
+                                    value: Box::new(Expressions::Value(Value::Integer(1))),
                                     line: current.line,
                                 }
                             }
@@ -823,10 +825,45 @@ impl Parser {
             }
             _ => Statements::AssignStatement {
                 identifier,
-                value: Some(Box::new(self.expression())),
+                value: Box::new(self.expression()),
                 line,
             },
         }
+    }
+
+    fn slice_assign_statement(&mut self, identifier: String) -> Statements {
+        let line = self.current().line;
+
+        match self.current().token_type {
+            TokenType::LBrack => {
+                let _ = self.next();
+            }
+            _ => {
+                self.error("Unexpected slice end found in statement!");
+                return Statements::None
+            }
+        }
+
+        let index = Box::new(self.expression());
+        
+        if !self.expect(TokenType::RBrack) {
+            self.error("Unexpected slice end found in statement!");
+            return Statements::None;
+        }
+
+        let _ = self.next();
+        
+        if !self.expect(TokenType::Equal) {
+            self.error("Unexpected slice-assign statement found!");
+            return Statements::None;
+        }
+
+        let _ = self.next();
+        let value = Box::new(self.expression());
+        
+        self.skip_eos();
+
+        Statements::SliceAssignStatement { identifier, index, value, line }
     }
 
     fn binary_assign_statement(&mut self, identifier: String, operand: String) -> Statements {
@@ -844,7 +881,7 @@ impl Parser {
             _ => Statements::BinaryAssignStatement {
                 identifier,
                 operand,
-                value: Some(Box::new(self.expression())),
+                value: Box::new(self.expression()),
                 line,
             },
         }
@@ -1632,7 +1669,7 @@ mod tests {
             ast[0],
             Statements::AssignStatement {
                 identifier: String::from("a"),
-                value: Some(Box::new(Expressions::Value(Value::Integer(5)))),
+                value: Box::new(Expressions::Value(Value::Integer(5))),
                 line: 0
             }
         );
@@ -1655,7 +1692,7 @@ mod tests {
             ast[0],
             Statements::BinaryAssignStatement {
                 identifier: String::from("a"),
-                value: Some(Box::new(Expressions::Value(Value::Integer(5)))),
+                value: Box::new(Expressions::Value(Value::Integer(5))),
                 operand: String::from("+"),
                 line: 0
             }
@@ -1736,7 +1773,7 @@ mod tests {
                 arguments: Vec::new(),
                 block: vec![Statements::AssignStatement {
                     identifier: "a".to_string(),
-                    value: Some(Box::new(Expressions::Value(Value::Integer(5)))),
+                    value: Box::new(Expressions::Value(Value::Integer(5))),
                     line: 0
                 }],
                 line: 0
@@ -1768,7 +1805,7 @@ mod tests {
                 ],
                 block: vec![Statements::AssignStatement {
                     identifier: "a".to_string(),
-                    value: Some(Box::new(Expressions::Value(Value::Integer(5)))),
+                    value: Box::new(Expressions::Value(Value::Integer(5))),
                     line: 0
                 }],
                 line: 0
