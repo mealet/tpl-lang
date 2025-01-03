@@ -673,7 +673,6 @@ impl<'ctx> Compiler<'ctx> {
                     }
                 }
 
-                let _ = self.builder.build_unconditional_branch(before_basic_block);
                 self.switch_block(before_basic_block);
 
                 // compiling condition
@@ -692,6 +691,57 @@ impl<'ctx> Compiler<'ctx> {
                 for stmt in block {
                     self.compile_statement(stmt, function);
                 }
+
+                // returning to block `before` for comparing condition
+                if let Some(last_instruction) = then_basic_block.get_last_instruction() {
+                    if last_instruction.get_opcode() != inkwell::values::InstructionOpcode::Return {
+                        let _ = self.builder.build_unconditional_branch(before_basic_block);
+                    }
+                }
+
+                // setting builder position to `after` block
+                self.switch_block(after_basic_block);
+            }
+
+            Statements::ForStatement { initializer, condition, iterator, block, line } => {
+                 // creating basic blocks
+                let before_basic_block = self.context.append_basic_block(function, "for_before");
+                let then_basic_block = self.context.append_basic_block(function, "for_then");
+                let after_basic_block = self.context.append_basic_block(function, "for_after");
+
+                // building initializer
+                let _ = self.compile_statement(*initializer, function);
+
+                // setting current position to block `before`
+
+                if let Some(last_instruction) = self.current_block.get_last_instruction() {
+                    if last_instruction.get_opcode() != inkwell::values::InstructionOpcode::Return {
+                        let _ = self.builder.build_unconditional_branch(before_basic_block);
+                    }
+                }
+
+                self.switch_block(before_basic_block);
+
+                // building condition
+                let compiled_condition = self.compile_condition(condition, line, function);
+
+                // building conditional branch to blocks
+                let _ = self.builder.build_conditional_branch(
+                    compiled_condition,
+                    then_basic_block,
+                    after_basic_block,
+                );
+
+                // building `then` block
+                self.switch_block(then_basic_block);
+
+                for stmt in block {
+                    self.compile_statement(stmt, function);
+                }
+
+                // building iterator
+
+                let _ = self.compile_statement(*iterator, function);
 
                 // returning to block `before` for comparing condition
                 if let Some(last_instruction) = then_basic_block.get_last_instruction() {
@@ -886,9 +936,10 @@ impl<'ctx> Compiler<'ctx> {
                             }
                         };
 
-                        let raw_index = int_index.get_sign_extended_constant().unwrap();
+                        let raw_index = int_index.get_sign_extended_constant().unwrap_or(0);
+                        // if we cannot verify index on build, it will cause some bugs on runtime
 
-                        if raw_index > raw_len as i64 - 1 || raw_index < 0 {
+                        if raw_index > raw_len as i64 - 1 || raw_index < 0 && raw_index != 0 {
                             GenError::throw(
                                 format!(
                                     "Wrong array index found! Array len is {} but index is {}",
