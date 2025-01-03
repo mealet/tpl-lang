@@ -70,8 +70,9 @@ pub enum Statements {
         line: usize,
     },
     ForStatement {
-        varname: String,
-        iterable_object: Expressions,
+        initializer: Box<Statements>,
+        condition: Expressions,
+        iterator: Box<Statements>,
         block: Vec<Statements>,
         line: usize,
     },

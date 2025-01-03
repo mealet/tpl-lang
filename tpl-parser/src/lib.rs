@@ -1057,68 +1057,58 @@ impl Parser {
         if self.current().token_type == TokenType::Keyword {
             // skipping keyword
             let _ = self.next();
-            return self.for_statement();
         }
 
-        // getting variable name
-        if !self.expect(TokenType::Identifier) {
-            self.error("Variable name expected after keyword `for`!");
+        // parsing params
+        
+        if !self.expect(TokenType::LParen) {
+            self.error("For params must be in parentheses. Example: for (int i; i < 10; i++) {}");
             return Statements::None;
         }
 
-        let varname = self.current().value;
+        let _ = self.next();
+        let initializer = Box::new(self.statement());
 
-        // searching for `in` keyword
+        let _ = self.skip_eos();
+        let condition = self.expression();
 
-        let keyword = self.next();
+        let _ = self.skip_eos();
+        let iterator = Box::new(self.statement());
 
-        if let (TokenType::Keyword, "in") = (keyword.token_type, keyword.value.as_str()) {
-            let _ = self.next();
-
-            // parsing iter object
-            let iterable_object = self.expression();
-
-            // searching for opening block
-            if self.current().token_type != TokenType::LBrace {
-                self.error("New block expected after condition!");
-                return Statements::None;
-            }
-
-            let _ = self.next();
-
-            // parsing statements
-            let mut stmts = Vec::new();
-
-            while self.current().token_type != TokenType::RBrace {
-                if self.current().token_type == TokenType::EOF {
-                    self.error(
-                        "Unexpected end-of-file in block after `for` statement. Please add '}'!",
-                    );
-                    return Statements::None;
-                }
-
-                let statement = self.statement();
-                stmts.push(statement);
-            }
-
-            // skipping brace
-            if self.current().token_type == TokenType::RBrace {
-                let _ = self.next();
-            }
-
-            // skiping semicolon
-            self.skip_eos();
-
-            Statements::ForStatement {
-                varname,
-                iterable_object,
-                block: stmts,
-                line,
-            }
-        } else {
-            self.error("Expected keyword 'in` after variable name in `for` statement!");
-            Statements::None
+        if !self.expect(TokenType::RParen) {
+            self.error("For params must be in parentheses. Example: for (int i; i < 10; i++) {}");
+            return Statements::None;
         }
+
+        let _ = self.next();
+
+        // parsing block
+
+        if !self.expect(TokenType::LBrace) {
+            self.error("Expected block after `for` params");
+            return Statements::None;
+        }
+
+        let _ = self.next();
+        let mut block = Vec::new();
+
+        while !self.expect(TokenType::RBrace) {
+            if self.expect(TokenType::EOF) {
+                self.error("Unfinished block found!");
+                return Statements::None;
+            };
+
+            let statement = self.statement();
+            block.push(statement);
+        }
+
+        if self.expect(TokenType::RBrace) {
+            let _ = self.next();
+        }
+
+        let _ = self.skip_eos();
+
+        Statements::ForStatement { initializer, condition, iterator, block, line }
     }
 
     fn call_statement(&mut self, function_name: String) -> Statements {
@@ -2210,54 +2200,6 @@ mod tests {
         let ast = parser.parse().unwrap();
 
         assert_eq!(ast[0], Statements::BreakStatement { line: 0 });
-    }
-
-    #[test]
-    fn for_stmt_test() {
-        let input = String::from("for i in 10 {};");
-        let mut lexer = Lexer::new(input.clone(), "test".to_string());
-
-        let tokens = match lexer.tokenize() {
-            Ok(t) => t,
-            Err(_) => panic!("Lexer side error occured!"),
-        };
-
-        let mut parser = Parser::new(tokens, "test".to_string(), input);
-        let ast = parser.parse().unwrap();
-
-        assert_eq!(
-            ast[0],
-            Statements::ForStatement {
-                varname: String::from("i"),
-                iterable_object: Expressions::Value(Value::Integer(10)),
-                block: Vec::new(),
-                line: 0
-            }
-        );
-    }
-
-    #[test]
-    fn for_with_block_stmt_test() {
-        let input = String::from("for i in 10 { break };");
-        let mut lexer = Lexer::new(input.clone(), "test".to_string());
-
-        let tokens = match lexer.tokenize() {
-            Ok(t) => t,
-            Err(_) => panic!("Lexer side error occured!"),
-        };
-
-        let mut parser = Parser::new(tokens, "test".to_string(), input);
-        let ast = parser.parse().unwrap();
-
-        assert_eq!(
-            ast[0],
-            Statements::ForStatement {
-                varname: String::from("i"),
-                iterable_object: Expressions::Value(Value::Integer(10)),
-                block: vec![Statements::BreakStatement { line: 0 }],
-                line: 0
-            }
-        );
     }
 
     #[test]
