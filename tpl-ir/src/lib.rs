@@ -1609,6 +1609,7 @@ impl<'ctx> Compiler<'ctx> {
             match function_name.as_str() {
                 "concat" => return self.build_concat_call(arguments, line, function),
                 "type" => return self.build_type_call(arguments, line, function),
+                "len" => return self.build_len_call(arguments, line, function),
                 "print" => {
                     GenError::throw(
                         "Function `print` is 'void' type!",

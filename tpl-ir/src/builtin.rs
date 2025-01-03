@@ -31,6 +31,12 @@ pub trait BuiltIn<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
+    fn build_len_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>);
 
     fn build_to_str_call(
         &mut self,
@@ -346,6 +352,48 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             .as_pointer_value();
 
         (String::from("str"), arg_type_string.into())
+    }
+
+    fn build_len_call(
+            &mut self,
+            arguments: Vec<Expressions>,
+            line: usize,
+            function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>) {
+         if arguments.len() != 1 {
+            GenError::throw(
+                format!(
+                    "Function `len()` requires only 1 argument, but {} found!",
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let compiled_arg = self.compile_expression(arguments[0].clone(), line, function, None);
+        
+        if !Compiler::__is_arr_type(&compiled_arg.0) {
+            GenError::throw(
+                format!(
+                    "Type `{}` is non-array type!",
+                    &compiled_arg.0
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+        
+        let length = Compiler::get_array_datatype_len(&compiled_arg.0);
+        let basic_value = self.context.i16_type().const_int(length, false).as_basic_value_enum();
+
+        (String::from("int16"), basic_value)
     }
 
     // conversion
