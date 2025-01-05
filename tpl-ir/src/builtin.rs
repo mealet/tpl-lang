@@ -29,9 +29,8 @@ pub trait BuiltIn<'ctx> {
         &mut self,
         arguments: Vec<Expressions>,
         line: usize,
-        function: FunctionValue<'ctx>
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
-
 
     fn build_type_call(
         &mut self,
@@ -43,9 +42,8 @@ pub trait BuiltIn<'ctx> {
         &mut self,
         arguments: Vec<Expressions>,
         line: usize,
-        function: FunctionValue<'ctx>
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
-
 
     fn build_to_str_call(
         &mut self,
@@ -327,10 +325,10 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
     }
 
     fn build_input_call(
-            &mut self,
-            arguments: Vec<Expressions>,
-            line: usize,
-            function: FunctionValue<'ctx>
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         if arguments.len() > 1 {
             GenError::throw(
@@ -338,12 +336,12 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                 ErrorType::NotExpected,
                 self.module_name.clone(),
                 self.module_source.clone(),
-                line
+                line,
             );
             std::process::exit(1);
         }
 
-        if let Some(argument) = arguments.get(0) {
+        if let Some(argument) = arguments.first() {
             let compiled_argument = self.compile_expression(argument.clone(), line, function, None);
             let printf_fn = self.__c_printf();
 
@@ -353,20 +351,14 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     ErrorType::NotExpected,
                     self.module_name.clone(),
                     self.module_source.clone(),
-                    line
+                    line,
                 );
                 std::process::exit(1);
             }
 
             let _ = self
                 .builder
-                .build_call(
-                    printf_fn,
-                    &[
-                        compiled_argument.1.into()
-                    ],
-                    ""
-                );
+                .build_call(printf_fn, &[compiled_argument.1.into()], "");
         }
 
         let scanf_fn = self.__c_scanf();
@@ -378,22 +370,12 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
         let result_alloca = self
             .builder
-            .build_alloca(
-                self.context.ptr_type(AddressSpace::default()),
-                ""
-            )
+            .build_alloca(self.context.ptr_type(AddressSpace::default()), "")
             .unwrap();
 
         let _ = self
             .builder
-            .build_call(
-                scanf_fn,
-                &[
-                    format_string.into(),
-                    result_alloca.into()
-                ],
-                ""
-            )
+            .build_call(scanf_fn, &[format_string.into(), result_alloca.into()], "")
             .unwrap();
 
         ("str".to_string(), result_alloca.into())
@@ -439,12 +421,12 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
     }
 
     fn build_len_call(
-            &mut self,
-            arguments: Vec<Expressions>,
-            line: usize,
-            function: FunctionValue<'ctx>
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
-         if arguments.len() != 1 {
+        if arguments.len() != 1 {
             GenError::throw(
                 format!(
                     "Function `len()` requires only 1 argument, but {} found!",
@@ -459,13 +441,10 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         }
 
         let compiled_arg = self.compile_expression(arguments[0].clone(), line, function, None);
-        
+
         if !Compiler::__is_arr_type(&compiled_arg.0) {
             GenError::throw(
-                format!(
-                    "Type `{}` is non-array type!",
-                    &compiled_arg.0
-                ),
+                format!("Type `{}` is non-array type!", &compiled_arg.0),
                 ErrorType::NotExpected,
                 self.module_name.clone(),
                 self.module_source.clone(),
@@ -473,9 +452,13 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             );
             std::process::exit(1);
         }
-        
+
         let length = Compiler::get_array_datatype_len(&compiled_arg.0);
-        let basic_value = self.context.i16_type().const_int(length, false).as_basic_value_enum();
+        let basic_value = self
+            .context
+            .i16_type()
+            .const_int(length, false)
+            .as_basic_value_enum();
 
         (String::from("int16"), basic_value)
     }

@@ -704,14 +704,20 @@ impl<'ctx> Compiler<'ctx> {
                 self.switch_block(after_basic_block);
             }
 
-            Statements::ForStatement { initializer, condition, iterator, block, line } => {
-                 // creating basic blocks
+            Statements::ForStatement {
+                initializer,
+                condition,
+                iterator,
+                block,
+                line,
+            } => {
+                // creating basic blocks
                 let before_basic_block = self.context.append_basic_block(function, "for_before");
                 let then_basic_block = self.context.append_basic_block(function, "for_then");
                 let after_basic_block = self.context.append_basic_block(function, "for_after");
 
                 // building initializer
-                let _ = self.compile_statement(*initializer, function);
+                self.compile_statement(*initializer, function);
 
                 // setting current position to block `before`
 
@@ -742,7 +748,7 @@ impl<'ctx> Compiler<'ctx> {
 
                 // building iterator
 
-                let _ = self.compile_statement(*iterator, function);
+                self.compile_statement(*iterator, function);
 
                 // returning to block `before` for comparing condition
                 if let Some(last_instruction) = then_basic_block.get_last_instruction() {
@@ -1082,15 +1088,9 @@ impl<'ctx> Compiler<'ctx> {
                 //
                 // so let's just clone the loaded value
 
-                let clone_ptr = self
-                    .builder
-                    .build_alloca(raw_basic_type, "")
-                    .unwrap();
+                let clone_ptr = self.builder.build_alloca(raw_basic_type, "").unwrap();
 
-                let _ = self
-                    .builder
-                    .build_store(clone_ptr, loaded_value)
-                    .unwrap();
+                let _ = self.builder.build_store(clone_ptr, loaded_value).unwrap();
 
                 let cloned_value = self
                     .builder
@@ -1601,7 +1601,7 @@ impl<'ctx> Compiler<'ctx> {
                                 std::process::exit(1);
                             }
                         };
-                        
+
                         let strcmp_fn = self.__c_strcmp();
                         let strcmp_result = self
                             .builder
@@ -1613,14 +1613,12 @@ impl<'ctx> Compiler<'ctx> {
 
                         let zero_value = self.context.i32_type().const_zero().as_basic_value_enum();
 
-                        let condition = self
-                            .builder
-                            .build_int_compare(
-                                predicate,
-                                strcmp_result.into_int_value(),
-                                zero_value.into_int_value(),
-                                ""
-                            );
+                        let condition = self.builder.build_int_compare(
+                            predicate,
+                            strcmp_result.into_int_value(),
+                            zero_value.into_int_value(),
+                            "",
+                        );
 
                         condition.unwrap()
                     }

@@ -83,7 +83,7 @@ impl<'ctx> Libc for Compiler<'ctx> {
                 self.context.ptr_type(AddressSpace::default()).into(),
                 self.context.ptr_type(AddressSpace::default()).into(),
             ],
-            false
+            false,
         );
         let strcmp_fn = self
             .module
@@ -99,10 +99,8 @@ impl<'ctx> Libc for Compiler<'ctx> {
         }
 
         let scanf_type = self.context.i32_type().fn_type(
-            &[
-                self.context.ptr_type(AddressSpace::default()).into()
-            ],
-            true
+            &[self.context.ptr_type(AddressSpace::default()).into()],
+            true,
         );
         let scanf_fn = self
             .module

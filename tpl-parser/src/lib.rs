@@ -18,33 +18,22 @@ use value::Value;
 
 // globals
 
-static DATATYPES: [&'static str; 10] = [
-    "int8",
-    "int16",
-    "int32",
-    "int64",
-    "int128",
-
-    "str",
-    "bool",
-
-    "auto",
-    "void",
-    "fn"
+static DATATYPES: [&str; 10] = [
+    "int8", "int16", "int32", "int64", "int128", "str", "bool", "auto", "void", "fn",
 ];
 static BINARY_OPERATORS: [TokenType; 4] = [
-    TokenType::Plus, // +
-    TokenType::Minus, // -
-    TokenType::Divide, // /
+    TokenType::Plus,     // +
+    TokenType::Minus,    // -
+    TokenType::Divide,   // /
     TokenType::Multiply, // *
 ];
 
 static BOOLEAN_OPERATORS: [TokenType; 6] = [
-    TokenType::Lt, // <
-    TokenType::Bt, // >
-    TokenType::Eq, // ==
-    TokenType::Ne, // !
-    TokenType::Or, // ||
+    TokenType::Lt,  // <
+    TokenType::Bt,  // >
+    TokenType::Eq,  // ==
+    TokenType::Ne,  // !
+    TokenType::Or,  // ||
     TokenType::And, // &&
 ];
 
@@ -1060,7 +1049,7 @@ impl Parser {
         }
 
         // parsing params
-        
+
         if !self.expect(TokenType::LParen) {
             self.error("For params must be in parentheses. Example: for (int i; i < 10; i++) {}");
             return Statements::None;
@@ -1069,10 +1058,10 @@ impl Parser {
         let _ = self.next();
         let initializer = Box::new(self.statement());
 
-        let _ = self.skip_eos();
+        self.skip_eos();
         let condition = self.expression();
 
-        let _ = self.skip_eos();
+        self.skip_eos();
         let iterator = Box::new(self.statement());
 
         if !self.expect(TokenType::RParen) {
@@ -1106,9 +1095,15 @@ impl Parser {
             let _ = self.next();
         }
 
-        let _ = self.skip_eos();
+        self.skip_eos();
 
-        Statements::ForStatement { initializer, condition, iterator, block, line }
+        Statements::ForStatement {
+            initializer,
+            condition,
+            iterator,
+            block,
+            line,
+        }
     }
 
     fn call_statement(&mut self, function_name: String) -> Statements {
