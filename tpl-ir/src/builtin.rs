@@ -25,6 +25,14 @@ pub trait BuiltIn<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>,
     );
+    fn build_input_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>);
+
+
     fn build_type_call(
         &mut self,
         arguments: Vec<Expressions>,
@@ -37,6 +45,7 @@ pub trait BuiltIn<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>
     ) -> (String, BasicValueEnum<'ctx>);
+
 
     fn build_to_str_call(
         &mut self,
@@ -315,6 +324,79 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         printf_arguments.append(&mut values);
 
         let _ = self.builder.build_call(printf_fn, &printf_arguments, "");
+    }
+
+    fn build_input_call(
+            &mut self,
+            arguments: Vec<Expressions>,
+            line: usize,
+            function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() > 1 {
+            GenError::throw(
+                "Function `input()` takes only 0 or 1 arguments! Example: input(\"Type here: \")",
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        if let Some(argument) = arguments.get(0) {
+            let compiled_argument = self.compile_expression(argument.clone(), line, function, None);
+            let printf_fn = self.__c_printf();
+
+            if compiled_argument.0 != "str" {
+                GenError::throw(
+                    "Function `input()` takes only string as argument!",
+                    ErrorType::NotExpected,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line
+                );
+                std::process::exit(1);
+            }
+
+            let _ = self
+                .builder
+                .build_call(
+                    printf_fn,
+                    &[
+                        compiled_argument.1.into()
+                    ],
+                    ""
+                );
+        }
+
+        let scanf_fn = self.__c_scanf();
+        let format_string = self
+            .builder
+            .build_global_string_ptr("%s", "")
+            .unwrap()
+            .as_basic_value_enum();
+
+        let result_alloca = self
+            .builder
+            .build_alloca(
+                self.context.ptr_type(AddressSpace::default()),
+                ""
+            )
+            .unwrap();
+
+        let _ = self
+            .builder
+            .build_call(
+                scanf_fn,
+                &[
+                    format_string.into(),
+                    result_alloca.into()
+                ],
+                ""
+            )
+            .unwrap();
+
+        ("str".to_string(), result_alloca.into())
     }
 
     fn build_type_call(

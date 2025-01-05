@@ -1693,6 +1693,7 @@ impl<'ctx> Compiler<'ctx> {
                     );
                     std::process::exit(1);
                 }
+                "input" => return self.build_input_call(arguments, line, function),
 
                 "to_str" => return self.build_to_str_call(arguments, line, function),
                 "to_int8" => return self.build_to_int8_call(arguments, line, function),
