@@ -249,6 +249,8 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
                         // i know that this code is piece of shit, but i wanna sleep ._.
                         // i'll figure it out tomorrow
+                        //
+                        // nah i didn't figured it out
                     }
 
                     continue;

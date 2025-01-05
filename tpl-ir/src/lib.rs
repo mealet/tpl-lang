@@ -1066,7 +1066,37 @@ impl<'ctx> Compiler<'ctx> {
                         std::process::exit(1);
                     });
 
-                (raw_type, loaded_value)
+                // When we provide dereferenced value into function (for example print)
+                // it causes segmentation fault, but if we just copy that value by storing
+                // into another variable - it works:
+                // -------------------------------
+                // int32* var;
+                // *var = 5;
+                //
+                // print(*var); <-- segfault
+                //
+                // int32 another_var = *var;
+                // print(another_var); <-- works
+                // -------------------------------
+                //
+                // so let's just clone the loaded value
+
+                let clone_ptr = self
+                    .builder
+                    .build_alloca(raw_basic_type, "")
+                    .unwrap();
+
+                let _ = self
+                    .builder
+                    .build_store(clone_ptr, loaded_value)
+                    .unwrap();
+
+                let cloned_value = self
+                    .builder
+                    .build_load(raw_basic_type, clone_ptr, "")
+                    .unwrap();
+
+                (raw_type, cloned_value)
             }
             Expressions::Binary {
                 operand,
