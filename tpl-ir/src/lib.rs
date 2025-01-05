@@ -847,7 +847,7 @@ impl<'ctx> Compiler<'ctx> {
                 }
                 _ => {
                     GenError::throw(
-                        "Unsupported expression found! Please open issue with your code on Github!",
+                        format!("Unsupported expression found! Please open issue with your code on Github! Debug data:\n{:#?}", expr),
                         ErrorType::NotSupported,
                         self.module_name.clone(),
                         self.module_source.clone(),
