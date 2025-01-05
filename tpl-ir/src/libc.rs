@@ -7,6 +7,7 @@ pub trait Libc {
     fn __c_printf(&mut self) -> Self::Function;
     fn __c_sprintf(&mut self) -> Self::Function;
     fn __c_strcat(&mut self) -> Self::Function;
+    fn __c_strcmp(&mut self) -> Self::Function;
 }
 
 impl<'ctx> Libc for Compiler<'ctx> {
@@ -69,5 +70,25 @@ impl<'ctx> Libc for Compiler<'ctx> {
         let _ = self.built_functions.insert("strcat".to_string(), strcat_fn);
 
         strcat_fn
+    }
+
+    fn __c_strcmp(&mut self) -> Self::Function {
+        if let Some(function_value) = self.built_functions.get("strcmp") {
+            return *function_value;
+        }
+
+        let strcmp_type = self.context.i32_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false
+        );
+        let strcmp_fn = self
+            .module
+            .add_function("strcmp", strcmp_type, Some(Linkage::External));
+        let _ = self.built_functions.insert("strcmp".to_string(), strcmp_fn);
+
+        strcmp_fn
     }
 }

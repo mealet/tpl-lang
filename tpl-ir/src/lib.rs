@@ -24,6 +24,7 @@ use inkwell::{
 };
 
 use builtin::BuiltIn;
+use libc::Libc;
 use std::{collections::HashMap, sync::LazyLock};
 
 use error::{ErrorType, GenError};
@@ -1580,6 +1581,47 @@ impl<'ctx> Compiler<'ctx> {
                             );
                             std::process::exit(1);
                         })
+                    }
+                    ("str", "str") => {
+                        // matching operand
+                        let predicate = match operand.as_str() {
+                            ">" => inkwell::IntPredicate::SGT,
+                            "<" => inkwell::IntPredicate::SLT,
+                            "==" => inkwell::IntPredicate::EQ,
+                            "!=" => inkwell::IntPredicate::NE,
+                            _ => {
+                                GenError::throw(
+                                    format!("Compare operand `{}` is not supported!", operand),
+                                    ErrorType::NotSupported,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            }
+                        };
+                        
+                        let strcmp_fn = self.__c_strcmp();
+                        let strcmp_result = self
+                            .builder
+                            .build_call(strcmp_fn, &[left.1.into(), right.1.into()], "")
+                            .unwrap()
+                            .try_as_basic_value()
+                            .left()
+                            .unwrap();
+
+                        let zero_value = self.context.i32_type().const_zero().as_basic_value_enum();
+
+                        let condition = self
+                            .builder
+                            .build_int_compare(
+                                predicate,
+                                strcmp_result.into_int_value(),
+                                zero_value.into_int_value(),
+                                ""
+                            );
+
+                        condition.unwrap()
                     }
                     _ => {
                         GenError::throw(
