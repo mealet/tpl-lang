@@ -1541,7 +1541,8 @@ impl<'ctx> Compiler<'ctx> {
                     ("int8", "int8")
                     | ("int16", "int16")
                     | ("int32", "int32")
-                    | ("int64", "int64") => {
+                    | ("int64", "int64")
+                    | ("bool", "bool") => {
                         // matching operand
                         let predicate = match operand.as_str() {
                             ">" => inkwell::IntPredicate::SGT,
