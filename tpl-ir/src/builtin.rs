@@ -13,12 +13,7 @@ use crate::{
 use tpl_parser::expressions::Expressions;
 
 pub trait BuiltIn<'ctx> {
-    fn build_concat_call(
-        &mut self,
-        arguments: Vec<Expressions>,
-        line: usize,
-        function: FunctionValue<'ctx>,
-    ) -> (String, BasicValueEnum<'ctx>);
+    // input output
     fn build_print_call(
         &mut self,
         arguments: Vec<Expressions>,
@@ -32,6 +27,7 @@ pub trait BuiltIn<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
 
+    // helpful functions
     fn build_type_call(
         &mut self,
         arguments: Vec<Expressions>,
@@ -44,6 +40,13 @@ pub trait BuiltIn<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
+    fn build_concat_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
+
 
     fn build_to_str_call(
         &mut self,
@@ -473,7 +476,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         #[allow(non_snake_case)]
-        let (TARGET_TYPE, TARGET_BASIC_TYPE) = ("int32", self.context.i32_type());
+        let (TARGET_TYPE, TARGET_BASIC_TYPE, TARGET_TYPE_FORMAT) = ("int8", self.context.i8_type(), "%d");
 
         if arguments.len() != 1 {
             GenError::throw(
@@ -494,7 +497,42 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
         // checks
         match compiled_arg.0.as_str() {
-            "int8" => return compiled_arg,
+            ctype if ctype == TARGET_TYPE => return compiled_arg,
+            "str" => {
+                let sscanf_fn = self.__c_sscanf();
+                let format_string = self
+                    .builder
+                    .build_global_string_ptr(TARGET_TYPE_FORMAT, TARGET_TYPE)
+                    .unwrap()
+                    .as_basic_value_enum();
+
+                let result_alloca = self
+                    .builder
+                    .build_alloca(
+                        TARGET_BASIC_TYPE,
+                        ""
+                    )
+                    .unwrap();
+
+                let _ = self
+                    .builder
+                    .build_call(
+                        sscanf_fn,
+                        &[
+                            compiled_arg.1.into(),
+                            format_string.into(),
+                            result_alloca.into(),
+                        ],
+                        ""
+                    );
+
+                let result_value = self
+                    .builder
+                    .build_load(TARGET_BASIC_TYPE, result_alloca, "")
+                    .unwrap();
+
+                return (TARGET_TYPE.to_string(), result_value);
+            },
             _ if !compiled_arg.0.contains("int") => {
                 GenError::throw(
                     format!("Unable to convert non-int type to `{}`", TARGET_TYPE),
@@ -565,7 +603,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         #[allow(non_snake_case)]
-        let (TARGET_TYPE, TARGET_BASIC_TYPE) = ("int32", self.context.i32_type());
+        let (TARGET_TYPE, TARGET_BASIC_TYPE, TARGET_TYPE_FORMAT) = ("int16", self.context.i16_type(), "%d");
 
         if arguments.len() != 1 {
             GenError::throw(
@@ -586,7 +624,43 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
         // checks
         match compiled_arg.0.as_str() {
-            "int16" => return compiled_arg,
+            ctype if ctype == TARGET_TYPE => return compiled_arg,
+            "str" => {
+                let sscanf_fn = self.__c_sscanf();
+                let format_string = self
+                    .builder
+                    .build_global_string_ptr(TARGET_TYPE_FORMAT, TARGET_TYPE)
+                    .unwrap()
+                    .as_basic_value_enum();
+
+                let result_alloca = self
+                    .builder
+                    .build_alloca(
+                        TARGET_BASIC_TYPE,
+                        ""
+                    )
+                    .unwrap();
+
+                let _ = self
+                    .builder
+                    .build_call(
+                        sscanf_fn,
+                        &[
+                            compiled_arg.1.into(),
+                            format_string.into(),
+                            result_alloca.into(),
+                        ],
+                        ""
+                    );
+
+                let result_value = self
+                    .builder
+                    .build_load(TARGET_BASIC_TYPE, result_alloca, "")
+                    .unwrap();
+
+                return (TARGET_TYPE.to_string(), result_value);
+            },
+
             _ if !compiled_arg.0.contains("int") => {
                 GenError::throw(
                     format!("Unable to convert non-int type to `{}`", TARGET_TYPE),
@@ -657,7 +731,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         #[allow(non_snake_case)]
-        let (TARGET_TYPE, TARGET_BASIC_TYPE) = ("int32", self.context.i32_type());
+        let (TARGET_TYPE, TARGET_BASIC_TYPE, TARGET_TYPE_FORMAT) = ("int32", self.context.i32_type(), "%d");
 
         if arguments.len() != 1 {
             GenError::throw(
@@ -678,7 +752,43 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
         // checks
         match compiled_arg.0.as_str() {
-            "int32" => return compiled_arg,
+            ctype if ctype == TARGET_TYPE => return compiled_arg,
+            "str" => {
+                let sscanf_fn = self.__c_sscanf();
+                let format_string = self
+                    .builder
+                    .build_global_string_ptr(TARGET_TYPE_FORMAT, TARGET_TYPE)
+                    .unwrap()
+                    .as_basic_value_enum();
+
+                let result_alloca = self
+                    .builder
+                    .build_alloca(
+                        TARGET_BASIC_TYPE,
+                        ""
+                    )
+                    .unwrap();
+
+                let _ = self
+                    .builder
+                    .build_call(
+                        sscanf_fn,
+                        &[
+                            compiled_arg.1.into(),
+                            format_string.into(),
+                            result_alloca.into(),
+                        ],
+                        ""
+                    );
+
+                let result_value = self
+                    .builder
+                    .build_load(TARGET_BASIC_TYPE, result_alloca, "")
+                    .unwrap();
+
+                return (TARGET_TYPE.to_string(), result_value);
+            },
+
             _ if !compiled_arg.0.contains("int") => {
                 GenError::throw(
                     format!("Unable to convert non-int type to `{}`", TARGET_TYPE),
@@ -749,7 +859,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         #[allow(non_snake_case)]
-        let (TARGET_TYPE, TARGET_BASIC_TYPE) = ("int64", self.context.i64_type());
+        let (TARGET_TYPE, TARGET_BASIC_TYPE, TARGET_TYPE_FORMAT) = ("int64", self.context.i64_type(), "%ld");
 
         if arguments.len() != 1 {
             GenError::throw(
@@ -770,7 +880,43 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
         // checks
         match compiled_arg.0.as_str() {
-            "int64" => return compiled_arg,
+            ctype if ctype == TARGET_TYPE => return compiled_arg,
+            "str" => {
+                let sscanf_fn = self.__c_sscanf();
+                let format_string = self
+                    .builder
+                    .build_global_string_ptr(TARGET_TYPE_FORMAT, TARGET_TYPE)
+                    .unwrap()
+                    .as_basic_value_enum();
+
+                let result_alloca = self
+                    .builder
+                    .build_alloca(
+                        TARGET_BASIC_TYPE,
+                        ""
+                    )
+                    .unwrap();
+
+                let _ = self
+                    .builder
+                    .build_call(
+                        sscanf_fn,
+                        &[
+                            compiled_arg.1.into(),
+                            format_string.into(),
+                            result_alloca.into(),
+                        ],
+                        ""
+                    );
+
+                let result_value = self
+                    .builder
+                    .build_load(TARGET_BASIC_TYPE, result_alloca, "")
+                    .unwrap();
+
+                return (TARGET_TYPE.to_string(), result_value);
+            },
+
             _ if !compiled_arg.0.contains("int") => {
                 GenError::throw(
                     format!("Unable to convert non-int type to `{}`", TARGET_TYPE),
