@@ -121,13 +121,13 @@ impl<'ctx> Libc for Compiler<'ctx> {
                 self.context.ptr_type(AddressSpace::default()).into(),
                 self.context.ptr_type(AddressSpace::default()).into(),
             ],
-            true
+            true,
         );
         let sscanf_fn = self
             .module
             .add_function("sscanf", sscanf_type, Some(Linkage::External));
         let _ = self.built_functions.insert("sscanf".to_string(), sscanf_fn);
-        
+
         sscanf_fn
     }
 }

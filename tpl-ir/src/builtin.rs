@@ -47,7 +47,6 @@ pub trait BuiltIn<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
 
-
     fn build_to_str_call(
         &mut self,
         arguments: Vec<Expressions>,
@@ -476,7 +475,8 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         #[allow(non_snake_case)]
-        let (TARGET_TYPE, TARGET_BASIC_TYPE, TARGET_TYPE_FORMAT) = ("int8", self.context.i8_type(), "%d");
+        let (TARGET_TYPE, TARGET_BASIC_TYPE, TARGET_TYPE_FORMAT) =
+            ("int8", self.context.i8_type(), "%d");
 
         if arguments.len() != 1 {
             GenError::throw(
@@ -506,25 +506,17 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     .unwrap()
                     .as_basic_value_enum();
 
-                let result_alloca = self
-                    .builder
-                    .build_alloca(
-                        TARGET_BASIC_TYPE,
-                        ""
-                    )
-                    .unwrap();
+                let result_alloca = self.builder.build_alloca(TARGET_BASIC_TYPE, "").unwrap();
 
-                let _ = self
-                    .builder
-                    .build_call(
-                        sscanf_fn,
-                        &[
-                            compiled_arg.1.into(),
-                            format_string.into(),
-                            result_alloca.into(),
-                        ],
-                        ""
-                    );
+                let _ = self.builder.build_call(
+                    sscanf_fn,
+                    &[
+                        compiled_arg.1.into(),
+                        format_string.into(),
+                        result_alloca.into(),
+                    ],
+                    "",
+                );
 
                 let result_value = self
                     .builder
@@ -532,7 +524,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     .unwrap();
 
                 return (TARGET_TYPE.to_string(), result_value);
-            },
+            }
             _ if !compiled_arg.0.contains("int") => {
                 GenError::throw(
                     format!("Unable to convert non-int type to `{}`", TARGET_TYPE),
@@ -603,7 +595,8 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         #[allow(non_snake_case)]
-        let (TARGET_TYPE, TARGET_BASIC_TYPE, TARGET_TYPE_FORMAT) = ("int16", self.context.i16_type(), "%d");
+        let (TARGET_TYPE, TARGET_BASIC_TYPE, TARGET_TYPE_FORMAT) =
+            ("int16", self.context.i16_type(), "%d");
 
         if arguments.len() != 1 {
             GenError::throw(
@@ -633,25 +626,17 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     .unwrap()
                     .as_basic_value_enum();
 
-                let result_alloca = self
-                    .builder
-                    .build_alloca(
-                        TARGET_BASIC_TYPE,
-                        ""
-                    )
-                    .unwrap();
+                let result_alloca = self.builder.build_alloca(TARGET_BASIC_TYPE, "").unwrap();
 
-                let _ = self
-                    .builder
-                    .build_call(
-                        sscanf_fn,
-                        &[
-                            compiled_arg.1.into(),
-                            format_string.into(),
-                            result_alloca.into(),
-                        ],
-                        ""
-                    );
+                let _ = self.builder.build_call(
+                    sscanf_fn,
+                    &[
+                        compiled_arg.1.into(),
+                        format_string.into(),
+                        result_alloca.into(),
+                    ],
+                    "",
+                );
 
                 let result_value = self
                     .builder
@@ -659,7 +644,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     .unwrap();
 
                 return (TARGET_TYPE.to_string(), result_value);
-            },
+            }
 
             _ if !compiled_arg.0.contains("int") => {
                 GenError::throw(
@@ -731,7 +716,8 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         #[allow(non_snake_case)]
-        let (TARGET_TYPE, TARGET_BASIC_TYPE, TARGET_TYPE_FORMAT) = ("int32", self.context.i32_type(), "%d");
+        let (TARGET_TYPE, TARGET_BASIC_TYPE, TARGET_TYPE_FORMAT) =
+            ("int32", self.context.i32_type(), "%d");
 
         if arguments.len() != 1 {
             GenError::throw(
@@ -761,25 +747,17 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     .unwrap()
                     .as_basic_value_enum();
 
-                let result_alloca = self
-                    .builder
-                    .build_alloca(
-                        TARGET_BASIC_TYPE,
-                        ""
-                    )
-                    .unwrap();
+                let result_alloca = self.builder.build_alloca(TARGET_BASIC_TYPE, "").unwrap();
 
-                let _ = self
-                    .builder
-                    .build_call(
-                        sscanf_fn,
-                        &[
-                            compiled_arg.1.into(),
-                            format_string.into(),
-                            result_alloca.into(),
-                        ],
-                        ""
-                    );
+                let _ = self.builder.build_call(
+                    sscanf_fn,
+                    &[
+                        compiled_arg.1.into(),
+                        format_string.into(),
+                        result_alloca.into(),
+                    ],
+                    "",
+                );
 
                 let result_value = self
                     .builder
@@ -787,7 +765,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     .unwrap();
 
                 return (TARGET_TYPE.to_string(), result_value);
-            },
+            }
 
             _ if !compiled_arg.0.contains("int") => {
                 GenError::throw(
@@ -859,7 +837,8 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         #[allow(non_snake_case)]
-        let (TARGET_TYPE, TARGET_BASIC_TYPE, TARGET_TYPE_FORMAT) = ("int64", self.context.i64_type(), "%ld");
+        let (TARGET_TYPE, TARGET_BASIC_TYPE, TARGET_TYPE_FORMAT) =
+            ("int64", self.context.i64_type(), "%ld");
 
         if arguments.len() != 1 {
             GenError::throw(
@@ -889,25 +868,17 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     .unwrap()
                     .as_basic_value_enum();
 
-                let result_alloca = self
-                    .builder
-                    .build_alloca(
-                        TARGET_BASIC_TYPE,
-                        ""
-                    )
-                    .unwrap();
+                let result_alloca = self.builder.build_alloca(TARGET_BASIC_TYPE, "").unwrap();
 
-                let _ = self
-                    .builder
-                    .build_call(
-                        sscanf_fn,
-                        &[
-                            compiled_arg.1.into(),
-                            format_string.into(),
-                            result_alloca.into(),
-                        ],
-                        ""
-                    );
+                let _ = self.builder.build_call(
+                    sscanf_fn,
+                    &[
+                        compiled_arg.1.into(),
+                        format_string.into(),
+                        result_alloca.into(),
+                    ],
+                    "",
+                );
 
                 let result_value = self
                     .builder
@@ -915,7 +886,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     .unwrap();
 
                 return (TARGET_TYPE.to_string(), result_value);
-            },
+            }
 
             _ if !compiled_arg.0.contains("int") => {
                 GenError::throw(
