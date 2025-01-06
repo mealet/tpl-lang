@@ -14,18 +14,24 @@ pub enum Statements {
     // Assign
     AssignStatement {
         identifier: String,
-        value: Option<Box<Expressions>>,
+        value: Box<Expressions>,
         line: usize,
     },
     BinaryAssignStatement {
         identifier: String,
         operand: String,
-        value: Option<Box<Expressions>>,
+        value: Box<Expressions>,
         line: usize,
     },
     DerefAssignStatement {
         identifier: String,
-        value: Option<Box<Expressions>>,
+        value: Box<Expressions>,
+        line: usize,
+    },
+    SliceAssignStatement {
+        identifier: String,
+        index: Box<Expressions>,
+        value: Box<Expressions>,
         line: usize,
     },
 
@@ -64,8 +70,9 @@ pub enum Statements {
         line: usize,
     },
     ForStatement {
-        varname: String,
-        iterable_object: Expressions,
+        initializer: Box<Statements>,
+        condition: Expressions,
+        iterator: Box<Statements>,
         block: Vec<Statements>,
         line: usize,
     },

@@ -15,7 +15,7 @@ mod greeting;
 
 const OPTIMIZATION_LEVEL: inkwell::OptimizationLevel = inkwell::OptimizationLevel::Aggressive;
 const RELOC_MODE: inkwell::targets::RelocMode = inkwell::targets::RelocMode::PIC;
-const CODE_MODEL: inkwell::targets::CodeModel = inkwell::targets::CodeModel::Default;
+const CODE_MODEL: inkwell::targets::CodeModel = inkwell::targets::CodeModel::Large;
 
 pub const COMMENTS_START: &str = "//";
 
@@ -121,8 +121,8 @@ fn main() {
             compiler.generate(stmts);
             let module = compiler.get_module();
 
-            // // debug
-            // module.print_to_stderr();
+            // debug
+            module.print_to_stderr();
 
             // compiling module to object file
 
@@ -139,7 +139,6 @@ fn main() {
             // linking and deleting object file
 
             compiler::ObjectLinker::compile(&object_file, &config.output);
-
             let _ = std::fs::remove_file(object_file);
         }
         Err(err) => {

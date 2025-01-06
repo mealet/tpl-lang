@@ -24,6 +24,7 @@ use inkwell::{
 };
 
 use builtin::BuiltIn;
+use libc::Libc;
 use std::{collections::HashMap, sync::LazyLock};
 
 use error::{ErrorType, GenError};
@@ -34,7 +35,6 @@ use variable::Variable;
 use tpl_parser::{expressions::Expressions, statements::Statements, value::Value};
 
 const LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
-const TEST_OPERATORS: [&str; 4] = [">", "<", "==", "!="];
 static INT_TYPES_ORDER: LazyLock<HashMap<&str, u8>> =
     LazyLock::new(|| HashMap::from([("int8", 0), ("int16", 1), ("int32", 2), ("int64", 3)]));
 
@@ -83,7 +83,7 @@ impl<'ctx> Compiler<'ctx> {
         let builder = context.create_builder();
 
         // main function creation
-        let main_fn_type = context.i8_type();
+        let main_fn_type = context.i32_type();
         let fn_type = main_fn_type.fn_type(&[], false);
         let function = module.add_function("main", fn_type, None);
         let basic_block = context.append_basic_block(function, "entry");
@@ -123,7 +123,7 @@ impl<'ctx> Compiler<'ctx> {
         // returning 0
         let _ = self
             .builder
-            .build_return(Some(&self.context.i8_type().const_int(0, false)));
+            .build_return(Some(&self.context.i32_type().const_int(0, false)));
     }
 
     fn switch_block(&mut self, dest: BasicBlock<'ctx>) {
@@ -180,7 +180,14 @@ impl<'ctx> Compiler<'ctx> {
 
                     let _ = self.builder.build_store(alloca, compiled_expression.1);
                 } else {
-                    let var_type = self.get_basic_type(&datatype, line);
+                    let var_type = if Compiler::__is_ptr_type(&datatype) {
+                        self.context
+                            .ptr_type(AddressSpace::default())
+                            .as_basic_type_enum()
+                    } else {
+                        self.get_basic_type(&datatype, line)
+                    };
+
                     let alloca = self
                         .builder
                         .build_alloca(var_type, &identifier)
@@ -213,7 +220,7 @@ impl<'ctx> Compiler<'ctx> {
                     if let Some(intial_value) = value {
                         let expected_type = match datatype.clone().as_str() {
                             _ if datatype.contains("[") => {
-                                Some(Compiler::clean_datatype(&datatype))
+                                Some(Compiler::clean_array_datatype(&datatype))
                             }
                             _ => Some(datatype.clone()),
                         };
@@ -245,10 +252,12 @@ impl<'ctx> Compiler<'ctx> {
                                 Variable::new(
                                     datatype.clone(),
                                     var_type,
-                                    compiled_expression.1.into_pointer_value(),
+                                    alloca,
+                                    // compiled_expression.1.into_pointer_value(),
                                     assigned_function,
                                 ),
                             );
+                            let _ = self.builder.build_store(alloca, compiled_expression.1);
                         } else {
                             let _ = self.builder.build_store(alloca, compiled_expression.1);
                         }
@@ -277,34 +286,127 @@ impl<'ctx> Compiler<'ctx> {
                 line,
             } => {
                 if let Some(var_ptr) = self.variables.clone().get(&identifier) {
-                    if let Some(expr) = value {
-                        let expr_value = self.compile_expression(
-                            *expr,
+                    let expr_value = self.compile_expression(
+                        *value,
+                        line,
+                        function,
+                        Some(var_ptr.str_type.clone()),
+                    );
+
+                    // matching datatypes
+
+                    if expr_value.0 != var_ptr.str_type {
+                        GenError::throw(
+                            format!(
+                                "Expected type `{}`, but found `{}`!",
+                                var_ptr.str_type, expr_value.0
+                            ),
+                            ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
-                            function,
-                            Some(var_ptr.str_type.clone()),
                         );
+                        std::process::exit(1);
+                    }
 
-                        // matching datatypes
+                    // storing value
 
-                        if expr_value.0 != var_ptr.str_type {
+                    let _ = self.builder.build_store(var_ptr.pointer, expr_value.1);
+                } else {
+                    GenError::throw(
+                        format!("Variable `{}` is not defined!", identifier),
+                        ErrorType::NotDefined,
+                        self.module_name.clone(),
+                        self.module_source.clone(),
+                        line,
+                    );
+                    std::process::exit(1);
+                }
+            }
+            Statements::SliceAssignStatement {
+                identifier,
+                index,
+                value,
+                line,
+            } => {
+                if let Some(var_ptr) = self.variables.clone().get(&identifier) {
+                    let expr_value = self.compile_expression(
+                        *value,
+                        line,
+                        function,
+                        Some(Compiler::clean_array_datatype(&var_ptr.str_type)),
+                    );
+
+                    // matching datatypes
+
+                    if expr_value.0 != Compiler::clean_array_datatype(&var_ptr.str_type) {
+                        GenError::throw(
+                            format!(
+                                "Expected type `{}`, but found `{}`!",
+                                var_ptr.str_type, expr_value.0
+                            ),
+                            ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    }
+
+                    // loading array from pointer
+
+                    let array = self
+                        .builder
+                        .build_load(var_ptr.basic_type, var_ptr.pointer, "")
+                        .unwrap_or_else(|_| {
                             GenError::throw(
-                                format!(
-                                    "Expected type `{}`, but found `{}`!",
-                                    var_ptr.str_type, expr_value.0
-                                ),
-                                ErrorType::TypeError,
+                                "Unable to load pointer value!",
+                                ErrorType::BuildError,
                                 self.module_name.clone(),
                                 self.module_source.clone(),
                                 line,
                             );
                             std::process::exit(1);
-                        }
+                        })
+                        .into_vector_value();
 
-                        // storing value
+                    let index_value = self.compile_expression(*index, line, function, None);
 
-                        let _ = self.builder.build_store(var_ptr.pointer, expr_value.1);
+                    // checking index value type
+
+                    if !index_value.0.starts_with("int") {
+                        GenError::throw(
+                            "Non-integer index found!",
+                            ErrorType::NotExpected,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
                     }
+
+                    let new_vector = self
+                        .builder
+                        .build_insert_element(
+                            array,
+                            expr_value.1,
+                            index_value.1.into_int_value(),
+                            "",
+                        )
+                        .unwrap_or_else(|_| {
+                            GenError::throw(
+                                "Unable to insert element into vector!",
+                                ErrorType::NotExpected,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line,
+                            );
+                            std::process::exit(1);
+                        });
+
+                    // storing new vector into pointer
+
+                    let _ = self.builder.build_store(var_ptr.pointer, new_vector);
                 } else {
                     GenError::throw(
                         format!("Variable `{}` is not defined!", identifier),
@@ -323,40 +425,38 @@ impl<'ctx> Compiler<'ctx> {
                 line,
             } => {
                 if let Some(var_ptr) = self.variables.clone().get(&identifier) {
-                    if let Some(expr) = value {
-                        // building new binary expression
-                        let new_expression = Expressions::Binary {
-                            operand,
-                            lhs: Box::new(Expressions::Value(Value::Identifier(identifier))),
-                            rhs: expr.clone(),
-                            line,
-                        };
+                    // building new binary expression
+                    let new_expression = Expressions::Binary {
+                        operand,
+                        lhs: Box::new(Expressions::Value(Value::Identifier(identifier))),
+                        rhs: value.clone(),
+                        line,
+                    };
 
-                        let expr_value = self.compile_expression(
-                            new_expression,
+                    let expr_value = self.compile_expression(
+                        new_expression,
+                        line,
+                        function,
+                        self.current_expectation_value.clone(),
+                    );
+
+                    // matching types
+                    if expr_value.0 != var_ptr.str_type {
+                        GenError::throw(
+                            format!(
+                                "Expected type `{}`, but found `{}`!",
+                                var_ptr.str_type, expr_value.0
+                            ),
+                            ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
-                            function,
-                            self.current_expectation_value.clone(),
                         );
-
-                        // matching types
-                        if expr_value.0 != var_ptr.str_type {
-                            GenError::throw(
-                                format!(
-                                    "Expected type `{}`, but found `{}`!",
-                                    var_ptr.str_type, expr_value.0
-                                ),
-                                ErrorType::TypeError,
-                                self.module_name.clone(),
-                                self.module_source.clone(),
-                                line,
-                            );
-                        }
-
-                        // storing value
-
-                        let _ = self.builder.build_store(var_ptr.pointer, expr_value.1);
                     }
+
+                    // storing value
+
+                    let _ = self.builder.build_store(var_ptr.pointer, expr_value.1);
                 }
             }
             Statements::DerefAssignStatement {
@@ -365,61 +465,55 @@ impl<'ctx> Compiler<'ctx> {
                 line,
             } => {
                 if let Some(var_ptr) = self.variables.clone().get(&identifier) {
-                    if let Some(expr) = value {
-                        let expr_value = self.compile_expression(
-                            *expr,
+                    let expr_value = self.compile_expression(
+                        *value,
+                        line,
+                        function,
+                        Some(var_ptr.str_type.clone()),
+                    );
+
+                    // matching datatypes
+
+                    let raw_type = Compiler::__unwrap_ptr_type(&var_ptr.str_type);
+                    if expr_value.0 != raw_type {
+                        GenError::throw(
+                            format!(
+                                "Expected type `{}`, but found `{}`!",
+                                var_ptr.str_type, expr_value.0
+                            ),
+                            ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
                             line,
-                            function,
-                            Some(var_ptr.str_type.clone()),
                         );
+                        std::process::exit(1);
+                    }
 
-                        // matching datatypes
+                    // loading pointer from a pointer
 
-                        let raw_type = Compiler::__unwrap_ptr_type(&var_ptr.str_type);
-                        if expr_value.0 != raw_type {
+                    let ptr_type = self
+                        .context
+                        .ptr_type(AddressSpace::default())
+                        .as_basic_type_enum();
+                    let raw_ptr = self
+                        .builder
+                        .build_load(ptr_type, var_ptr.pointer, "")
+                        .unwrap_or_else(|_| {
                             GenError::throw(
-                                format!(
-                                    "Expected type `{}`, but found `{}`!",
-                                    var_ptr.str_type, expr_value.0
-                                ),
-                                ErrorType::TypeError,
+                                "Unable to load a pointer!",
+                                ErrorType::BuildError,
                                 self.module_name.clone(),
                                 self.module_source.clone(),
                                 line,
                             );
                             std::process::exit(1);
-                        }
+                        });
 
-                        // loading pointer from a pointer
+                    // storing value
 
-                        let ptr_type = self
-                            .context
-                            .ptr_type(AddressSpace::default())
-                            .as_basic_type_enum();
-                        let raw_ptr = self
-                            .builder
-                            .build_load(
-                                ptr_type,
-                                var_ptr.pointer,
-                                &format!("*ptr_{}", var_ptr.str_type),
-                            )
-                            .unwrap_or_else(|_| {
-                                GenError::throw(
-                                    "Unable to load a pointer!",
-                                    ErrorType::BuildError,
-                                    self.module_name.clone(),
-                                    self.module_source.clone(),
-                                    line,
-                                );
-                                std::process::exit(1);
-                            });
-
-                        // storing value
-
-                        let _ = self
-                            .builder
-                            .build_store(raw_ptr.into_pointer_value(), expr_value.1);
-                    }
+                    let _ = self
+                        .builder
+                        .build_store(raw_ptr.into_pointer_value(), expr_value.1);
                 } else {
                     GenError::throw(
                         format!("Variable `{}` is not defined!", identifier),
@@ -580,7 +674,6 @@ impl<'ctx> Compiler<'ctx> {
                     }
                 }
 
-                let _ = self.builder.build_unconditional_branch(before_basic_block);
                 self.switch_block(before_basic_block);
 
                 // compiling condition
@@ -612,8 +705,9 @@ impl<'ctx> Compiler<'ctx> {
             }
 
             Statements::ForStatement {
-                varname,
-                iterable_object,
+                initializer,
+                condition,
+                iterator,
                 block,
                 line,
             } => {
@@ -622,65 +716,23 @@ impl<'ctx> Compiler<'ctx> {
                 let then_basic_block = self.context.append_basic_block(function, "for_then");
                 let after_basic_block = self.context.append_basic_block(function, "for_after");
 
-                // init iterable variable
+                // building initializer
+                self.compile_statement(*initializer, function);
 
-                // getting iterable object type
-                let iterator_vartype = self
-                    .compile_expression(
-                        iterable_object.clone(),
-                        line,
-                        function,
-                        self.current_expectation_value.clone(),
-                    )
-                    .0;
+                // setting current position to block `before`
 
-                let var_type = self.get_basic_type(iterator_vartype.as_str(), line);
-                let var_alloca = self
-                    .builder
-                    .build_alloca(var_type, &varname)
-                    .unwrap_or_else(|_| {
-                        GenError::throw(
-                            format!(
-                                "Error with creating allocation with identifier `{}`",
-                                &varname
-                            ),
-                            ErrorType::MemoryError,
-                            self.module_name.clone(),
-                            self.module_source.clone(),
-                            line,
-                        );
-                        std::process::exit(1);
-                    });
-
-                let _ = self.builder.build_store(var_alloca, var_type.const_zero());
-
-                // setting current position at block `before`
                 if let Some(last_instruction) = self.current_block.get_last_instruction() {
                     if last_instruction.get_opcode() != inkwell::values::InstructionOpcode::Return {
                         let _ = self.builder.build_unconditional_branch(before_basic_block);
                     }
                 }
+
                 self.switch_block(before_basic_block);
 
-                let old_variable = self.variables.remove(&varname);
+                // building condition
+                let compiled_condition = self.compile_condition(condition, line, function);
 
-                self.variables.insert(
-                    varname.clone(),
-                    Variable::new(iterator_vartype.to_string(), var_type, var_alloca, None),
-                );
-
-                // creating condition
-                let cond = Expressions::Binary {
-                    operand: String::from("<"),
-                    lhs: Box::new(Expressions::Value(Value::Identifier(varname.clone()))),
-                    rhs: Box::new(iterable_object),
-                    line,
-                };
-
-                // and compiling it
-                let compiled_condition = self.compile_condition(cond, line, function);
-
-                // doing conditional branch
+                // building conditional branch to blocks
                 let _ = self.builder.build_conditional_branch(
                     compiled_condition,
                     then_basic_block,
@@ -694,43 +746,12 @@ impl<'ctx> Compiler<'ctx> {
                     self.compile_statement(stmt, function);
                 }
 
-                // incrementing iter variable
-                let current_value = self
-                    .builder
-                    .build_load(var_type, var_alloca, "itertmp")
-                    .unwrap_or_else(|_| {
-                        GenError::throw(
-                            format!("Unable to get access `{}` in for cycle!", &varname),
-                            ErrorType::BuildError,
-                            self.module_name.clone(),
-                            self.module_source.clone(),
-                            line,
-                        );
-                        std::process::exit(1);
-                    });
-                let incremented_var = self
-                    .builder
-                    .build_int_add(
-                        current_value.into_int_value(),
-                        var_type.into_int_type().const_int(1, false),
-                        "iter_increment_tmp",
-                    )
-                    .unwrap_or_else(|_| {
-                        GenError::throw(
-                            format!("Unable to increment `{}` in for cycle!", &varname),
-                            ErrorType::BuildError,
-                            self.module_name.clone(),
-                            self.module_source.clone(),
-                            line,
-                        );
-                        std::process::exit(1);
-                    });
+                // building iterator
 
-                // and storing incremented value
-                let _ = self.builder.build_store(var_alloca, incremented_var);
+                self.compile_statement(*iterator, function);
 
                 // returning to block `before` for comparing condition
-                if let Some(last_instruction) = self.current_block.get_last_instruction() {
+                if let Some(last_instruction) = then_basic_block.get_last_instruction() {
                     if last_instruction.get_opcode() != inkwell::values::InstructionOpcode::Return {
                         let _ = self.builder.build_unconditional_branch(before_basic_block);
                     }
@@ -738,11 +759,6 @@ impl<'ctx> Compiler<'ctx> {
 
                 // setting builder position to `after` block
                 self.switch_block(after_basic_block);
-
-                // returning old variable
-                if let Some(val) = old_variable {
-                    self.variables.insert(varname, val);
-                }
             }
 
             Statements::BreakStatement { line } => {
@@ -837,7 +853,7 @@ impl<'ctx> Compiler<'ctx> {
                 }
                 _ => {
                     GenError::throw(
-                        "Unsupported expression found! Please open issue with your code on Github!",
+                        format!("Unsupported expression found! Please open issue with your code on Github! Debug data:\n{:#?}", expr),
                         ErrorType::NotSupported,
                         self.module_name.clone(),
                         self.module_source.clone(),
@@ -899,40 +915,108 @@ impl<'ctx> Compiler<'ctx> {
                     self.context.i8_type().const_zero().into(),
                 )
             }
+            Expressions::Slice {
+                object,
+                index,
+                line,
+            } => {
+                let obj =
+                    self.compile_expression(*object, line, function, expected_datatype.clone());
+                let idx = self.compile_expression(*index, line, function, expected_datatype);
+
+                match obj.0.as_str() {
+                    array_type if Compiler::__is_arr_type(array_type) => {
+                        let raw_type = Compiler::clean_array_datatype(array_type);
+                        let raw_len = Compiler::get_array_datatype_len(array_type);
+
+                        let int_index = match idx.0 {
+                            itype if itype.starts_with("int") => idx.1.into_int_value(),
+                            _ => {
+                                GenError::throw(
+                                    "Non-integer slice index found!",
+                                    ErrorType::TypeError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            }
+                        };
+
+                        let raw_index = int_index.get_sign_extended_constant().unwrap_or(0);
+                        // if we cannot verify index on build, it will cause some bugs on runtime
+
+                        if raw_index > raw_len as i64 - 1 || raw_index < 0 && raw_index != 0 {
+                            GenError::throw(
+                                format!(
+                                    "Wrong array index found! Array len is {} but index is {}",
+                                    raw_len, raw_index
+                                ),
+                                ErrorType::NotExpected,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line,
+                            );
+                            std::process::exit(1);
+                        }
+
+                        let output_value = self
+                            .builder
+                            .build_extract_element(obj.1.into_vector_value(), int_index, "")
+                            .unwrap_or_else(|_| {
+                                GenError::throw(
+                                    "Unable to extract array element!",
+                                    ErrorType::BuildError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            });
+
+                        (raw_type, output_value)
+                    }
+                    _ => {
+                        GenError::throw(
+                            format!("Unsupported slicing type found: {}", obj.0),
+                            ErrorType::NotSupported,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            }
             Expressions::Reference { object, line } => {
-                let value = self.compile_expression(*object, line, function, expected_datatype);
-                let alloca = self
-                    .builder
-                    .build_alloca(
-                        self.get_basic_type(&value.0, line),
-                        &format!("ref_{}", value.0),
-                    )
-                    .unwrap_or_else(|_| {
+                match *object {
+                    Expressions::Value(Value::Identifier(id)) => {
+                        // referencing to a variable
+
+                        let variable = self.variables.get(&id).unwrap_or_else(|| {
+                            GenError::throw(
+                                format!("Variable `{}` is not defined!", id),
+                                ErrorType::NotDefined,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line,
+                            );
+                            std::process::exit(1);
+                        });
+
+                        (format!("{}*", variable.str_type), variable.pointer.into())
+                    }
+                    _ => {
                         GenError::throw(
-                            "Unable to create an allocation for reference!",
-                            ErrorType::BuildError,
+                            "Unsupported expression for reference found",
+                            ErrorType::NotSupported,
                             self.module_name.clone(),
                             self.module_source.clone(),
                             line,
                         );
                         std::process::exit(1);
-                    });
-
-                let _ = self
-                    .builder
-                    .build_store(alloca, value.1)
-                    .unwrap_or_else(|_| {
-                        GenError::throw(
-                            "Unable to store pointer to reference alloca!",
-                            ErrorType::BuildError,
-                            self.module_name.clone(),
-                            self.module_source.clone(),
-                            line,
-                        );
-                        std::process::exit(1);
-                    });
-
-                (format!("{}*", value.0), alloca.into())
+                    }
+                }
             }
             Expressions::Dereference { object, line } => {
                 let value = self.compile_expression(
@@ -957,13 +1041,16 @@ impl<'ctx> Compiler<'ctx> {
 
                 let raw_type = Compiler::__unwrap_ptr_type(&value.0);
                 let raw_basic_type = self.get_basic_type(&raw_type, line);
+
                 let ptr_value = value.1.into_pointer_value();
-                let loaded_value = self
+                let ptr_type = self.context.ptr_type(AddressSpace::default());
+
+                let loaded_ptr = self
                     .builder
-                    .build_load(raw_basic_type, ptr_value, &format!("deref_{}", raw_type))
+                    .build_load(ptr_type, ptr_value, "")
                     .unwrap_or_else(|_| {
                         GenError::throw(
-                            "Unable to load a pointer value for dereference!".to_string(),
+                            "Unable to load pointer for dereference!",
                             ErrorType::BuildError,
                             self.module_name.clone(),
                             self.module_source.clone(),
@@ -972,7 +1059,45 @@ impl<'ctx> Compiler<'ctx> {
                         std::process::exit(1);
                     });
 
-                (raw_type, loaded_value)
+                let loaded_value = self
+                    .builder
+                    .build_load(raw_basic_type, loaded_ptr.into_pointer_value(), "")
+                    .unwrap_or_else(|_| {
+                        GenError::throw(
+                            "Unable to load a pointer value for dereference!",
+                            ErrorType::BuildError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    });
+
+                // When we provide dereferenced value into function (for example print)
+                // it causes segmentation fault, but if we just copy that value by storing
+                // into another variable - it works:
+                // -------------------------------
+                // int32* var;
+                // *var = 5;
+                //
+                // print(*var); <-- segfault
+                //
+                // int32 another_var = *var;
+                // print(another_var); <-- works
+                // -------------------------------
+                //
+                // so let's just clone the loaded value
+
+                let clone_ptr = self.builder.build_alloca(raw_basic_type, "").unwrap();
+
+                let _ = self.builder.build_store(clone_ptr, loaded_value).unwrap();
+
+                let cloned_value = self
+                    .builder
+                    .build_load(raw_basic_type, clone_ptr, "")
+                    .unwrap();
+
+                (raw_type, cloned_value)
             }
             Expressions::Binary {
                 operand,
@@ -1058,10 +1183,6 @@ impl<'ctx> Compiler<'ctx> {
                                         .into(),
                                 )
                             }
-                            _ if TEST_OPERATORS.contains(&operand.as_str()) => (
-                                "bool".to_string(),
-                                self.compile_condition(expr.clone(), line, function).into(),
-                            ),
                             _ => {
                                 GenError::throw(
                                     format!("Unsupported binary operation found: `{}`", operand),
@@ -1085,6 +1206,19 @@ impl<'ctx> Compiler<'ctx> {
                         std::process::exit(1);
                     }
                 }
+            }
+            Expressions::Boolean {
+                operand,
+                lhs,
+                rhs,
+                line,
+            } => {
+                let _ = (operand, lhs, rhs); // 0_0
+
+                (
+                    "bool".to_string(),
+                    self.compile_condition(expr.clone(), line, function).into(),
+                )
             }
             Expressions::SubElement {
                 parent,
@@ -1155,8 +1289,19 @@ impl<'ctx> Compiler<'ctx> {
         }
     }
 
-    fn clean_datatype(val: &str) -> String {
+    #[inline]
+    fn clean_array_datatype(val: &str) -> String {
         val.split("[").collect::<Vec<&str>>()[0].to_string()
+    }
+
+    #[inline]
+    fn get_array_datatype_len(val: &str) -> u64 {
+        val.split("[").collect::<Vec<&str>>()[1]
+            .split("]")
+            .collect::<Vec<&str>>()[0]
+            .trim()
+            .parse::<u64>()
+            .unwrap()
     }
 
     fn compile_value(
@@ -1243,7 +1388,7 @@ impl<'ctx> Compiler<'ctx> {
                         var_ptr.pointer.into()
                     } else {
                         self.builder
-                            .build_load(var_ptr.basic_type, var_ptr.pointer, &id)
+                            .build_load(var_ptr.basic_type, var_ptr.pointer, "")
                             .unwrap_or_else(|_| {
                                 GenError::throw(
                                     format!("Error with loading `{}` variable", id),
@@ -1327,12 +1472,52 @@ impl<'ctx> Compiler<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> IntValue<'ctx> {
         match condition {
-            Expressions::Binary {
+            Expressions::Boolean {
                 operand,
                 lhs,
                 rhs,
                 line,
             } => {
+                match operand.as_str() {
+                    "&&" => {
+                        let left_condition = self.compile_condition(*lhs, line, function);
+                        let right_condition = self.compile_condition(*rhs, line, function);
+
+                        return self
+                            .builder
+                            .build_and(left_condition, right_condition, "and_cmp")
+                            .unwrap_or_else(|_| {
+                                GenError::throw(
+                                    "Unable to build AND comparison!",
+                                    ErrorType::BuildError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            });
+                    }
+                    "||" => {
+                        let left_condition = self.compile_condition(*lhs, line, function);
+                        let right_condition = self.compile_condition(*rhs, line, function);
+
+                        return self
+                            .builder
+                            .build_or(left_condition, right_condition, "and_cmp")
+                            .unwrap_or_else(|_| {
+                                GenError::throw(
+                                    "Unable to build OR comparison!",
+                                    ErrorType::BuildError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            });
+                    }
+                    _ => {}
+                }
+
                 let left = self.compile_expression(
                     *lhs,
                     line,
@@ -1356,7 +1541,8 @@ impl<'ctx> Compiler<'ctx> {
                     ("int8", "int8")
                     | ("int16", "int16")
                     | ("int32", "int32")
-                    | ("int64", "int64") => {
+                    | ("int64", "int64")
+                    | ("bool", "bool") => {
                         // matching operand
                         let predicate = match operand.as_str() {
                             ">" => inkwell::IntPredicate::SGT,
@@ -1396,6 +1582,45 @@ impl<'ctx> Compiler<'ctx> {
                             );
                             std::process::exit(1);
                         })
+                    }
+                    ("str", "str") => {
+                        // matching operand
+                        let predicate = match operand.as_str() {
+                            ">" => inkwell::IntPredicate::SGT,
+                            "<" => inkwell::IntPredicate::SLT,
+                            "==" => inkwell::IntPredicate::EQ,
+                            "!=" => inkwell::IntPredicate::NE,
+                            _ => {
+                                GenError::throw(
+                                    format!("Compare operand `{}` is not supported!", operand),
+                                    ErrorType::NotSupported,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            }
+                        };
+
+                        let strcmp_fn = self.__c_strcmp();
+                        let strcmp_result = self
+                            .builder
+                            .build_call(strcmp_fn, &[left.1.into(), right.1.into()], "")
+                            .unwrap()
+                            .try_as_basic_value()
+                            .left()
+                            .unwrap();
+
+                        let zero_value = self.context.i32_type().const_zero().as_basic_value_enum();
+
+                        let condition = self.builder.build_int_compare(
+                            predicate,
+                            strcmp_result.into_int_value(),
+                            zero_value.into_int_value(),
+                            "",
+                        );
+
+                        condition.unwrap()
                     }
                     _ => {
                         GenError::throw(
@@ -1455,6 +1680,7 @@ impl<'ctx> Compiler<'ctx> {
             match function_name.as_str() {
                 "concat" => return self.build_concat_call(arguments, line, function),
                 "type" => return self.build_type_call(arguments, line, function),
+                "len" => return self.build_len_call(arguments, line, function),
                 "print" => {
                     GenError::throw(
                         "Function `print` is 'void' type!",
@@ -1465,6 +1691,7 @@ impl<'ctx> Compiler<'ctx> {
                     );
                     std::process::exit(1);
                 }
+                "input" => return self.build_input_call(arguments, line, function),
 
                 "to_str" => return self.build_to_str_call(arguments, line, function),
                 "to_int8" => return self.build_to_int8_call(arguments, line, function),
@@ -1907,6 +2134,12 @@ impl<'ctx> Compiler<'ctx> {
 
     #[allow(non_snake_case)]
     #[inline]
+    fn __is_arr_type(type_str: &str) -> bool {
+        type_str.contains("[") && type_str.contains("]")
+    }
+
+    #[allow(non_snake_case)]
+    #[inline]
     fn __unwrap_ptr_type(type_str: &str) -> String {
         if Compiler::__is_ptr_type(type_str) {
             let chars = type_str.chars().collect::<Vec<char>>();
@@ -1960,8 +2193,6 @@ impl<'ctx> Compiler<'ctx> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use inkwell::module::Linkage;
-    use libc::Libc;
 
     #[test]
     fn validate_types_test() {
@@ -2012,61 +2243,6 @@ mod tests {
         assert_eq!((ptrs.0.is_undef(), ptrs.1.is_undef()), (false, false));
 
         assert_eq!((ptrs.0.is_const(), ptrs.1.is_const()), (true, true));
-    }
-
-    #[test]
-    fn __c_printf_test() {
-        let ctx = inkwell::context::Context::create();
-        let mut compiler =
-            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
-        compiler.builder.position_at_end(compiler.current_block);
-
-        let printf_function = compiler.__c_printf();
-
-        assert_eq!(printf_function.get_linkage(), Linkage::External);
-        assert!(!printf_function.is_null());
-        assert!(!printf_function.is_undef());
-        assert!(printf_function.verify(true));
-        assert_eq!(
-            printf_function.get_name().to_string_lossy().to_string(),
-            String::from("printf")
-        );
-        assert_eq!(
-            printf_function.get_type(),
-            compiler.context.void_type().fn_type(
-                &[compiler.context.ptr_type(AddressSpace::default()).into()],
-                true
-            )
-        );
-    }
-
-    #[test]
-    fn __c_strcat_test() {
-        let ctx = inkwell::context::Context::create();
-        let mut compiler =
-            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
-        compiler.builder.position_at_end(compiler.current_block);
-
-        let printf_function = compiler.__c_strcat();
-
-        assert_eq!(printf_function.get_linkage(), Linkage::External);
-        assert!(!printf_function.is_null());
-        assert!(!printf_function.is_undef());
-        assert!(printf_function.verify(true));
-        assert_eq!(
-            printf_function.get_name().to_string_lossy().to_string(),
-            String::from("strcat")
-        );
-        assert_eq!(
-            printf_function.get_type(),
-            compiler.context.ptr_type(AddressSpace::default()).fn_type(
-                &[
-                    compiler.context.ptr_type(AddressSpace::default()).into(),
-                    compiler.context.ptr_type(AddressSpace::default()).into(),
-                ],
-                true
-            )
-        );
     }
 
     #[test]
@@ -2148,14 +2324,14 @@ mod tests {
             Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
         compiler.builder.position_at_end(compiler.current_block);
 
-        let condition_true = Expressions::Binary {
+        let condition_true = Expressions::Boolean {
             operand: String::from("=="),
             lhs: Box::new(Expressions::Value(Value::Integer(123))),
             rhs: Box::new(Expressions::Value(Value::Integer(123))),
             line: 0,
         };
 
-        let condition_false = Expressions::Binary {
+        let condition_false = Expressions::Boolean {
             operand: String::from("=="),
             lhs: Box::new(Expressions::Value(Value::Integer(0))),
             rhs: Box::new(Expressions::Value(Value::Integer(123))),
