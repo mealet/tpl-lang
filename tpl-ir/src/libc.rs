@@ -131,3 +131,178 @@ impl<'ctx> Libc for Compiler<'ctx> {
         sscanf_fn
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn __c_printf_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let printf_function = compiler.__c_printf();
+
+        assert_eq!(printf_function.get_linkage(), Linkage::External);
+        assert!(!printf_function.is_null());
+        assert!(!printf_function.is_undef());
+        assert!(printf_function.verify(true));
+        assert_eq!(
+            printf_function.get_name().to_string_lossy().to_string(),
+            String::from("printf")
+        );
+        assert_eq!(
+            printf_function.get_type(),
+            compiler.context.i32_type().fn_type(
+                &[compiler.context.ptr_type(AddressSpace::default()).into()],
+                true
+            )
+        );
+    }
+
+    #[test]
+    fn __c_strcat_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let strcat = compiler.__c_strcat();
+
+        assert_eq!(strcat.get_linkage(), Linkage::External);
+        assert!(!strcat.is_null());
+        assert!(!strcat.is_undef());
+        assert!(strcat.verify(true));
+        assert_eq!(
+            strcat.get_name().to_string_lossy().to_string(),
+            String::from("strcat")
+        );
+        assert_eq!(
+            strcat.get_type(),
+            compiler.context.ptr_type(AddressSpace::default()).fn_type(
+                &[
+                    compiler.context.ptr_type(AddressSpace::default()).into(),
+                    compiler.context.ptr_type(AddressSpace::default()).into(),
+                ],
+                true
+            )
+        );
+    }
+
+    #[test]
+    fn __c_sprintf_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let sprintf = compiler.__c_sprintf();
+
+        assert_eq!(sprintf.get_linkage(), Linkage::External);
+        assert!(!sprintf.is_null());
+        assert!(!sprintf.is_undef());
+        assert!(sprintf.verify(true));
+        assert_eq!(
+            sprintf.get_name().to_string_lossy().to_string(),
+            String::from("sprintf")
+        );
+        assert_eq!(
+            sprintf.get_type(),
+            compiler.context.void_type().fn_type(
+                &[
+                    compiler.context.ptr_type(AddressSpace::default()).into(),
+                    compiler.context.ptr_type(AddressSpace::default()).into(),
+                ],
+                true
+            )
+        );
+    }
+
+    #[test]
+    fn __c_strcmp_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let strcmp = compiler.__c_strcmp();
+
+        assert_eq!(strcmp.get_linkage(), Linkage::External);
+        assert!(!strcmp.is_null());
+        assert!(!strcmp.is_undef());
+        assert!(strcmp.verify(true));
+        assert_eq!(
+            strcmp.get_name().to_string_lossy().to_string(),
+            String::from("strcmp")
+        );
+        assert_eq!(
+            strcmp.get_type(),
+            compiler.context.i32_type().fn_type(
+                &[
+                    compiler.context.ptr_type(AddressSpace::default()).into(),
+                    compiler.context.ptr_type(AddressSpace::default()).into(),
+                ],
+                false
+            )
+        );
+    }
+
+    #[test]
+    fn __c_scanf_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let scanf = compiler.__c_scanf();
+
+        assert_eq!(scanf.get_linkage(), Linkage::External);
+        assert!(!scanf.is_null());
+        assert!(!scanf.is_undef());
+        assert!(scanf.verify(true));
+        assert_eq!(
+            scanf.get_name().to_string_lossy().to_string(),
+            String::from("scanf")
+        );
+        assert_eq!(
+            scanf.get_type(),
+            compiler.context.i32_type().fn_type(
+                &[
+                    compiler.context.ptr_type(AddressSpace::default()).into(),
+                ],
+                true
+            )
+        );
+    }
+
+    #[test]
+    fn __c_sscanf_test() {
+        let ctx = inkwell::context::Context::create();
+        let mut compiler =
+            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
+        compiler.builder.position_at_end(compiler.current_block);
+
+        let sscanf = compiler.__c_sscanf();
+
+        assert_eq!(sscanf.get_linkage(), Linkage::External);
+        assert!(!sscanf.is_null());
+        assert!(!sscanf.is_undef());
+        assert!(sscanf.verify(true));
+        assert_eq!(
+            sscanf.get_name().to_string_lossy().to_string(),
+            String::from("sscanf")
+        );
+        assert_eq!(
+            sscanf.get_type(),
+            compiler.context.i32_type().fn_type(
+                &[
+                    compiler.context.ptr_type(AddressSpace::default()).into(),
+                    compiler.context.ptr_type(AddressSpace::default()).into(),
+                ],
+                true
+            )
+        );
+    }
+}

@@ -2182,6 +2182,143 @@ mod tests {
     }
 
     #[test]
+    fn for_stmt_test() {
+        let input = String::from("for (int8 i = 0; i < 5; i++) {};");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::ForStatement {
+                initializer: Box::new(
+                    Statements::AnnotationStatement {
+                        identifier: String::from("i"),
+                        datatype: String::from("int8"),
+                        value: Some(
+                            Box::new(
+                                Expressions::Value(Value::Integer(0))
+                            )
+                        ),
+                        line: 0
+                    }
+                ),
+                condition: Expressions::Boolean {
+                    operand: String::from("<"),
+                    lhs: Box::new(
+                        Expressions::Value(
+                            Value::Identifier(
+                                String::from("i")
+                            )
+                        ),
+                    ),
+                    rhs: Box::new(
+                        Expressions::Value(
+                            Value::Integer(5)
+                        )
+                    ),
+                    line: 0
+                },
+                iterator: Box::new(
+                    Statements::BinaryAssignStatement {
+                        identifier: String::from("i"),
+                        operand: String::from("+"),
+                        value: Box::new(
+                            Expressions::Value(
+                                Value::Integer(1)
+                            )
+                        ),
+                        line: 0
+                    }
+                ),
+                block: Vec::new(),
+                line: 0
+            }
+        );
+    }
+
+    #[test]
+    fn for_stmt_with_block_test() {
+        let input = String::from("for (int8 i = 0; i < 5; i++) { print(i) };");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::ForStatement {
+                initializer: Box::new(
+                    Statements::AnnotationStatement {
+                        identifier: String::from("i"),
+                        datatype: String::from("int8"),
+                        value: Some(
+                            Box::new(
+                                Expressions::Value(Value::Integer(0))
+                            )
+                        ),
+                        line: 0
+                    }
+                ),
+                condition: Expressions::Boolean {
+                    operand: String::from("<"),
+                    lhs: Box::new(
+                        Expressions::Value(
+                            Value::Identifier(
+                                String::from("i")
+                            )
+                        ),
+                    ),
+                    rhs: Box::new(
+                        Expressions::Value(
+                            Value::Integer(5)
+                        )
+                    ),
+                    line: 0
+                },
+                iterator: Box::new(
+                    Statements::BinaryAssignStatement {
+                        identifier: String::from("i"),
+                        operand: String::from("+"),
+                        value: Box::new(
+                            Expressions::Value(
+                                Value::Integer(1)
+                            )
+                        ),
+                        line: 0
+                    }
+                ),
+                block: vec![
+                    Statements::FunctionCallStatement {
+                        function_name: String::from("print"),
+                        arguments: vec![
+                            Expressions::Value(
+                                Value::Identifier(
+                                    String::from("i")
+                                )
+                            )
+                        ],
+                        line: 0
+                    }
+                ],
+                line: 0
+            }
+        );
+    }
+
+
+    #[test]
     fn break_stmt_test() {
         let input = String::from("break");
         let mut lexer = Lexer::new(input.clone(), "test".to_string());

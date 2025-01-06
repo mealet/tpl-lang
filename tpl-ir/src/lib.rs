@@ -2193,8 +2193,8 @@ impl<'ctx> Compiler<'ctx> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use inkwell::module::Linkage;
-    use libc::Libc;
+    
+    
 
     #[test]
     fn validate_types_test() {
@@ -2245,61 +2245,6 @@ mod tests {
         assert_eq!((ptrs.0.is_undef(), ptrs.1.is_undef()), (false, false));
 
         assert_eq!((ptrs.0.is_const(), ptrs.1.is_const()), (true, true));
-    }
-
-    #[test]
-    fn __c_printf_test() {
-        let ctx = inkwell::context::Context::create();
-        let mut compiler =
-            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
-        compiler.builder.position_at_end(compiler.current_block);
-
-        let printf_function = compiler.__c_printf();
-
-        assert_eq!(printf_function.get_linkage(), Linkage::External);
-        assert!(!printf_function.is_null());
-        assert!(!printf_function.is_undef());
-        assert!(printf_function.verify(true));
-        assert_eq!(
-            printf_function.get_name().to_string_lossy().to_string(),
-            String::from("printf")
-        );
-        assert_eq!(
-            printf_function.get_type(),
-            compiler.context.i32_type().fn_type(
-                &[compiler.context.ptr_type(AddressSpace::default()).into()],
-                true
-            )
-        );
-    }
-
-    #[test]
-    fn __c_strcat_test() {
-        let ctx = inkwell::context::Context::create();
-        let mut compiler =
-            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
-        compiler.builder.position_at_end(compiler.current_block);
-
-        let strcat = compiler.__c_strcat();
-
-        assert_eq!(strcat.get_linkage(), Linkage::External);
-        assert!(!strcat.is_null());
-        assert!(!strcat.is_undef());
-        assert!(strcat.verify(true));
-        assert_eq!(
-            strcat.get_name().to_string_lossy().to_string(),
-            String::from("strcat")
-        );
-        assert_eq!(
-            strcat.get_type(),
-            compiler.context.ptr_type(AddressSpace::default()).fn_type(
-                &[
-                    compiler.context.ptr_type(AddressSpace::default()).into(),
-                    compiler.context.ptr_type(AddressSpace::default()).into(),
-                ],
-                true
-            )
-        );
     }
 
     #[test]

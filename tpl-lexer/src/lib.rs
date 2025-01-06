@@ -382,8 +382,8 @@ mod tests {
         assert_eq!(
             result,
             vec![
-                Token::new(TokenType::Function, String::from("print"), 0),
-                Token::new(TokenType::Function, String::from("concat"), 0),
+                Token::new(TokenType::Identifier, String::from("print"), 0),
+                Token::new(TokenType::Identifier, String::from("concat"), 0),
                 Token::new(TokenType::EOF, String::from(""), 0),
             ]
         );
