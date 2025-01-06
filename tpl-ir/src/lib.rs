@@ -2193,8 +2193,6 @@ impl<'ctx> Compiler<'ctx> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
-    
 
     #[test]
     fn validate_types_test() {

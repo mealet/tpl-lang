@@ -2197,46 +2197,24 @@ mod tests {
         assert_eq!(
             ast[0],
             Statements::ForStatement {
-                initializer: Box::new(
-                    Statements::AnnotationStatement {
-                        identifier: String::from("i"),
-                        datatype: String::from("int8"),
-                        value: Some(
-                            Box::new(
-                                Expressions::Value(Value::Integer(0))
-                            )
-                        ),
-                        line: 0
-                    }
-                ),
+                initializer: Box::new(Statements::AnnotationStatement {
+                    identifier: String::from("i"),
+                    datatype: String::from("int8"),
+                    value: Some(Box::new(Expressions::Value(Value::Integer(0)))),
+                    line: 0
+                }),
                 condition: Expressions::Boolean {
                     operand: String::from("<"),
-                    lhs: Box::new(
-                        Expressions::Value(
-                            Value::Identifier(
-                                String::from("i")
-                            )
-                        ),
-                    ),
-                    rhs: Box::new(
-                        Expressions::Value(
-                            Value::Integer(5)
-                        )
-                    ),
+                    lhs: Box::new(Expressions::Value(Value::Identifier(String::from("i"))),),
+                    rhs: Box::new(Expressions::Value(Value::Integer(5))),
                     line: 0
                 },
-                iterator: Box::new(
-                    Statements::BinaryAssignStatement {
-                        identifier: String::from("i"),
-                        operand: String::from("+"),
-                        value: Box::new(
-                            Expressions::Value(
-                                Value::Integer(1)
-                            )
-                        ),
-                        line: 0
-                    }
-                ),
+                iterator: Box::new(Statements::BinaryAssignStatement {
+                    identifier: String::from("i"),
+                    operand: String::from("+"),
+                    value: Box::new(Expressions::Value(Value::Integer(1))),
+                    line: 0
+                }),
                 block: Vec::new(),
                 line: 0
             }
@@ -2259,64 +2237,33 @@ mod tests {
         assert_eq!(
             ast[0],
             Statements::ForStatement {
-                initializer: Box::new(
-                    Statements::AnnotationStatement {
-                        identifier: String::from("i"),
-                        datatype: String::from("int8"),
-                        value: Some(
-                            Box::new(
-                                Expressions::Value(Value::Integer(0))
-                            )
-                        ),
-                        line: 0
-                    }
-                ),
+                initializer: Box::new(Statements::AnnotationStatement {
+                    identifier: String::from("i"),
+                    datatype: String::from("int8"),
+                    value: Some(Box::new(Expressions::Value(Value::Integer(0)))),
+                    line: 0
+                }),
                 condition: Expressions::Boolean {
                     operand: String::from("<"),
-                    lhs: Box::new(
-                        Expressions::Value(
-                            Value::Identifier(
-                                String::from("i")
-                            )
-                        ),
-                    ),
-                    rhs: Box::new(
-                        Expressions::Value(
-                            Value::Integer(5)
-                        )
-                    ),
+                    lhs: Box::new(Expressions::Value(Value::Identifier(String::from("i"))),),
+                    rhs: Box::new(Expressions::Value(Value::Integer(5))),
                     line: 0
                 },
-                iterator: Box::new(
-                    Statements::BinaryAssignStatement {
-                        identifier: String::from("i"),
-                        operand: String::from("+"),
-                        value: Box::new(
-                            Expressions::Value(
-                                Value::Integer(1)
-                            )
-                        ),
-                        line: 0
-                    }
-                ),
-                block: vec![
-                    Statements::FunctionCallStatement {
-                        function_name: String::from("print"),
-                        arguments: vec![
-                            Expressions::Value(
-                                Value::Identifier(
-                                    String::from("i")
-                                )
-                            )
-                        ],
-                        line: 0
-                    }
-                ],
+                iterator: Box::new(Statements::BinaryAssignStatement {
+                    identifier: String::from("i"),
+                    operand: String::from("+"),
+                    value: Box::new(Expressions::Value(Value::Integer(1))),
+                    line: 0
+                }),
+                block: vec![Statements::FunctionCallStatement {
+                    function_name: String::from("print"),
+                    arguments: vec![Expressions::Value(Value::Identifier(String::from("i")))],
+                    line: 0
+                }],
                 line: 0
             }
         );
     }
-
 
     #[test]
     fn break_stmt_test() {
