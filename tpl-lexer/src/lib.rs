@@ -131,16 +131,74 @@ impl Lexer {
         self.char == '\0'
     }
 
+    fn is_hexadecimal_literal(&self, value: char) -> bool {
+        ['a', 'b', 'c', 'd', 'e', 'f'].contains(&value.to_ascii_lowercase())
+    }
+
     // helpful functions
 
     fn get_integer(&mut self) -> i64 {
         let mut value = String::new();
+        let mut mode = 0; // 1 - binary, 2 - hexadecimal
+
         // lexer will support numbers like 10_000_000 instead 10000000
-        while self.char.is_ascii_digit() || self.char == '_' {
+        while self.char.is_ascii_digit()
+        || ['_', 'x', 'b'].contains(&self.char)
+        || self.is_hexadecimal_literal(self.char) {
+            if self.char == '0' {
+                self.getc();
+
+                match self.char {
+                    'b' => {
+                        if mode != 0 || value.len() > 0 {
+                            self.error("Unexpected binary/hexadecimal number found!");
+                            return 0;
+                        }
+
+                        mode = 1;
+                        self.getc();
+                        continue;
+                    }
+                    'x' => {
+                        if mode != 0 || value.len() > 0 {
+                            self.error("Unexpected binary/hexadecimal number found!");
+                            return 0;
+                        }
+
+                        mode = 2;
+
+                        self.getc();
+                        continue;
+                    }
+                    _ => {
+                        value.push('0');
+                        continue;
+                    }
+                }
+            }
+
             if self.char != '_' {
                 value.push(self.char);
             }
+
             self.getc();
+        }
+
+        match mode {
+            1 => {
+                return i64::from_str_radix(&value.trim(), 2).unwrap_or_else(|_| {
+                    self.error("Error with parsing binary number!");
+                    0
+                });
+            },
+            2 => {
+                dbg!(&value);
+                return i64::from_str_radix(&value.trim(), 16).unwrap_or_else(|_| {
+                    self.error("Error with parsing hexadecimal number!");
+                    0
+                });
+            }
+            _ => {}
         }
 
         value.parse().unwrap_or_else(|_| {
