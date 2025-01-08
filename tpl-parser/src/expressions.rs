@@ -23,6 +23,12 @@ pub enum Expressions {
         rhs: Box<Expressions>,
         line: usize,
     },
+    Bitwise {
+        operand: String,
+        lhs: Box<Expressions>,
+        rhs: Box<Expressions>,
+        line: usize,
+    },
 
     Argument {
         name: String,

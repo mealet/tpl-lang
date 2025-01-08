@@ -225,6 +225,9 @@ impl<'ctx> Compiler<'ctx> {
                             _ => Some(datatype.clone()),
                         };
 
+                        let old_expectation_value = self.current_expectation_value.clone();
+                        self.current_expectation_value = expected_type.clone();
+
                         let compiled_expression =
                             self.compile_expression(*intial_value, line, function, expected_type);
 
@@ -275,6 +278,9 @@ impl<'ctx> Compiler<'ctx> {
                                 ),
                             );
                         }
+
+                        // returning old expectation value
+                        self.current_expectation_value = old_expectation_value;
                     }
                 }
             }
@@ -1113,24 +1119,24 @@ impl<'ctx> Compiler<'ctx> {
                     // int
                     "int8" | "int16" | "int32" | "int64" => {
                         // checking if all sides are the same type
-                        if !["int8", "int16", "int32", "int64"].contains(&right.0.as_str()) {
-                            GenError::throw(
-                                "Left and Right sides must be the same types in Binary Expression!"
-                                    .to_string(),
-                                ErrorType::TypeError,
-                                self.module_name.clone(),
-                                self.module_source.clone(),
-                                line,
-                            );
-                            std::process::exit(1);
-                        }
+                        // if !["int8", "int16", "int32", "int64"].contains(&right.0.as_str()) {
+                        //     GenError::throw(
+                        //         "Left and Right sides must be the same types in Binary Expression!"
+                        //             .to_string(),
+                        //         ErrorType::TypeError,
+                        //         self.module_name.clone(),
+                        //         self.module_source.clone(),
+                        //         line,
+                        //     );
+                        //     std::process::exit(1);
+                        // }
 
                         match operand.as_str() {
                             // NOTE: Basic Binary Operations
                             "+" => {
                                 // add
                                 (
-                                    right.0,
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
                                     self.builder
                                         .build_int_add(
                                             left.1.into_int_value(),
@@ -1144,7 +1150,7 @@ impl<'ctx> Compiler<'ctx> {
                             "-" => {
                                 // substract
                                 (
-                                    right.0,
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
                                     self.builder
                                         .build_int_sub(
                                             left.1.into_int_value(),
@@ -1158,7 +1164,7 @@ impl<'ctx> Compiler<'ctx> {
                             "*" => {
                                 // multiply
                                 (
-                                    right.0,
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
                                     self.builder
                                         .build_int_mul(
                                             left.1.into_int_value(),
@@ -1172,7 +1178,7 @@ impl<'ctx> Compiler<'ctx> {
                             "/" => {
                                 // divide
                                 (
-                                    right.0,
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
                                     self.builder
                                         .build_int_signed_div(
                                             left.1.into_int_value(),
@@ -1202,6 +1208,89 @@ impl<'ctx> Compiler<'ctx> {
                             self.module_name.clone(),
                             self.module_source.clone(),
                             line,
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            }
+            Expressions::Bitwise { operand, lhs, rhs, line } => {
+                let left = self.compile_expression(*lhs, line, function, expected_datatype.clone());
+                let right = self.compile_expression(*rhs, line, function, expected_datatype);
+
+                // matching types
+                match left.0.as_str() {
+                    // int or bool
+                    "int8" | "int16" | "int32" | "int64" | "bool" => {
+                        match operand.as_str() {
+                            "<<" => {
+                                (
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
+                                    self
+                                        .builder
+                                        .build_left_shift(left.1.into_int_value(), right.1.into_int_value(), "")
+                                        .unwrap()
+                                        .as_basic_value_enum()
+                                )
+                            },
+                            ">>" => {
+                                (
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
+                                    self
+                                        .builder
+                                        .build_right_shift(left.1.into_int_value(), right.1.into_int_value(), true, "")
+                                        .unwrap()
+                                        .as_basic_value_enum()
+                                )
+                            },
+                            "&" => {
+                                (
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
+                                    self
+                                        .builder
+                                        .build_and(left.1.into_int_value(), right.1.into_int_value(), "")
+                                        .unwrap()
+                                        .as_basic_value_enum()
+                                )
+                            },
+                            "|" => {
+                                (
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
+                                    self
+                                        .builder
+                                        .build_or(left.1.into_int_value(), right.1.into_int_value(), "")
+                                        .unwrap()
+                                        .as_basic_value_enum()
+                                )
+                            },
+                            "^" => {
+                                (
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
+                                    self
+                                        .builder
+                                        .build_xor(left.1.into_int_value(), right.1.into_int_value(), "")
+                                        .unwrap()
+                                        .as_basic_value_enum()
+                                )
+                            }
+                            _ => {
+                                GenError::throw(
+                                    "Unsupported bitwise operator found! Please open issue on Github!",
+                                    ErrorType::NotSupported,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line
+                                );
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    _ => {
+                        GenError::throw(
+                            format!("Type `{}` is not supported for bitwise operations!", left.0),
+                            ErrorType::NotSupported,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line
                         );
                         std::process::exit(1);
                     }

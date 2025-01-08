@@ -28,10 +28,15 @@ pub enum TokenType {
 
     Semicolon, // ;
     Ampersand, // &
+    Ref, // &_
     Verbar,    // |
     Dot,       // .
     Comma,     // ,
     Quote,     // "
+
+    LShift, // <<
+    RShift, // >>
+    Xor, // ^
 
     LParen, // (
     RParen, // )
