@@ -424,6 +424,28 @@ impl Parser {
                 node = self.bitwise_expression(node);
             }
 
+            TokenType::LBrack => {
+                let _ = self.next();
+
+                if self.expect(TokenType::RBrack) {
+                    return node;
+                }
+
+                let slice_index = self.expression();
+
+                if !self.expect(TokenType::RBrack) {
+                    self.error("Brackets in expression is not closed!");
+                    return Expressions::None;
+                }
+
+                let _ = self.next();
+
+                node = Expressions::Slice {
+                    object: Box::new(node),
+                    index: Box::new(slice_index),
+                    line: current.line
+                }
+            }
             TokenType::LParen => {
                 if let Expressions::Value(Value::Keyword(keyword)) = node.clone() {
                     if !DATATYPES.contains(&keyword.as_str()) {
