@@ -1162,7 +1162,9 @@ impl<'ctx> Compiler<'ctx> {
                             "+" => {
                                 // add
                                 (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else {
+                                        if get_int_order(&left.0) > get_int_order(&right.0) { left.0 } else { right.0 }
+                                    },
                                     self.builder
                                         .build_int_add(
                                             left.1.into_int_value(),
@@ -1176,7 +1178,9 @@ impl<'ctx> Compiler<'ctx> {
                             "-" => {
                                 // substract
                                 (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else {
+                                        if get_int_order(&left.0) > get_int_order(&right.0) { left.0 } else { right.0 }
+                                    },
                                     self.builder
                                         .build_int_sub(
                                             left.1.into_int_value(),
@@ -1190,7 +1194,9 @@ impl<'ctx> Compiler<'ctx> {
                             "*" => {
                                 // multiply
                                 (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else {
+                                        if get_int_order(&left.0) > get_int_order(&right.0) { left.0 } else { right.0 }
+                                    },
                                     self.builder
                                         .build_int_mul(
                                             left.1.into_int_value(),
@@ -1204,7 +1210,9 @@ impl<'ctx> Compiler<'ctx> {
                             "/" => {
                                 // divide
                                 (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
+                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else {
+                                        if get_int_order(&left.0) > get_int_order(&right.0) { left.0 } else { right.0 }
+                                    },
                                     self.builder
                                         .build_int_signed_div(
                                             left.1.into_int_value(),
