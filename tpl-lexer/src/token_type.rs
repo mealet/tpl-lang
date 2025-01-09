@@ -10,6 +10,7 @@ pub enum TokenType {
 
     Number,  // 123
     String,  // "asd"
+    Char, // 'a'
     Boolean, // true/false
 
     Equal,    // =
@@ -33,6 +34,7 @@ pub enum TokenType {
     Dot,       // .
     Comma,     // ,
     Quote,     // "
+    SingleQuote, // '
 
     LShift, // <<
     RShift, // >>

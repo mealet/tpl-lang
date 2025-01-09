@@ -927,27 +927,53 @@ impl<'ctx> Compiler<'ctx> {
                 line,
             } => {
                 let obj =
-                    self.compile_expression(*object, line, function, expected_datatype.clone());
-                let idx = self.compile_expression(*index, line, function, expected_datatype);
+                    self.compile_expression(*object, line, function, expected_datatype);
+                let idx = self.compile_expression(*index, line, function, None);
+                let int_index = match idx.0 {
+                    itype if itype.starts_with("int") => idx.1.into_int_value(),
+                    _ => {
+                        GenError::throw(
+                            "Non-integer slice index found!",
+                            ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    }
+                };
 
                 match obj.0.as_str() {
+                    "str" => {
+                        let basic_type = self.context.i8_type();
+
+                        let ptr = unsafe {
+                            self
+                                .builder
+                                .build_in_bounds_gep(
+                                    basic_type,
+                                    obj.1.into_pointer_value(),
+                                    &[
+                                        int_index
+                                    ],
+                                    ""
+                                ).unwrap()
+                        };
+
+                        let char_value = self
+                            .builder
+                            .build_load(
+                                basic_type,
+                                ptr,
+                                ""
+                            )
+                            .unwrap();
+                        
+                        (String::from("char"), char_value.into())
+                    }
                     array_type if Compiler::__is_arr_type(array_type) => {
                         let raw_type = Compiler::clean_array_datatype(array_type);
                         let raw_len = Compiler::get_array_datatype_len(array_type);
-
-                        let int_index = match idx.0 {
-                            itype if itype.starts_with("int") => idx.1.into_int_value(),
-                            _ => {
-                                GenError::throw(
-                                    "Non-integer slice index found!",
-                                    ErrorType::TypeError,
-                                    self.module_name.clone(),
-                                    self.module_source.clone(),
-                                    line,
-                                );
-                                std::process::exit(1);
-                            }
-                        };
 
                         let raw_index = int_index.get_sign_extended_constant().unwrap_or(0);
                         // if we cannot verify index on build, it will cause some bugs on runtime
@@ -1469,6 +1495,12 @@ impl<'ctx> Compiler<'ctx> {
                 str_val.set_constant(false);
                 ("str".to_string(), str_val.as_pointer_value().into())
             }
+            Value::Char(ch) => {
+                (
+                    "char".to_string(),
+                    self.context.i8_type().const_int(ch as u64, false).into()
+                )
+            }
             Value::Identifier(id) => {
                 if let Some(var_ptr) = self.variables.get(&id) {
                     let exp = expected.unwrap_or_default();
@@ -1968,6 +2000,7 @@ impl<'ctx> Compiler<'ctx> {
             "int64" => self.context.i64_type().into(),
             "bool" => self.context.bool_type().into(),
             "str" => self.context.ptr_type(AddressSpace::default()).into(),
+            "char" => self.context.i8_type().into(),
             "auto" => self.context.i8_type().into(),
             "void" => self.context.ptr_type(AddressSpace::default()).into(),
             _ => {
@@ -2145,6 +2178,14 @@ impl<'ctx> Compiler<'ctx> {
                         )
                         .1
                     }
+                    "char" => {
+                        self.compile_value(
+                            Value::Char('0'),
+                            line,
+                            None
+                        )
+                        .1
+                    },
                     "bool" => self.compile_value(Value::Boolean(false), line, None).1,
                     _ => unreachable!(),
                 }));

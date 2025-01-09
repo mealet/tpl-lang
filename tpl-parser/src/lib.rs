@@ -18,8 +18,8 @@ use value::Value;
 
 // globals
 
-static DATATYPES: [&str; 10] = [
-    "int8", "int16", "int32", "int64", "int128", "str", "bool", "auto", "void", "fn",
+static DATATYPES: [&str; 11] = [
+    "int8", "int16", "int32", "int64", "int128", "str", "char", "bool", "auto", "void", "fn",
 ];
 static BINARY_OPERATORS: [TokenType; 4] = [
     TokenType::Plus,     // +
@@ -327,6 +327,10 @@ impl Parser {
                 output = Expressions::Value(Value::Integer(current.value.trim().parse().unwrap()))
             }
             TokenType::String => output = Expressions::Value(Value::String(current.value)),
+            TokenType::Char => {
+                let ch = current.value.chars().into_iter().nth(0).unwrap();
+                output = Expressions::Value(Value::Char(ch));
+            }
             TokenType::Boolean => {
                 output = Expressions::Value(Value::Boolean(current.value == "true"))
             }

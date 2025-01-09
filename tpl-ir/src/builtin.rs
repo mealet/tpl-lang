@@ -226,6 +226,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                                 "%s"
                             }
                             "str" => "\"%s\"",
+                            "char" => "'%c'",
                             _ => {
                                 GenError::throw(
                                     format!(
@@ -285,6 +286,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     "%s"
                 }
                 "str" => "%s",
+                "char" => "%c",
                 _ => {
                     GenError::throw(
                         format!(

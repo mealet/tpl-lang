@@ -51,6 +51,7 @@ impl Lexer {
                 macros::std_symbol!('.', TokenType::Dot),
                 macros::std_symbol!(',', TokenType::Comma),
                 macros::std_symbol!('"', TokenType::Quote),
+                macros::std_symbol!('\'', TokenType::SingleQuote),
                 macros::std_symbol!(';', TokenType::Semicolon),
                 macros::std_symbol!('&', TokenType::Ampersand),
                 macros::std_symbol!('|', TokenType::Verbar),
@@ -83,6 +84,7 @@ impl Lexer {
                 macros::std_keyword!("fn"),
                 macros::std_keyword!("void"),
                 macros::std_keyword!("str"),
+                macros::std_keyword!("char"),
                 macros::std_keyword!("bool"),
                 // Boolean Values
                 macros::std_token!("true", TokenType::Boolean),
@@ -255,6 +257,21 @@ impl Lexer {
 
                             // pushing token
                             output.push(Token::new(TokenType::String, captured_string, self.line));
+                            self.getc();
+                        }
+                        TokenType::SingleQuote => {
+                            self.getc();
+                            
+                            let char = self.char;
+
+                            self.getc();
+
+                            if self.char != '\'' {
+                                self.error("Wrong char found! For strings use `str` type!");
+                                self.getc();
+                            }
+
+                            output.push(Token::new(TokenType::Char, char.to_string(), self.line));
                             self.getc();
                         }
                         TokenType::Equal => {
