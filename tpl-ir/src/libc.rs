@@ -6,8 +6,11 @@ pub trait Libc {
 
     fn __c_printf(&mut self) -> Self::Function;
     fn __c_sprintf(&mut self) -> Self::Function;
+
     fn __c_strcat(&mut self) -> Self::Function;
     fn __c_strcmp(&mut self) -> Self::Function;
+    fn __c_strlen(&mut self) -> Self::Function;
+
     fn __c_scanf(&mut self) -> Self::Function;
     fn __c_sscanf(&mut self) -> Self::Function;
 }
@@ -92,6 +95,25 @@ impl<'ctx> Libc for Compiler<'ctx> {
         let _ = self.built_functions.insert("strcmp".to_string(), strcmp_fn);
 
         strcmp_fn
+    }
+
+    fn __c_strlen(&mut self) -> Self::Function {
+        if let Some(function_value) = self.built_functions.get("strlen") {
+            return *function_value;
+        }
+
+        let strlen_type = self.context.i64_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into()
+            ],
+            false
+        );
+        let strlen_fn = self
+            .module
+            .add_function("strlen", strlen_type, Some(Linkage::External));
+        let _ = self.built_functions.insert("strlen".to_string(), strlen_fn);
+
+        strlen_fn
     }
 
     fn __c_scanf(&mut self) -> Self::Function {

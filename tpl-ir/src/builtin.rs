@@ -446,25 +446,46 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
         let compiled_arg = self.compile_expression(arguments[0].clone(), line, function, None);
 
-        if !Compiler::__is_arr_type(&compiled_arg.0) {
-            GenError::throw(
-                format!("Type `{}` is non-array type!", &compiled_arg.0),
-                ErrorType::NotExpected,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                line,
-            );
-            std::process::exit(1);
+        match compiled_arg.0.as_str() {
+            argtype if Compiler::__is_arr_type(argtype) => {
+                let length = Compiler::get_array_datatype_len(&compiled_arg.0);
+                let basic_value = self
+                    .context
+                    .i64_type()
+                    .const_int(length, false)
+                    .as_basic_value_enum();
+
+                (String::from("int64"), basic_value)
+            },
+            "str" => {
+                let strlen_fn = self.__c_strlen();
+                let value = self
+                    .builder
+                    .build_call(
+                        strlen_fn,
+                        &[
+                            compiled_arg.1.into()
+                        ],
+                        ""
+                    )
+                    .unwrap()
+                    .try_as_basic_value()
+                    .left()
+                    .unwrap();
+
+                (String::from("int64"), value)
+            },
+            _ => {
+                GenError::throw(
+                    format!("Type `{}` is non-array type!", &compiled_arg.0),
+                    ErrorType::NotExpected,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line,
+                );
+                std::process::exit(1);
+            }
         }
-
-        let length = Compiler::get_array_datatype_len(&compiled_arg.0);
-        let basic_value = self
-            .context
-            .i16_type()
-            .const_int(length, false)
-            .as_basic_value_enum();
-
-        (String::from("int16"), basic_value)
     }
 
     // conversion
