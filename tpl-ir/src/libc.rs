@@ -13,6 +13,10 @@ pub trait Libc {
 
     fn __c_scanf(&mut self) -> Self::Function;
     fn __c_sscanf(&mut self) -> Self::Function;
+
+    fn __c_malloc(&mut self) -> Self::Function;
+    fn __c_realloc(&mut self) -> Self::Function;
+    fn __c_free(&mut self) -> Self::Function;
 }
 
 impl<'ctx> Libc for Compiler<'ctx> {
@@ -151,6 +155,64 @@ impl<'ctx> Libc for Compiler<'ctx> {
         let _ = self.built_functions.insert("sscanf".to_string(), sscanf_fn);
 
         sscanf_fn
+    }
+
+    fn __c_malloc(&mut self) -> Self::Function {
+        if let Some(function_value) = self.built_functions.get("malloc") {
+            return *function_value;
+        }
+
+        let malloc_type = self.context.ptr_type(AddressSpace::default()).fn_type(
+            &[
+                self.context.i64_type().into()
+            ],
+            true,
+        );
+        let malloc_fn = self
+            .module
+            .add_function("malloc", malloc_type, Some(Linkage::External));
+        let _ = self.built_functions.insert("malloc".to_string(), malloc_fn);
+
+        malloc_fn
+    }
+
+    fn __c_realloc(&mut self) -> Self::Function {
+        if let Some(function_value) = self.built_functions.get("realloc") {
+            return *function_value;
+        }
+
+        let realloc_type = self.context.ptr_type(AddressSpace::default()).fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.i64_type().into()
+            ],
+            true,
+        );
+        let realloc_fn = self
+            .module
+            .add_function("realloc", realloc_type, Some(Linkage::External));
+        let _ = self.built_functions.insert("realloc".to_string(), realloc_fn);
+
+        realloc_fn
+    }
+
+    fn __c_free(&mut self) -> Self::Function {
+        if let Some(function_value) = self.built_functions.get("free") {
+            return *function_value;
+        }
+
+        let free_type = self.context.void_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            true,
+        );
+        let free_fn = self
+            .module
+            .add_function("free", free_type, Some(Linkage::External));
+        let _ = self.built_functions.insert("free".to_string(), free_fn);
+
+        free_fn
     }
 }
 

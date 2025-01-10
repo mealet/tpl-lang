@@ -34,7 +34,7 @@ use variable::Variable;
 
 use tpl_parser::{expressions::Expressions, statements::Statements, value::Value};
 
-const LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
+static LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
 static INT_TYPES_ORDER: LazyLock<HashMap<&str, u8>> =
     LazyLock::new(|| HashMap::from([("int8", 0), ("int16", 1), ("int32", 2), ("int64", 3)]));
 
@@ -1542,7 +1542,16 @@ impl<'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
             }
-            _ => todo!(),
+            _ => {
+                GenError::throw(
+                    format!("Value `{:?}` is not supported yet!", value),
+                    ErrorType::NotSupported,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line
+                );
+                std::process::exit(1);
+            }
         }
     }
 
@@ -1827,6 +1836,11 @@ impl<'ctx> Compiler<'ctx> {
                 "to_int16" => return self.build_to_int16_call(arguments, line, function),
                 "to_int32" => return self.build_to_int32_call(arguments, line, function),
                 "to_int64" => return self.build_to_int64_call(arguments, line, function),
+
+                "malloc" => return self.build_malloc_call(arguments, line, function),
+                "realloc" => return self.build_realloc_call(arguments, line, function),
+                "free" => return self.build_free_call(arguments, line, function),
+
                 _ => {
                     if let Some(var) = self.variables.get(&function_name) {
                         if var.assigned_function.is_some() {
@@ -2296,6 +2310,7 @@ impl<'ctx> Compiler<'ctx> {
             "int64" => "%lld",
             "bool" => "%s",
             "str" => "%s",
+            "char" => "%c",
             _ => unreachable!(),
         }
         .to_string()

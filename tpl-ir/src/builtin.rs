@@ -10,7 +10,10 @@ use crate::{
     Compiler,
 };
 
-use tpl_parser::expressions::Expressions;
+use tpl_parser::{
+    expressions::Expressions,
+    value::Value
+};
 
 pub trait BuiltIn<'ctx> {
     // input output
@@ -47,6 +50,7 @@ pub trait BuiltIn<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
 
+    // conversions
     fn build_to_str_call(
         &mut self,
         arguments: Vec<Expressions>,
@@ -77,6 +81,28 @@ pub trait BuiltIn<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
+
+    // allocation
+    fn build_malloc_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>);
+
+    fn build_realloc_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>);
+
+    fn build_free_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>);
 }
 
 impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
@@ -94,6 +120,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                 self.module_source.clone(),
                 line,
             );
+            std::process::exit(1);
         }
 
         let left_arg = self.compile_expression(
@@ -1053,5 +1080,190 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             });
 
         ("str".to_string(), data_ptr.into())
+    }
+
+    fn build_malloc_call(
+            &mut self,
+            arguments: Vec<Expressions>,
+            line: usize,
+            function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 2 {
+            GenError::throw(
+                format!(
+                    "Function `malloc` requires 2 arguments, but {} found!",
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let ptr_type = match arguments[0].clone() {
+            Expressions::Value(
+                Value::Keyword(ptype)
+            ) => ptype,
+            _ => {
+                GenError::throw(
+                    "Arguments 1 must be keyword of allocating type! Example: malloc(int32, 123)",
+                    ErrorType::TypeError,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line
+                );
+                std::process::exit(1);
+            }
+        };
+        let compiled_size = self.compile_expression(arguments[1].clone(), line, function, Some(String::from("int64")));
+
+        if !compiled_size.0.starts_with("int") {
+            dbg!(arguments);
+            GenError::throw(
+                "Non-integer size for allocation found!",
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let malloc_fn = self.__c_malloc();
+        
+        let result = self
+            .builder
+            .build_call(
+                malloc_fn,
+                &[
+                    compiled_size.1.into()
+                ],
+                ""
+            )
+            .unwrap()
+            .try_as_basic_value()
+            .left()
+            .unwrap();
+
+        (
+            format!("{}*", ptr_type),
+            result
+        )
+    }
+
+    fn build_free_call(
+            &mut self,
+            arguments: Vec<Expressions>,
+            line: usize,
+            function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 1 {
+            GenError::throw(
+                format!(
+                    "Function `free` requires 1 arguments, but {} found!",
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let compiled_arg = self.compile_expression(arguments[0].clone(), line, function, None);
+
+        if !Compiler::__is_ptr_type(&compiled_arg.0) {
+            GenError::throw(
+                "Function `free` requires pointer as an argument!",
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let free_fn = self.__c_free();
+        let _ = self
+            .builder
+            .build_call(
+                free_fn,
+                &[
+                    compiled_arg.1.into()
+                ],
+                ""
+            )
+            .unwrap();
+
+        (String::from("void"), self.context.bool_type().const_zero().into())
+    }
+
+    fn build_realloc_call(
+            &mut self,
+            arguments: Vec<Expressions>,
+            line: usize,
+            function: FunctionValue<'ctx>
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 2 {
+            GenError::throw(
+                format!(
+                    "Function `realloc` requires 2 arguments, but {} found!",
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let argument_ptr = self.compile_expression(arguments[0].clone(), line, function, None);
+
+        if !Compiler::__is_ptr_type(&argument_ptr.0) {
+            GenError::throw(
+                "Function `realloc` requires pointer as first argument!",
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let compiled_size = self.compile_expression(arguments[1].clone(), line, function, None);
+
+        if !compiled_size.0.starts_with("int") {
+            dbg!(arguments);
+            GenError::throw(
+                "Non-integer size for allocation found!",
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let realloc_fn = self.__c_realloc();
+        let result_ptr = self
+            .builder
+            .build_call(
+                realloc_fn,
+                &[
+                    argument_ptr.1.into(),
+                    compiled_size.1.into()
+                ],
+                ""
+            )
+            .unwrap()
+            .try_as_basic_value()
+            .left()
+            .unwrap();
+
+        (argument_ptr.0, result_ptr)
     }
 }
