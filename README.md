@@ -31,7 +31,7 @@ Code separated to 4 modules:
 
 ## 💡 Installation
 1. Install any of these C compilers: `clang`, `gcc`, `cc`.
-2. Download archive for you'r system from [Releases]
+2. Download archive for your system from [Releases]
 3. Unpack it anywhere
 4. Use the binary file (`tplc` on Linux/Mac, `tplc.exe` on Windows)
 
