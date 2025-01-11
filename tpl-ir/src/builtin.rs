@@ -10,10 +10,7 @@ use crate::{
     Compiler,
 };
 
-use tpl_parser::{
-    expressions::Expressions,
-    value::Value
-};
+use tpl_parser::expressions::Expressions;
 
 pub trait BuiltIn<'ctx> {
     // input output
@@ -504,8 +501,8 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             },
             _ => {
                 GenError::throw(
-                    format!("Type `{}` is non-array type!", &compiled_arg.0),
-                    ErrorType::NotExpected,
+                    format!("Type `{}` is not supported for `len()` function!", &compiled_arg.0),
+                    ErrorType::NotSupported,
                     self.module_name.clone(),
                     self.module_source.clone(),
                     line,
@@ -1088,10 +1085,10 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             line: usize,
             function: FunctionValue<'ctx>
     ) -> (String, BasicValueEnum<'ctx>) {
-        if arguments.len() != 2 {
+        if arguments.len() != 1 {
             GenError::throw(
                 format!(
-                    "Function `malloc` requires 2 arguments, but {} found!",
+                    "Function `malloc` requires 1 argument, but {} found!",
                     arguments.len()
                 ),
                 ErrorType::NotExpected,
@@ -1102,22 +1099,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             std::process::exit(1);
         }
 
-        let ptr_type = match arguments[0].clone() {
-            Expressions::Value(
-                Value::Keyword(ptype)
-            ) => ptype,
-            _ => {
-                GenError::throw(
-                    "Arguments 1 must be keyword of allocating type! Example: malloc(int32, 123)",
-                    ErrorType::TypeError,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line
-                );
-                std::process::exit(1);
-            }
-        };
-        let compiled_size = self.compile_expression(arguments[1].clone(), line, function, Some(String::from("int64")));
+        let compiled_size = self.compile_expression(arguments[0].clone(), line, function, Some(String::from("int64")));
 
         if !compiled_size.0.starts_with("int") {
             dbg!(arguments);
@@ -1147,8 +1129,21 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             .left()
             .unwrap();
 
+        let output_type = self.current_expectation_value.clone().unwrap_or(String::from("void*"));
+
+        if !Compiler::__is_ptr_type(&output_type) {
+            GenError::throw(
+                format!("Non-pointer type `{}` requested for `malloc()`", output_type),
+                ErrorType::TypeError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
         (
-            format!("{}*", ptr_type),
+            output_type,
             result
         )
     }

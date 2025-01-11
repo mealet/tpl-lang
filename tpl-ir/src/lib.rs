@@ -342,43 +342,7 @@ impl<'ctx> Compiler<'ctx> {
                         function,
                         Some(Compiler::clean_array_datatype(&var_ptr.str_type)),
                     );
-
-                    // matching datatypes
-
-                    if expr_value.0 != Compiler::clean_array_datatype(&var_ptr.str_type) {
-                        GenError::throw(
-                            format!(
-                                "Expected type `{}`, but found `{}`!",
-                                var_ptr.str_type, expr_value.0
-                            ),
-                            ErrorType::TypeError,
-                            self.module_name.clone(),
-                            self.module_source.clone(),
-                            line,
-                        );
-                        std::process::exit(1);
-                    }
-
-                    // loading array from pointer
-
-                    let array = self
-                        .builder
-                        .build_load(var_ptr.basic_type, var_ptr.pointer, "")
-                        .unwrap_or_else(|_| {
-                            GenError::throw(
-                                "Unable to load pointer value!",
-                                ErrorType::BuildError,
-                                self.module_name.clone(),
-                                self.module_source.clone(),
-                                line,
-                            );
-                            std::process::exit(1);
-                        })
-                        .into_vector_value();
-
                     let index_value = self.compile_expression(*index, line, function, None);
-
-                    // checking index value type
 
                     if !index_value.0.starts_with("int") {
                         GenError::throw(
@@ -391,28 +355,122 @@ impl<'ctx> Compiler<'ctx> {
                         std::process::exit(1);
                     }
 
-                    let new_vector = self
-                        .builder
-                        .build_insert_element(
-                            array,
-                            expr_value.1,
-                            index_value.1.into_int_value(),
-                            "",
-                        )
-                        .unwrap_or_else(|_| {
+                    match var_ptr.str_type.as_str() {
+                        vartype if Compiler::__is_ptr_type(vartype) => {
+                            let raw_type = Compiler::__unwrap_ptr_type(&var_ptr.str_type);
+                            let raw_basic_type = self.get_basic_type(&raw_type, line);
+
+                            if expr_value.0 != raw_type {
+                                GenError::throw(
+                                    format!(
+                                        "Expected type `{}`, but found `{}`!",
+                                        var_ptr.str_type, expr_value.0
+                                    ),
+                                    ErrorType::TypeError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            }
+
+                            let var_value = self
+                                .builder
+                                .build_load(
+                                    self.context.ptr_type(AddressSpace::default()),
+                                    var_ptr.pointer,
+                                    ""
+                                )
+                                .unwrap();
+
+                            let ptr = unsafe {
+                                self
+                                    .builder
+                                    .build_in_bounds_gep(
+                                        raw_basic_type,
+                                        var_value.into_pointer_value(),
+                                        &[
+                                            index_value.1.into_int_value()
+                                        ],
+                                        ""
+                                    )
+                                    .unwrap()
+                            };
+
+                            let _ = self
+                                .builder
+                                .build_store(
+                                    ptr,
+                                    expr_value.1
+                                )
+                                .unwrap();
+                        }
+                        vartype if Compiler::__is_arr_type(vartype) => {
+                            if expr_value.0 != Compiler::clean_array_datatype(&var_ptr.str_type) {
+                                GenError::throw(
+                                    format!(
+                                        "Expected type `{}`, but found `{}`!",
+                                        var_ptr.str_type, expr_value.0
+                                    ),
+                                    ErrorType::TypeError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            }
+
+                            // loading array from pointer
+
+                            let array = self
+                                .builder
+                                .build_load(var_ptr.basic_type, var_ptr.pointer, "")
+                                .unwrap_or_else(|_| {
+                                    GenError::throw(
+                                        "Unable to load pointer value!",
+                                        ErrorType::BuildError,
+                                        self.module_name.clone(),
+                                        self.module_source.clone(),
+                                        line,
+                                    );
+                                    std::process::exit(1);
+                                })
+                                .into_vector_value();
+
+                            let new_vector = self
+                                .builder
+                                .build_insert_element(
+                                    array,
+                                    expr_value.1,
+                                    index_value.1.into_int_value(),
+                                    "",
+                                )
+                                .unwrap_or_else(|_| {
+                                    GenError::throw(
+                                        "Unable to insert element into vector!",
+                                        ErrorType::NotExpected,
+                                        self.module_name.clone(),
+                                        self.module_source.clone(),
+                                        line,
+                                    );
+                                    std::process::exit(1);
+                                });
+
+                            // storing new vector into pointer
+
+                            let _ = self.builder.build_store(var_ptr.pointer, new_vector);
+                        }
+                        _ => {
                             GenError::throw(
-                                "Unable to insert element into vector!",
-                                ErrorType::NotExpected,
+                                format!("Unsupported for slicing type found: `{}`", var_ptr.str_type),
+                                ErrorType::NotSupported,
                                 self.module_name.clone(),
                                 self.module_source.clone(),
-                                line,
+                                line
                             );
                             std::process::exit(1);
-                        });
-
-                    // storing new vector into pointer
-
-                    let _ = self.builder.build_store(var_ptr.pointer, new_vector);
+                        }
+                    }
                 } else {
                     GenError::throw(
                         format!("Variable `{}` is not defined!", identifier),
@@ -944,6 +1002,35 @@ impl<'ctx> Compiler<'ctx> {
                 };
 
                 match obj.0.as_str() {
+                    obj_type if Compiler::__is_ptr_type(obj_type) => {
+                        let raw_type = Compiler::__unwrap_ptr_type(obj_type);
+                        let raw_basic_type = self.get_basic_type(&raw_type, line);
+
+                        let ptr = unsafe {
+                            self
+                                .builder
+                                .build_in_bounds_gep(
+                                    raw_basic_type,
+                                    obj.1.into_pointer_value(),
+                                    &[
+                                        int_index
+                                    ],
+                                    ""
+                                )
+                                .unwrap()
+                        };
+
+                        let value = self
+                            .builder
+                            .build_load(
+                                raw_basic_type,
+                                ptr,
+                                ""
+                            )
+                            .unwrap();
+
+                        (raw_type, value)
+                    }
                     "str" => {
                         let basic_type = self.context.i8_type();
 

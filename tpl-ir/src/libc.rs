@@ -166,7 +166,7 @@ impl<'ctx> Libc for Compiler<'ctx> {
             &[
                 self.context.i64_type().into()
             ],
-            true,
+            false,
         );
         let malloc_fn = self
             .module
@@ -186,7 +186,7 @@ impl<'ctx> Libc for Compiler<'ctx> {
                 self.context.ptr_type(AddressSpace::default()).into(),
                 self.context.i64_type().into()
             ],
-            true,
+            false,
         );
         let realloc_fn = self
             .module
@@ -205,7 +205,7 @@ impl<'ctx> Libc for Compiler<'ctx> {
             &[
                 self.context.ptr_type(AddressSpace::default()).into(),
             ],
-            true,
+            false,
         );
         let free_fn = self
             .module
