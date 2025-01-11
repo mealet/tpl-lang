@@ -10,7 +10,7 @@ use crate::{
     Compiler,
 };
 
-use tpl_parser::expressions::Expressions;
+use tpl_parser::{expressions::Expressions, value::Value};
 
 pub trait BuiltIn<'ctx> {
     // input output
@@ -35,6 +35,12 @@ pub trait BuiltIn<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
     fn build_len_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
+    fn build_size_call(
         &mut self,
         arguments: Vec<Expressions>,
         line: usize,
@@ -510,6 +516,66 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                 std::process::exit(1);
             }
         }
+    }
+
+    fn build_size_call(
+            &mut self,
+            arguments: Vec<Expressions>,
+            line: usize,
+            function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 1 {
+            GenError::throw(
+                format!(
+                    "Function `len()` requires only 1 argument, but {} found!",
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let compiled_type = match arguments[0].clone() {
+            Expressions::Value(Value::Keyword(arg_type)) => arg_type,
+            _ => self.compile_expression(arguments[0].clone(), line, function, None).0
+        };
+
+        let mut raw_type = compiled_type;
+        let mut type_multiplier = 1;
+
+        loop {
+            match raw_type {
+                ctype if Compiler::__is_ptr_type(&ctype) => {
+                    raw_type = Compiler::__unwrap_ptr_type(&ctype);
+                }
+                ctype if Compiler::__is_arr_type(&ctype) => {
+                    raw_type = Compiler::clean_array_datatype(&ctype);
+                    type_multiplier *= Compiler::get_array_datatype_len(&ctype);
+                }
+                ctype if ctype.starts_with("fn<") => {
+                    raw_type = ctype.split("fn<").collect::<Vec<&str>>()[0].split(">").collect::<Vec<&str>>()[0].to_string();
+                }
+                _ => break
+            };
+        }
+
+        let size = crate::TYPE_SIZES.get(&raw_type.as_str()).unwrap_or_else(|| {
+            GenError::throw(
+                format!("Unsupported for size type found: `{}`", raw_type),
+                ErrorType::NotSupported,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }) * type_multiplier;
+
+        let constant = self.context.i64_type().const_int(size, false);
+
+        (String::from("int64"), constant.into())
     }
 
     // conversion

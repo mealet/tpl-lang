@@ -38,6 +38,16 @@ static LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
 static INT_TYPES_ORDER: LazyLock<HashMap<&str, u8>> =
     LazyLock::new(|| HashMap::from([("int8", 0), ("int16", 1), ("int32", 2), ("int64", 3)]));
 
+static TYPE_SIZES: LazyLock<HashMap<&str, u64>> = LazyLock::new(|| HashMap::from([
+    ("int8", 1),
+    ("int16", 2),
+    ("int32", 4),
+    ("int64", 8),
+    ("bool", 1),
+    ("char", 1),
+    ("str", 8),
+]));
+
 pub fn get_int_order(o_type: &str) -> i8 {
     if let Some(order) = INT_TYPES_ORDER.get(o_type) {
         return *order as i8;
@@ -1906,6 +1916,7 @@ impl<'ctx> Compiler<'ctx> {
                 "concat" => return self.build_concat_call(arguments, line, function),
                 "type" => return self.build_type_call(arguments, line, function),
                 "len" => return self.build_len_call(arguments, line, function),
+                "size" => return self.build_size_call(arguments, line, function),
                 "print" => {
                     GenError::throw(
                         "Function `print` is 'void' type!",
