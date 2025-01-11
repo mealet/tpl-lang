@@ -38,11 +38,11 @@ static BOOLEAN_OPERATORS: [TokenType; 6] = [
 ];
 
 static BITWISE_OPERATORS: [TokenType; 5] = [
-    TokenType::LShift, // <<
-    TokenType::RShift, // >>
+    TokenType::LShift,    // <<
+    TokenType::RShift,    // >>
     TokenType::Ampersand, // &
-    TokenType::Verbar, // |
-    TokenType::Xor // ^
+    TokenType::Verbar,    // |
+    TokenType::Xor,       // ^
 ];
 
 static PRIORITY_BINARY_OPERATORS: [TokenType; 2] = [TokenType::Multiply, TokenType::Divide];
@@ -328,7 +328,7 @@ impl Parser {
             }
             TokenType::String => output = Expressions::Value(Value::String(current.value)),
             TokenType::Char => {
-                let ch = current.value.chars().into_iter().nth(0).unwrap();
+                let ch = current.value.chars().nth(0).unwrap();
                 output = Expressions::Value(Value::Char(ch));
             }
             TokenType::Boolean => {
@@ -447,7 +447,7 @@ impl Parser {
                 node = Expressions::Slice {
                     object: Box::new(node),
                     index: Box::new(slice_index),
-                    line: current.line
+                    line: current.line,
                 }
             }
             TokenType::LParen => {
@@ -600,7 +600,7 @@ impl Parser {
                     operand: current_token.value,
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
-                    line: current_line
+                    line: current_line,
                 }
             }
             _ => {
@@ -2676,20 +2676,12 @@ mod tests {
             Statements::AnnotationStatement {
                 identifier: String::from("a"),
                 datatype: String::from("int32"),
-                value: Some(
-                    Box::new(
-                        Expressions::Bitwise {
-                            operand: String::from("&"),
-                            lhs: Box::new(
-                                Expressions::Value(Value::Integer(5))
-                            ),
-                            rhs: Box::new(
-                                Expressions::Value(Value::Integer(1))
-                            ),
-                            line: 0
-                        }
-                    )
-                ),
+                value: Some(Box::new(Expressions::Bitwise {
+                    operand: String::from("&"),
+                    lhs: Box::new(Expressions::Value(Value::Integer(5))),
+                    rhs: Box::new(Expressions::Value(Value::Integer(1))),
+                    line: 0
+                })),
                 line: 0
             }
         );

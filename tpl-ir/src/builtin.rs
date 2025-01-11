@@ -90,21 +90,21 @@ pub trait BuiltIn<'ctx> {
         &mut self,
         arguments: Vec<Expressions>,
         line: usize,
-        function: FunctionValue<'ctx>
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
 
     fn build_realloc_call(
         &mut self,
         arguments: Vec<Expressions>,
         line: usize,
-        function: FunctionValue<'ctx>
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
 
     fn build_free_call(
         &mut self,
         arguments: Vec<Expressions>,
         line: usize,
-        function: FunctionValue<'ctx>
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
 }
 
@@ -486,28 +486,25 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     .as_basic_value_enum();
 
                 (String::from("int64"), basic_value)
-            },
+            }
             "str" => {
                 let strlen_fn = self.__c_strlen();
                 let value = self
                     .builder
-                    .build_call(
-                        strlen_fn,
-                        &[
-                            compiled_arg.1.into()
-                        ],
-                        ""
-                    )
+                    .build_call(strlen_fn, &[compiled_arg.1.into()], "")
                     .unwrap()
                     .try_as_basic_value()
                     .left()
                     .unwrap();
 
                 (String::from("int64"), value)
-            },
+            }
             _ => {
                 GenError::throw(
-                    format!("Type `{}` is not supported for `len()` function!", &compiled_arg.0),
+                    format!(
+                        "Type `{}` is not supported for `len()` function!",
+                        &compiled_arg.0
+                    ),
                     ErrorType::NotSupported,
                     self.module_name.clone(),
                     self.module_source.clone(),
@@ -519,10 +516,10 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
     }
 
     fn build_size_call(
-            &mut self,
-            arguments: Vec<Expressions>,
-            line: usize,
-            function: FunctionValue<'ctx>,
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         if arguments.len() != 1 {
             GenError::throw(
@@ -540,7 +537,10 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
         let compiled_type = match arguments[0].clone() {
             Expressions::Value(Value::Keyword(arg_type)) => arg_type,
-            _ => self.compile_expression(arguments[0].clone(), line, function, None).0
+            _ => {
+                self.compile_expression(arguments[0].clone(), line, function, None)
+                    .0
+            }
         };
 
         let mut raw_type = compiled_type;
@@ -556,22 +556,28 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     type_multiplier *= Compiler::get_array_datatype_len(&ctype);
                 }
                 ctype if ctype.starts_with("fn<") => {
-                    raw_type = ctype.split("fn<").collect::<Vec<&str>>()[0].split(">").collect::<Vec<&str>>()[0].to_string();
+                    raw_type = ctype.split("fn<").collect::<Vec<&str>>()[0]
+                        .split(">")
+                        .collect::<Vec<&str>>()[0]
+                        .to_string();
                 }
-                _ => break
+                _ => break,
             };
         }
 
-        let size = crate::TYPE_SIZES.get(&raw_type.as_str()).unwrap_or_else(|| {
-            GenError::throw(
-                format!("Unsupported for size type found: `{}`", raw_type),
-                ErrorType::NotSupported,
-                self.module_name.clone(),
-                self.module_source.clone(),
-                line
-            );
-            std::process::exit(1);
-        }) * type_multiplier;
+        let size = crate::TYPE_SIZES
+            .get(&raw_type.as_str())
+            .unwrap_or_else(|| {
+                GenError::throw(
+                    format!("Unsupported for size type found: `{}`", raw_type),
+                    ErrorType::NotSupported,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line,
+                );
+                std::process::exit(1);
+            })
+            * type_multiplier;
 
         let constant = self.context.i64_type().const_int(size, false);
 
@@ -1146,10 +1152,10 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
     }
 
     fn build_malloc_call(
-            &mut self,
-            arguments: Vec<Expressions>,
-            line: usize,
-            function: FunctionValue<'ctx>
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         if arguments.len() != 1 {
             GenError::throw(
@@ -1165,7 +1171,12 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             std::process::exit(1);
         }
 
-        let compiled_size = self.compile_expression(arguments[0].clone(), line, function, Some(String::from("int64")));
+        let compiled_size = self.compile_expression(
+            arguments[0].clone(),
+            line,
+            function,
+            Some(String::from("int64")),
+        );
 
         if !compiled_size.0.starts_with("int") {
             dbg!(arguments);
@@ -1180,45 +1191,42 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         }
 
         let malloc_fn = self.__c_malloc();
-        
+
         let result = self
             .builder
-            .build_call(
-                malloc_fn,
-                &[
-                    compiled_size.1.into()
-                ],
-                ""
-            )
+            .build_call(malloc_fn, &[compiled_size.1.into()], "")
             .unwrap()
             .try_as_basic_value()
             .left()
             .unwrap();
 
-        let output_type = self.current_expectation_value.clone().unwrap_or(String::from("void*"));
+        let output_type = self
+            .current_expectation_value
+            .clone()
+            .unwrap_or(String::from("void*"));
 
         if !Compiler::__is_ptr_type(&output_type) {
             GenError::throw(
-                format!("Non-pointer type `{}` requested for `malloc()`", output_type),
+                format!(
+                    "Non-pointer type `{}` requested for `malloc()`",
+                    output_type
+                ),
                 ErrorType::TypeError,
                 self.module_name.clone(),
                 self.module_source.clone(),
-                line
+                line,
             );
             std::process::exit(1);
         }
 
-        (
-            output_type,
-            result
-        )
+        (output_type, result)
     }
 
     fn build_free_call(
-            &mut self,
-            arguments: Vec<Expressions>,
-            line: usize,
-            function: FunctionValue<'ctx>
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         if arguments.len() != 1 {
             GenError::throw(
@@ -1250,23 +1258,20 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
         let free_fn = self.__c_free();
         let _ = self
             .builder
-            .build_call(
-                free_fn,
-                &[
-                    compiled_arg.1.into()
-                ],
-                ""
-            )
+            .build_call(free_fn, &[compiled_arg.1.into()], "")
             .unwrap();
 
-        (String::from("void"), self.context.bool_type().const_zero().into())
+        (
+            String::from("void"),
+            self.context.bool_type().const_zero().into(),
+        )
     }
 
     fn build_realloc_call(
-            &mut self,
-            arguments: Vec<Expressions>,
-            line: usize,
-            function: FunctionValue<'ctx>
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>) {
         if arguments.len() != 2 {
             GenError::throw(
@@ -1314,11 +1319,8 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             .builder
             .build_call(
                 realloc_fn,
-                &[
-                    argument_ptr.1.into(),
-                    compiled_size.1.into()
-                ],
-                ""
+                &[argument_ptr.1.into(), compiled_size.1.into()],
+                "",
             )
             .unwrap()
             .try_as_basic_value()

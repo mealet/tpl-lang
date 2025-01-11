@@ -38,15 +38,17 @@ static LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
 static INT_TYPES_ORDER: LazyLock<HashMap<&str, u8>> =
     LazyLock::new(|| HashMap::from([("int8", 0), ("int16", 1), ("int32", 2), ("int64", 3)]));
 
-static TYPE_SIZES: LazyLock<HashMap<&str, u64>> = LazyLock::new(|| HashMap::from([
-    ("int8", 1),
-    ("int16", 2),
-    ("int32", 4),
-    ("int64", 8),
-    ("bool", 1),
-    ("char", 1),
-    ("str", 8),
-]));
+static TYPE_SIZES: LazyLock<HashMap<&str, u64>> = LazyLock::new(|| {
+    HashMap::from([
+        ("int8", 1),
+        ("int16", 2),
+        ("int32", 4),
+        ("int64", 8),
+        ("bool", 1),
+        ("char", 1),
+        ("str", 8),
+    ])
+});
 
 pub fn get_int_order(o_type: &str) -> i8 {
     if let Some(order) = INT_TYPES_ORDER.get(o_type) {
@@ -389,31 +391,22 @@ impl<'ctx> Compiler<'ctx> {
                                 .build_load(
                                     self.context.ptr_type(AddressSpace::default()),
                                     var_ptr.pointer,
-                                    ""
+                                    "",
                                 )
                                 .unwrap();
 
                             let ptr = unsafe {
-                                self
-                                    .builder
+                                self.builder
                                     .build_in_bounds_gep(
                                         raw_basic_type,
                                         var_value.into_pointer_value(),
-                                        &[
-                                            index_value.1.into_int_value()
-                                        ],
-                                        ""
+                                        &[index_value.1.into_int_value()],
+                                        "",
                                     )
                                     .unwrap()
                             };
 
-                            let _ = self
-                                .builder
-                                .build_store(
-                                    ptr,
-                                    expr_value.1
-                                )
-                                .unwrap();
+                            let _ = self.builder.build_store(ptr, expr_value.1).unwrap();
                         }
                         vartype if Compiler::__is_arr_type(vartype) => {
                             if expr_value.0 != Compiler::clean_array_datatype(&var_ptr.str_type) {
@@ -472,11 +465,14 @@ impl<'ctx> Compiler<'ctx> {
                         }
                         _ => {
                             GenError::throw(
-                                format!("Unsupported for slicing type found: `{}`", var_ptr.str_type),
+                                format!(
+                                    "Unsupported for slicing type found: `{}`",
+                                    var_ptr.str_type
+                                ),
                                 ErrorType::NotSupported,
                                 self.module_name.clone(),
                                 self.module_source.clone(),
-                                line
+                                line,
                             );
                             std::process::exit(1);
                         }
@@ -994,8 +990,7 @@ impl<'ctx> Compiler<'ctx> {
                 index,
                 line,
             } => {
-                let obj =
-                    self.compile_expression(*object, line, function, expected_datatype);
+                let obj = self.compile_expression(*object, line, function, expected_datatype);
                 let idx = self.compile_expression(*index, line, function, None);
                 let int_index = match idx.0 {
                     itype if itype.starts_with("int") => idx.1.into_int_value(),
@@ -1017,27 +1012,17 @@ impl<'ctx> Compiler<'ctx> {
                         let raw_basic_type = self.get_basic_type(&raw_type, line);
 
                         let ptr = unsafe {
-                            self
-                                .builder
+                            self.builder
                                 .build_in_bounds_gep(
                                     raw_basic_type,
                                     obj.1.into_pointer_value(),
-                                    &[
-                                        int_index
-                                    ],
-                                    ""
+                                    &[int_index],
+                                    "",
                                 )
                                 .unwrap()
                         };
 
-                        let value = self
-                            .builder
-                            .build_load(
-                                raw_basic_type,
-                                ptr,
-                                ""
-                            )
-                            .unwrap();
+                        let value = self.builder.build_load(raw_basic_type, ptr, "").unwrap();
 
                         (raw_type, value)
                     }
@@ -1045,28 +1030,19 @@ impl<'ctx> Compiler<'ctx> {
                         let basic_type = self.context.i8_type();
 
                         let ptr = unsafe {
-                            self
-                                .builder
+                            self.builder
                                 .build_in_bounds_gep(
                                     basic_type,
                                     obj.1.into_pointer_value(),
-                                    &[
-                                        int_index
-                                    ],
-                                    ""
-                                ).unwrap()
+                                    &[int_index],
+                                    "",
+                                )
+                                .unwrap()
                         };
 
-                        let char_value = self
-                            .builder
-                            .build_load(
-                                basic_type,
-                                ptr,
-                                ""
-                            )
-                            .unwrap();
-                        
-                        (String::from("char"), char_value.into())
+                        let char_value = self.builder.build_load(basic_type, ptr, "").unwrap();
+
+                        (String::from("char"), char_value)
                     }
                     array_type if Compiler::__is_arr_type(array_type) => {
                         let raw_type = Compiler::clean_array_datatype(array_type);
@@ -1259,8 +1235,12 @@ impl<'ctx> Compiler<'ctx> {
                             "+" => {
                                 // add
                                 (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else {
-                                        if get_int_order(&left.0) > get_int_order(&right.0) { left.0 } else { right.0 }
+                                    if let Some(exp_type) = self.current_expectation_value.clone() {
+                                        exp_type
+                                    } else if get_int_order(&left.0) > get_int_order(&right.0) {
+                                        left.0
+                                    } else {
+                                        right.0
                                     },
                                     self.builder
                                         .build_int_add(
@@ -1275,8 +1255,12 @@ impl<'ctx> Compiler<'ctx> {
                             "-" => {
                                 // substract
                                 (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else {
-                                        if get_int_order(&left.0) > get_int_order(&right.0) { left.0 } else { right.0 }
+                                    if let Some(exp_type) = self.current_expectation_value.clone() {
+                                        exp_type
+                                    } else if get_int_order(&left.0) > get_int_order(&right.0) {
+                                        left.0
+                                    } else {
+                                        right.0
                                     },
                                     self.builder
                                         .build_int_sub(
@@ -1291,8 +1275,12 @@ impl<'ctx> Compiler<'ctx> {
                             "*" => {
                                 // multiply
                                 (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else {
-                                        if get_int_order(&left.0) > get_int_order(&right.0) { left.0 } else { right.0 }
+                                    if let Some(exp_type) = self.current_expectation_value.clone() {
+                                        exp_type
+                                    } else if get_int_order(&left.0) > get_int_order(&right.0) {
+                                        left.0
+                                    } else {
+                                        right.0
                                     },
                                     self.builder
                                         .build_int_mul(
@@ -1307,8 +1295,12 @@ impl<'ctx> Compiler<'ctx> {
                             "/" => {
                                 // divide
                                 (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else {
-                                        if get_int_order(&left.0) > get_int_order(&right.0) { left.0 } else { right.0 }
+                                    if let Some(exp_type) = self.current_expectation_value.clone() {
+                                        exp_type
+                                    } else if get_int_order(&left.0) > get_int_order(&right.0) {
+                                        left.0
+                                    } else {
+                                        right.0
                                     },
                                     self.builder
                                         .build_int_signed_div(
@@ -1344,84 +1336,101 @@ impl<'ctx> Compiler<'ctx> {
                     }
                 }
             }
-            Expressions::Bitwise { operand, lhs, rhs, line } => {
+            Expressions::Bitwise {
+                operand,
+                lhs,
+                rhs,
+                line,
+            } => {
                 let left = self.compile_expression(*lhs, line, function, expected_datatype.clone());
                 let right = self.compile_expression(*rhs, line, function, expected_datatype);
 
                 // matching types
                 match left.0.as_str() {
                     // int or bool
-                    "int8" | "int16" | "int32" | "int64" | "bool" => {
-                        match operand.as_str() {
-                            "<<" => {
-                                (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
-                                    self
-                                        .builder
-                                        .build_left_shift(left.1.into_int_value(), right.1.into_int_value(), "")
-                                        .unwrap()
-                                        .as_basic_value_enum()
-                                )
+                    "int8" | "int16" | "int32" | "int64" | "bool" => match operand.as_str() {
+                        "<<" => (
+                            if let Some(exp_type) = self.current_expectation_value.clone() {
+                                exp_type
+                            } else {
+                                right.0
                             },
-                            ">>" => {
-                                (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
-                                    self
-                                        .builder
-                                        .build_right_shift(left.1.into_int_value(), right.1.into_int_value(), true, "")
-                                        .unwrap()
-                                        .as_basic_value_enum()
+                            self.builder
+                                .build_left_shift(
+                                    left.1.into_int_value(),
+                                    right.1.into_int_value(),
+                                    "",
                                 )
+                                .unwrap()
+                                .as_basic_value_enum(),
+                        ),
+                        ">>" => (
+                            if let Some(exp_type) = self.current_expectation_value.clone() {
+                                exp_type
+                            } else {
+                                right.0
                             },
-                            "&" => {
-                                (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
-                                    self
-                                        .builder
-                                        .build_and(left.1.into_int_value(), right.1.into_int_value(), "")
-                                        .unwrap()
-                                        .as_basic_value_enum()
+                            self.builder
+                                .build_right_shift(
+                                    left.1.into_int_value(),
+                                    right.1.into_int_value(),
+                                    true,
+                                    "",
                                 )
+                                .unwrap()
+                                .as_basic_value_enum(),
+                        ),
+                        "&" => (
+                            if let Some(exp_type) = self.current_expectation_value.clone() {
+                                exp_type
+                            } else {
+                                right.0
                             },
-                            "|" => {
-                                (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
-                                    self
-                                        .builder
-                                        .build_or(left.1.into_int_value(), right.1.into_int_value(), "")
-                                        .unwrap()
-                                        .as_basic_value_enum()
-                                )
+                            self.builder
+                                .build_and(left.1.into_int_value(), right.1.into_int_value(), "")
+                                .unwrap()
+                                .as_basic_value_enum(),
+                        ),
+                        "|" => (
+                            if let Some(exp_type) = self.current_expectation_value.clone() {
+                                exp_type
+                            } else {
+                                right.0
                             },
-                            "^" => {
-                                (
-                                    if let Some(exp_type) = self.current_expectation_value.clone() { exp_type } else { right.0 },
-                                    self
-                                        .builder
-                                        .build_xor(left.1.into_int_value(), right.1.into_int_value(), "")
-                                        .unwrap()
-                                        .as_basic_value_enum()
-                                )
-                            }
-                            _ => {
-                                GenError::throw(
-                                    "Unsupported bitwise operator found! Please open issue on Github!",
-                                    ErrorType::NotSupported,
-                                    self.module_name.clone(),
-                                    self.module_source.clone(),
-                                    line
-                                );
-                                std::process::exit(1);
-                            }
+                            self.builder
+                                .build_or(left.1.into_int_value(), right.1.into_int_value(), "")
+                                .unwrap()
+                                .as_basic_value_enum(),
+                        ),
+                        "^" => (
+                            if let Some(exp_type) = self.current_expectation_value.clone() {
+                                exp_type
+                            } else {
+                                right.0
+                            },
+                            self.builder
+                                .build_xor(left.1.into_int_value(), right.1.into_int_value(), "")
+                                .unwrap()
+                                .as_basic_value_enum(),
+                        ),
+                        _ => {
+                            GenError::throw(
+                                "Unsupported bitwise operator found! Please open issue on Github!",
+                                ErrorType::NotSupported,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line,
+                            );
+                            std::process::exit(1);
                         }
-                    }
+                    },
                     _ => {
                         GenError::throw(
                             format!("Type `{}` is not supported for bitwise operations!", left.0),
                             ErrorType::NotSupported,
                             self.module_name.clone(),
                             self.module_source.clone(),
-                            line
+                            line,
                         );
                         std::process::exit(1);
                     }
@@ -1600,12 +1609,10 @@ impl<'ctx> Compiler<'ctx> {
                 str_val.set_constant(false);
                 ("str".to_string(), str_val.as_pointer_value().into())
             }
-            Value::Char(ch) => {
-                (
-                    "char".to_string(),
-                    self.context.i8_type().const_int(ch as u64, false).into()
-                )
-            }
+            Value::Char(ch) => (
+                "char".to_string(),
+                self.context.i8_type().const_int(ch as u64, false).into(),
+            ),
             Value::Identifier(id) => {
                 if let Some(var_ptr) = self.variables.get(&id) {
                     let exp = expected.unwrap_or_default();
@@ -1645,7 +1652,7 @@ impl<'ctx> Compiler<'ctx> {
                     ErrorType::NotSupported,
                     self.module_name.clone(),
                     self.module_source.clone(),
-                    line
+                    line,
                 );
                 std::process::exit(1);
             }
@@ -2298,14 +2305,7 @@ impl<'ctx> Compiler<'ctx> {
                         )
                         .1
                     }
-                    "char" => {
-                        self.compile_value(
-                            Value::Char('0'),
-                            line,
-                            None
-                        )
-                        .1
-                    },
+                    "char" => self.compile_value(Value::Char('0'), line, None).1,
                     "bool" => self.compile_value(Value::Boolean(false), line, None).1,
                     _ => unreachable!(),
                 }));

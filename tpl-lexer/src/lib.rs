@@ -145,14 +145,15 @@ impl Lexer {
 
         // lexer will support numbers like 10_000_000 instead 10000000
         while self.char.is_ascii_digit()
-        || ['_', 'x', 'b'].contains(&self.char)
-        || self.is_hexadecimal_literal(self.char) {
+            || ['_', 'x', 'b'].contains(&self.char)
+            || self.is_hexadecimal_literal(self.char)
+        {
             if self.char == '0' {
                 self.getc();
 
                 match self.char {
                     'b' => {
-                        if mode != 0 || value.len() > 0 {
+                        if mode != 0 || !value.is_empty() {
                             self.error("Unexpected binary/hexadecimal number found!");
                             return 0;
                         }
@@ -162,7 +163,7 @@ impl Lexer {
                         continue;
                     }
                     'x' => {
-                        if mode != 0 || value.len() > 0 {
+                        if mode != 0 || !value.is_empty() {
                             self.error("Unexpected binary/hexadecimal number found!");
                             return 0;
                         }
@@ -188,14 +189,14 @@ impl Lexer {
 
         match mode {
             1 => {
-                return i64::from_str_radix(&value.trim(), 2).unwrap_or_else(|_| {
+                return i64::from_str_radix(value.trim(), 2).unwrap_or_else(|_| {
                     self.error("Error with parsing binary number!");
                     0
                 });
-            },
+            }
             2 => {
                 dbg!(&value);
-                return i64::from_str_radix(&value.trim(), 16).unwrap_or_else(|_| {
+                return i64::from_str_radix(value.trim(), 16).unwrap_or_else(|_| {
                     self.error("Error with parsing hexadecimal number!");
                     0
                 });
@@ -261,7 +262,7 @@ impl Lexer {
                         }
                         TokenType::SingleQuote => {
                             self.getc();
-                            
+
                             let char = self.char;
 
                             self.getc();
@@ -301,7 +302,7 @@ impl Lexer {
                                     output.push(Token::new(
                                         TokenType::LShift,
                                         String::from("<<"),
-                                        self.line
+                                        self.line,
                                     ));
                                     self.getc();
                                 }
@@ -322,7 +323,7 @@ impl Lexer {
                                     output.push(Token::new(
                                         TokenType::RShift,
                                         String::from(">>"),
-                                        self.line
+                                        self.line,
                                     ));
                                     self.getc();
                                 }
@@ -382,19 +383,18 @@ impl Lexer {
                                         self.line,
                                     ));
                                     self.getc()
-                                },
+                                }
                                 ' ' => {
                                     let mut formatted_token = matched_token;
                                     formatted_token.line = self.line;
 
                                     output.push(formatted_token);
-
                                 }
                                 _ => {
                                     output.push(Token::new(
                                         TokenType::Ref,
                                         String::from("&"),
-                                        self.line
+                                        self.line,
                                     ));
                                 }
                             }
@@ -794,5 +794,4 @@ mod tests {
             ]
         );
     }
-
 }

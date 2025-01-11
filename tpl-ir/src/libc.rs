@@ -107,10 +107,8 @@ impl<'ctx> Libc for Compiler<'ctx> {
         }
 
         let strlen_type = self.context.i64_type().fn_type(
-            &[
-                self.context.ptr_type(AddressSpace::default()).into()
-            ],
-            false
+            &[self.context.ptr_type(AddressSpace::default()).into()],
+            false,
         );
         let strlen_fn = self
             .module
@@ -162,12 +160,10 @@ impl<'ctx> Libc for Compiler<'ctx> {
             return *function_value;
         }
 
-        let malloc_type = self.context.ptr_type(AddressSpace::default()).fn_type(
-            &[
-                self.context.i64_type().into()
-            ],
-            false,
-        );
+        let malloc_type = self
+            .context
+            .ptr_type(AddressSpace::default())
+            .fn_type(&[self.context.i64_type().into()], false);
         let malloc_fn = self
             .module
             .add_function("malloc", malloc_type, Some(Linkage::External));
@@ -184,14 +180,16 @@ impl<'ctx> Libc for Compiler<'ctx> {
         let realloc_type = self.context.ptr_type(AddressSpace::default()).fn_type(
             &[
                 self.context.ptr_type(AddressSpace::default()).into(),
-                self.context.i64_type().into()
+                self.context.i64_type().into(),
             ],
             false,
         );
         let realloc_fn = self
             .module
             .add_function("realloc", realloc_type, Some(Linkage::External));
-        let _ = self.built_functions.insert("realloc".to_string(), realloc_fn);
+        let _ = self
+            .built_functions
+            .insert("realloc".to_string(), realloc_fn);
 
         realloc_fn
     }
@@ -202,9 +200,7 @@ impl<'ctx> Libc for Compiler<'ctx> {
         }
 
         let free_type = self.context.void_type().fn_type(
-            &[
-                self.context.ptr_type(AddressSpace::default()).into(),
-            ],
+            &[self.context.ptr_type(AddressSpace::default()).into()],
             false,
         );
         let free_fn = self
