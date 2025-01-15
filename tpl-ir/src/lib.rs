@@ -187,7 +187,7 @@ impl<'ctx> Compiler<'ctx> {
 
                     self.variables.insert(
                         identifier.clone(),
-                        Variable::new(compiled_expression.0, var_type, alloca, None),
+                        Variable::new(compiled_expression.0, true, var_type, alloca, None),
                     );
 
                     let _ = self.builder.build_store(alloca, compiled_expression.1);
@@ -223,6 +223,7 @@ impl<'ctx> Compiler<'ctx> {
                         identifier.clone(),
                         Variable::new(
                             datatype.clone(),
+                            false,
                             var_type,
                             alloca,
                             assigned_function.clone(),
@@ -245,6 +246,7 @@ impl<'ctx> Compiler<'ctx> {
 
                         // matching datatypes
 
+                        if compiled_expression.0 == String::from("null") { return };
                         if compiled_expression.0 != datatype {
                             GenError::throw(
                                 format!(
@@ -266,6 +268,7 @@ impl<'ctx> Compiler<'ctx> {
                                 identifier.clone(),
                                 Variable::new(
                                     datatype.clone(),
+                                    true,
                                     var_type,
                                     alloca,
                                     // compiled_expression.1.into_pointer_value(),
@@ -284,6 +287,7 @@ impl<'ctx> Compiler<'ctx> {
                                 identifier.clone(),
                                 Variable::new(
                                     datatype.clone(),
+                                    true,
                                     var_type,
                                     alloca,
                                     self.current_assign_function.clone(),
@@ -1615,6 +1619,17 @@ impl<'ctx> Compiler<'ctx> {
             ),
             Value::Identifier(id) => {
                 if let Some(var_ptr) = self.variables.get(&id) {
+                    if !var_ptr.assigned {
+                        GenError::throw(
+                            format!("No value assigned to `{}` variable!", id),
+                            ErrorType::NoValue,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line
+                        );
+                        std::process::exit(1);
+                    }
+
                     let exp = expected.unwrap_or_default();
 
                     let value = if Compiler::__is_ptr_type(&exp) {
@@ -1646,16 +1661,34 @@ impl<'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
             }
-            _ => {
-                GenError::throw(
-                    format!("Value `{:?}` is not supported yet!", value),
-                    ErrorType::NotSupported,
-                    self.module_name.clone(),
-                    self.module_source.clone(),
-                    line,
-                );
-                std::process::exit(1);
+            Value::Keyword(word) => {
+                match word.as_str() {
+                    "null" => (
+                        String::from("null"),
+                        self.context.bool_type().const_zero().into()
+                    ),
+                    _ => {
+                        GenError::throw(
+                            format!("Unsupported value with keyword `{}` found!", word),
+                            ErrorType::NotSupported,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line
+                        );
+                        std::process::exit(1);
+                    }
+                }
             }
+            // _ => {
+            //     GenError::throw(
+            //         format!("Value `{:?}` is not supported yet!", value),
+            //         ErrorType::NotSupported,
+            //         self.module_name.clone(),
+            //         self.module_source.clone(),
+            //         line,
+            //     );
+            //     std::process::exit(1);
+            // }
         }
     }
 
@@ -2257,7 +2290,7 @@ impl<'ctx> Compiler<'ctx> {
             // and inserting variables pointers to main hashmap
             self.variables.insert(
                 varname,
-                Variable::new(arg.1.clone(), parameter_type, parameter_alloca, None),
+                Variable::new(arg.1.clone(), true, parameter_type, parameter_alloca, None),
             );
         }
 

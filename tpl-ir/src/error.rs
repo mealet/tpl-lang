@@ -16,7 +16,10 @@ pub enum ErrorType {
     NotDefined,
     NotSupported,
     NotExpected,
+
     VerificationFailure,
+    NoValue,
+
     ImportError,
     TypeError,
     MemoryError,

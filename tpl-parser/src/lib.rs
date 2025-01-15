@@ -397,7 +397,7 @@ impl Parser {
                 return self.call_expression(current.value);
             }
             TokenType::Keyword => {
-                return Expressions::Value(Value::Keyword(current.value));
+                output = Expressions::Value(Value::Keyword(current.value));
             }
             _ => {
                 self.error(format!(
