@@ -1813,6 +1813,59 @@ impl<'ctx> Compiler<'ctx> {
 
                 // matching same supported types
                 match (left.0.as_str(), right.0.as_str()) {
+                    ("null", "null") => {
+                        self.context.bool_type().const_int(1, false)
+                    }
+
+                    (ltype, rtype) if ltype == "null" => {
+                        if !Compiler::__is_ptr_type(rtype) {
+                            return self.context.bool_type().const_zero();
+                        }
+
+                        match operand.as_str() {
+                            "==" => {
+                                self.builder.build_is_null(right.1.into_pointer_value(), "").unwrap()
+                            },
+                            "!=" => {
+                                self.builder.build_is_not_null(right.1.into_pointer_value(), "").unwrap()
+                            },
+                            _ => {
+                                GenError::throw(
+                                    format!("Operand `{}` is not supported for `null` checker!", operand),
+                                    ErrorType::NotSupported,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line
+                                );
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    (ltype, rtype) if rtype == "null" => {
+                        if !Compiler::__is_ptr_type(ltype) {
+                            return self.context.bool_type().const_zero();
+                        }
+
+                        match operand.as_str() {
+                            "==" => {
+                                self.builder.build_is_null(left.1.into_pointer_value(), "").unwrap()
+                            },
+                            "!=" => {
+                                self.builder.build_is_not_null(left.1.into_pointer_value(), "").unwrap()
+                            },
+                            _ => {
+                                GenError::throw(
+                                    format!("Operand `{}` is not supported for `null` checker!", operand),
+                                    ErrorType::NotSupported,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line
+                                );
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+
                     ("int8", "int8")
                     | ("int16", "int16")
                     | ("int32", "int32")
@@ -1979,6 +2032,9 @@ impl<'ctx> Compiler<'ctx> {
                 "realloc" => return self.build_realloc_call(arguments, line, function),
                 "free" => return self.build_free_call(arguments, line, function),
 
+                "file" => return self.build_file_call(arguments, line, function),
+                "close" => return self.build_close_call(arguments, line, function),
+
                 _ => {
                     if let Some(var) = self.variables.get(&function_name) {
                         if var.assigned_function.is_some() {
@@ -1995,7 +2051,7 @@ impl<'ctx> Compiler<'ctx> {
                         }
                     } else {
                         GenError::throw(
-                            format!("Function `{}` is not defined!", function_name),
+                            format!("Function `{}()` is not defined!", function_name),
                             ErrorType::NotDefined,
                             self.module_name.clone(),
                             self.module_source.clone(),

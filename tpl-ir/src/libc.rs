@@ -21,7 +21,11 @@ pub trait Libc {
     fn __c_fopen(&mut self) -> Self::Function;
     fn __c_fprintf(&mut self) -> Self::Function;
     fn __c_fwrite(&mut self) -> Self::Function;
+
     fn __c_fread(&mut self) -> Self::Function;
+    fn __c_fgetc(&mut self) -> Self::Function;
+
+    fn __c_rewind(&mut self) -> Self::Function;
     fn __c_fclose(&mut self) -> Self::Function;
 }
 
@@ -268,7 +272,7 @@ impl<'ctx> Libc for Compiler<'ctx> {
             return *function_value;
         }
 
-        let fn_type = self.context.ptr_type(AddressSpace::default()).fn_type(
+        let fn_type = self.context.void_type().fn_type(
             &[
                 self.context.ptr_type(AddressSpace::default()).into(),
                 self.context.i64_type().into(),
@@ -291,7 +295,7 @@ impl<'ctx> Libc for Compiler<'ctx> {
             return *function_value;
         }
 
-        let fn_type = self.context.ptr_type(AddressSpace::default()).fn_type(
+        let fn_type = self.context.void_type().fn_type(
             &[
                 self.context.ptr_type(AddressSpace::default()).into(),
             ],
@@ -311,9 +315,49 @@ impl<'ctx> Libc for Compiler<'ctx> {
             return *function_value;
         }
 
-        let fn_type = self.context.ptr_type(AddressSpace::default()).fn_type(
+        let fn_type = self.context.void_type().fn_type(
             &[
                 self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            true
+        );
+        let fn_obj = self
+            .module
+            .add_function(FN_NAME, fn_type, Some(Linkage::External));
+
+        fn_obj
+    }
+
+    fn __c_fgetc(&mut self) -> Self::Function {
+        const FN_NAME: &str = "fgetc";
+
+        if let Some(function_value) = self.built_functions.get(FN_NAME) {
+            return *function_value;
+        }
+
+        let fn_type = self.context.void_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            true
+        );
+        let fn_obj = self
+            .module
+            .add_function(FN_NAME, fn_type, Some(Linkage::External));
+
+        fn_obj
+    }
+
+    fn __c_rewind(&mut self) -> Self::Function {
+        const FN_NAME: &str = "rewind";
+
+        if let Some(function_value) = self.built_functions.get(FN_NAME) {
+            return *function_value;
+        }
+
+        let fn_type = self.context.void_type().fn_type(
+            &[
                 self.context.ptr_type(AddressSpace::default()).into(),
             ],
             true

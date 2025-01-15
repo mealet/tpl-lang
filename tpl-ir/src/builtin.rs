@@ -106,6 +106,21 @@ pub trait BuiltIn<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
+
+    // files
+    fn build_file_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
+
+    fn build_close_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
 }
 
 impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
@@ -1328,5 +1343,101 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             .unwrap();
 
         (argument_ptr.0, result_ptr)
+    }
+
+    fn build_file_call(
+            &mut self,
+            arguments: Vec<Expressions>,
+            line: usize,
+            function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 2 {
+            GenError::throw(
+                format!("Function `file` requires 2 arguments, but {} found", arguments.len()),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let path_to_file = self.compile_expression(arguments[0].clone(), line, function, None);
+        let open_mode = self.compile_expression(arguments[1].clone(), line, function, None);
+
+        if path_to_file.0 != String::from("str")
+        && open_mode.0 != String::from("str") {
+            GenError::throw(
+                "Wrong arguments found! Function `file` takes next arguments: file(str path, str mode)",
+                ErrorType::TypeError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let fopen_fn = self.__c_fopen();
+        let call_result = self
+            .builder
+            .build_call(
+                fopen_fn,
+                &[
+                    path_to_file.1.into(),
+                    open_mode.1.into()
+                ],
+                ""
+            )
+            .unwrap()
+            .try_as_basic_value()
+            .left()
+            .unwrap();
+
+        (String::from("FILE*"), call_result)
+    }
+
+    fn build_close_call(
+            &mut self,
+            arguments: Vec<Expressions>,
+            line: usize,
+            function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 1 {
+            GenError::throw(
+                format!("Function `close` requires 1 argument, but {} found", arguments.len()),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let file_ptr = self.compile_expression(arguments[0].clone(), line, function, None);
+
+        if file_ptr.0 != String::from("FILE*") {
+            GenError::throw(
+                "Function `close` requires file pointer as an argument!",
+                ErrorType::TypeError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let fclose_fn = self.__c_fclose();
+        let _ = self
+            .builder
+            .build_call(
+                fclose_fn,
+                &[
+                    file_ptr.1.into()
+                ],
+                ""
+            )
+            .unwrap();
+
+        (String::from("void"), self.context.bool_type().const_zero().into())
     }
 }

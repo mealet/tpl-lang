@@ -86,7 +86,7 @@ impl Lexer {
                 macros::std_keyword!("str"),
                 macros::std_keyword!("char"),
                 macros::std_keyword!("bool"),
-                macros::std_keyword!("file"),
+                macros::std_keyword!("FILE"),
                 // Values
                 macros::std_token!("true", TokenType::Boolean),
                 macros::std_token!("false", TokenType::Boolean),

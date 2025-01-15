@@ -18,8 +18,8 @@ use value::Value;
 
 // globals
 
-static DATATYPES: [&str; 11] = [
-    "int8", "int16", "int32", "int64", "int128", "str", "char", "bool", "auto", "void", "fn",
+static DATATYPES: [&str; 12] = [
+    "int8", "int16", "int32", "int64", "int128", "str", "char", "bool", "auto", "void", "fn", "FILE"
 ];
 static BINARY_OPERATORS: [TokenType; 4] = [
     TokenType::Plus,     // +
