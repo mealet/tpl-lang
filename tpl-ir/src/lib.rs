@@ -2035,6 +2035,7 @@ impl<'ctx> Compiler<'ctx> {
                 "file" => return self.build_file_call(arguments, line, function),
                 "close" => return self.build_close_call(arguments, line, function),
 
+                "write" => return self.build_write_call(arguments, line, function),
                 _ => {
                     if let Some(var) = self.variables.get(&function_name) {
                         if var.assigned_function.is_some() {

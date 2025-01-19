@@ -121,6 +121,13 @@ pub trait BuiltIn<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
+
+    fn build_write_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
 }
 
 impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
@@ -1439,5 +1446,64 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             .unwrap();
 
         (String::from("void"), self.context.bool_type().const_zero().into())
+    }
+
+    fn build_write_call(
+            &mut self,
+            arguments: Vec<Expressions>,
+            line: usize,
+            function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 2 {
+            GenError::throw(
+                format!("Function `write` requires 2 arguments, but {} found", arguments.len()),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let file_ptr = self.compile_expression(arguments[0].clone(), line, function, None);
+        let string = self.compile_expression(arguments[1].clone(), line, function, None);
+
+        if file_ptr.0 != String::from("FILE*") {
+            GenError::throw(
+                "Function `write` requires file pointer!",
+                ErrorType::TypeError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        if string.0 != String::from("str") {
+            GenError::throw(
+                format!("Type `str` expected, but found `{}`", file_ptr.1),
+                ErrorType::TypeError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let fprintf_fn = self.__c_fprintf();
+
+        let _ = self
+            .builder
+            .build_call(
+                fprintf_fn,
+                &[
+                    file_ptr.1.into(),
+                    string.1.into()
+                ],
+                ""
+            )
+            .unwrap();
+
+        ("void".into(), self.context.bool_type().const_zero().into())
     }
 }
