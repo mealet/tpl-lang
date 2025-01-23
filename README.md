@@ -10,6 +10,6 @@
 
  <img src="https://tokei.rs/b1/github/mealet/tpl-lang?branch=main&style=for-the-badge&color=%230389f5" />
  <img src="https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2Fmealet%2Ftpl-lang%2Frefs%2Fheads%2Fmain%2FCargo.toml%3Fraw%3Dtrue&query=workspace.package.version&style=for-the-badge&label=Version&color=%230389f5" />
+ <br/>
+ <a href="https://tpl-lang.vercel.app"><img src="https://img.shields.io/badge/official_site-red?style=for-the-badge&color=%230389f5" /></a>
 </div>
-
-Official site and documentation -> [tpl-lang](https://tpl-lang.vercel.app/)
