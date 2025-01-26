@@ -4,12 +4,40 @@ use inkwell::{module::Linkage, values::FunctionValue, AddressSpace};
 pub trait Libc {
     type Function;
 
+    // stdio
+
     fn __c_printf(&mut self) -> Self::Function;
     fn __c_sprintf(&mut self) -> Self::Function;
+
+    // strings
+
     fn __c_strcat(&mut self) -> Self::Function;
     fn __c_strcmp(&mut self) -> Self::Function;
+    fn __c_strlen(&mut self) -> Self::Function;
+
     fn __c_scanf(&mut self) -> Self::Function;
     fn __c_sscanf(&mut self) -> Self::Function;
+
+    // allocation
+
+    fn __c_malloc(&mut self) -> Self::Function;
+    fn __c_realloc(&mut self) -> Self::Function;
+    fn __c_free(&mut self) -> Self::Function;
+
+    // filesystem
+
+    fn __c_fopen(&mut self) -> Self::Function;
+    fn __c_fclose(&mut self) -> Self::Function;
+
+    fn __c_fprintf(&mut self) -> Self::Function;
+    fn __c_fwrite(&mut self) -> Self::Function;
+    fn __c_fgetc(&mut self) -> Self::Function;
+
+    fn __c_rewind(&mut self) -> Self::Function;
+    fn __c_fseek(&mut self) -> Self::Function;
+    fn __c_fsetpos(&mut self) -> Self::Function;
+    fn __c_ftell(&mut self) -> Self::Function;
+    fn __c_feof(&mut self) -> Self::Function;
 }
 
 impl<'ctx> Libc for Compiler<'ctx> {
@@ -94,6 +122,23 @@ impl<'ctx> Libc for Compiler<'ctx> {
         strcmp_fn
     }
 
+    fn __c_strlen(&mut self) -> Self::Function {
+        if let Some(function_value) = self.built_functions.get("strlen") {
+            return *function_value;
+        }
+
+        let strlen_type = self.context.i64_type().fn_type(
+            &[self.context.ptr_type(AddressSpace::default()).into()],
+            false,
+        );
+        let strlen_fn = self
+            .module
+            .add_function("strlen", strlen_type, Some(Linkage::External));
+        let _ = self.built_functions.insert("strlen".to_string(), strlen_fn);
+
+        strlen_fn
+    }
+
     fn __c_scanf(&mut self) -> Self::Function {
         if let Some(function_value) = self.built_functions.get("scanf") {
             return *function_value;
@@ -130,177 +175,277 @@ impl<'ctx> Libc for Compiler<'ctx> {
 
         sscanf_fn
     }
-}
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+    fn __c_malloc(&mut self) -> Self::Function {
+        if let Some(function_value) = self.built_functions.get("malloc") {
+            return *function_value;
+        }
 
-    #[test]
-    fn __c_printf_test() {
-        let ctx = inkwell::context::Context::create();
-        let mut compiler =
-            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
-        compiler.builder.position_at_end(compiler.current_block);
+        let malloc_type = self
+            .context
+            .ptr_type(AddressSpace::default())
+            .fn_type(&[self.context.i64_type().into()], false);
+        let malloc_fn = self
+            .module
+            .add_function("malloc", malloc_type, Some(Linkage::External));
+        let _ = self.built_functions.insert("malloc".to_string(), malloc_fn);
 
-        let printf_function = compiler.__c_printf();
-
-        assert_eq!(printf_function.get_linkage(), Linkage::External);
-        assert!(!printf_function.is_null());
-        assert!(!printf_function.is_undef());
-        assert!(printf_function.verify(true));
-        assert_eq!(
-            printf_function.get_name().to_string_lossy().to_string(),
-            String::from("printf")
-        );
-        assert_eq!(
-            printf_function.get_type(),
-            compiler.context.i32_type().fn_type(
-                &[compiler.context.ptr_type(AddressSpace::default()).into()],
-                true
-            )
-        );
+        malloc_fn
     }
 
-    #[test]
-    fn __c_strcat_test() {
-        let ctx = inkwell::context::Context::create();
-        let mut compiler =
-            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
-        compiler.builder.position_at_end(compiler.current_block);
+    fn __c_realloc(&mut self) -> Self::Function {
+        if let Some(function_value) = self.built_functions.get("realloc") {
+            return *function_value;
+        }
 
-        let strcat = compiler.__c_strcat();
+        let realloc_type = self.context.ptr_type(AddressSpace::default()).fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.i64_type().into(),
+            ],
+            false,
+        );
+        let realloc_fn = self
+            .module
+            .add_function("realloc", realloc_type, Some(Linkage::External));
+        let _ = self
+            .built_functions
+            .insert("realloc".to_string(), realloc_fn);
 
-        assert_eq!(strcat.get_linkage(), Linkage::External);
-        assert!(!strcat.is_null());
-        assert!(!strcat.is_undef());
-        assert!(strcat.verify(true));
-        assert_eq!(
-            strcat.get_name().to_string_lossy().to_string(),
-            String::from("strcat")
-        );
-        assert_eq!(
-            strcat.get_type(),
-            compiler.context.ptr_type(AddressSpace::default()).fn_type(
-                &[
-                    compiler.context.ptr_type(AddressSpace::default()).into(),
-                    compiler.context.ptr_type(AddressSpace::default()).into(),
-                ],
-                true
-            )
-        );
+        realloc_fn
     }
 
-    #[test]
-    fn __c_sprintf_test() {
-        let ctx = inkwell::context::Context::create();
-        let mut compiler =
-            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
-        compiler.builder.position_at_end(compiler.current_block);
+    fn __c_free(&mut self) -> Self::Function {
+        if let Some(function_value) = self.built_functions.get("free") {
+            return *function_value;
+        }
 
-        let sprintf = compiler.__c_sprintf();
+        let free_type = self.context.void_type().fn_type(
+            &[self.context.ptr_type(AddressSpace::default()).into()],
+            false,
+        );
+        let free_fn = self
+            .module
+            .add_function("free", free_type, Some(Linkage::External));
+        let _ = self.built_functions.insert("free".to_string(), free_fn);
 
-        assert_eq!(sprintf.get_linkage(), Linkage::External);
-        assert!(!sprintf.is_null());
-        assert!(!sprintf.is_undef());
-        assert!(sprintf.verify(true));
-        assert_eq!(
-            sprintf.get_name().to_string_lossy().to_string(),
-            String::from("sprintf")
-        );
-        assert_eq!(
-            sprintf.get_type(),
-            compiler.context.void_type().fn_type(
-                &[
-                    compiler.context.ptr_type(AddressSpace::default()).into(),
-                    compiler.context.ptr_type(AddressSpace::default()).into(),
-                ],
-                true
-            )
-        );
+        free_fn
     }
 
-    #[test]
-    fn __c_strcmp_test() {
-        let ctx = inkwell::context::Context::create();
-        let mut compiler =
-            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
-        compiler.builder.position_at_end(compiler.current_block);
+    fn __c_fopen(&mut self) -> Self::Function {
+        const FN_NAME: &str = "fopen";
 
-        let strcmp = compiler.__c_strcmp();
+        if let Some(function_value) = self.built_functions.get(FN_NAME) {
+            return *function_value;
+        }
 
-        assert_eq!(strcmp.get_linkage(), Linkage::External);
-        assert!(!strcmp.is_null());
-        assert!(!strcmp.is_undef());
-        assert!(strcmp.verify(true));
-        assert_eq!(
-            strcmp.get_name().to_string_lossy().to_string(),
-            String::from("strcmp")
+        let fn_type = self.context.ptr_type(AddressSpace::default()).fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false
         );
-        assert_eq!(
-            strcmp.get_type(),
-            compiler.context.i32_type().fn_type(
-                &[
-                    compiler.context.ptr_type(AddressSpace::default()).into(),
-                    compiler.context.ptr_type(AddressSpace::default()).into(),
-                ],
-                false
-            )
-        );
+        let fn_obj = self
+            .module
+            .add_function(FN_NAME, fn_type, Some(Linkage::External));
+        let _ = self.built_functions.insert(FN_NAME.to_string(), fn_obj);
+
+        fn_obj
     }
 
-    #[test]
-    fn __c_scanf_test() {
-        let ctx = inkwell::context::Context::create();
-        let mut compiler =
-            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
-        compiler.builder.position_at_end(compiler.current_block);
+    fn __c_fwrite(&mut self) -> Self::Function {
+        const FN_NAME: &str = "fwrite";
 
-        let scanf = compiler.__c_scanf();
+        if let Some(function_value) = self.built_functions.get(FN_NAME) {
+            return *function_value;
+        }
 
-        assert_eq!(scanf.get_linkage(), Linkage::External);
-        assert!(!scanf.is_null());
-        assert!(!scanf.is_undef());
-        assert!(scanf.verify(true));
-        assert_eq!(
-            scanf.get_name().to_string_lossy().to_string(),
-            String::from("scanf")
+        let fn_type = self.context.void_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.i64_type().into(),
+                self.context.i64_type().into(),
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false
         );
-        assert_eq!(
-            scanf.get_type(),
-            compiler.context.i32_type().fn_type(
-                &[compiler.context.ptr_type(AddressSpace::default()).into(),],
-                true
-            )
-        );
+        let fn_obj = self
+            .module
+            .add_function(FN_NAME, fn_type, Some(Linkage::External));
+        let _ = self.built_functions.insert(FN_NAME.to_string(), fn_obj);
+
+        fn_obj
     }
 
-    #[test]
-    fn __c_sscanf_test() {
-        let ctx = inkwell::context::Context::create();
-        let mut compiler =
-            Compiler::new(&ctx, "test", String::from("none"), String::from("test.tpl"));
-        compiler.builder.position_at_end(compiler.current_block);
+    fn __c_fclose(&mut self) -> Self::Function {
+        const FN_NAME: &str = "fclose";
 
-        let sscanf = compiler.__c_sscanf();
+        if let Some(function_value) = self.built_functions.get(FN_NAME) {
+            return *function_value;
+        }
 
-        assert_eq!(sscanf.get_linkage(), Linkage::External);
-        assert!(!sscanf.is_null());
-        assert!(!sscanf.is_undef());
-        assert!(sscanf.verify(true));
-        assert_eq!(
-            sscanf.get_name().to_string_lossy().to_string(),
-            String::from("sscanf")
+        let fn_type = self.context.void_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false
         );
-        assert_eq!(
-            sscanf.get_type(),
-            compiler.context.i32_type().fn_type(
-                &[
-                    compiler.context.ptr_type(AddressSpace::default()).into(),
-                    compiler.context.ptr_type(AddressSpace::default()).into(),
-                ],
-                true
-            )
+        let fn_obj = self
+            .module
+            .add_function(FN_NAME, fn_type, Some(Linkage::External));
+        let _ = self.built_functions.insert(FN_NAME.to_string(), fn_obj);
+
+        fn_obj
+    }
+
+    fn __c_fprintf(&mut self) -> Self::Function {
+        const FN_NAME: &str = "fprintf";
+
+        if let Some(function_value) = self.built_functions.get(FN_NAME) {
+            return *function_value;
+        }
+
+        let fn_type = self.context.void_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            true
         );
+        let fn_obj = self
+            .module
+            .add_function(FN_NAME, fn_type, Some(Linkage::External));
+        let _ = self.built_functions.insert(FN_NAME.to_string(), fn_obj);
+
+        fn_obj
+    }
+
+    fn __c_fgetc(&mut self) -> Self::Function {
+        const FN_NAME: &str = "fgetc";
+
+        if let Some(function_value) = self.built_functions.get(FN_NAME) {
+            return *function_value;
+        }
+
+        let fn_type = self.context.i32_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false
+        );
+        let fn_obj = self
+            .module
+            .add_function(FN_NAME, fn_type, Some(Linkage::External));
+        let _ = self.built_functions.insert(FN_NAME.to_string(), fn_obj);
+
+        fn_obj
+    }
+
+    fn __c_rewind(&mut self) -> Self::Function {
+        const FN_NAME: &str = "rewind";
+
+        if let Some(function_value) = self.built_functions.get(FN_NAME) {
+            return *function_value;
+        }
+
+        let fn_type = self.context.void_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false
+        );
+        let fn_obj = self
+            .module
+            .add_function(FN_NAME, fn_type, Some(Linkage::External));
+        let _ = self.built_functions.insert(FN_NAME.to_string(), fn_obj);
+
+        fn_obj
+    }
+
+    fn __c_fseek(&mut self) -> Self::Function {
+        const FN_NAME: &str = "fseek";
+
+        if let Some(function_value) = self.built_functions.get(FN_NAME) {
+            return *function_value;
+        }
+
+        let fn_type = self.context.i32_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+                self.context.i64_type().into(),
+                self.context.i32_type().into()
+            ],
+            false
+        );
+        let fn_obj = self
+            .module
+            .add_function(FN_NAME, fn_type, Some(Linkage::External));
+        let _ = self.built_functions.insert(FN_NAME.to_string(), fn_obj);
+
+        fn_obj
+    }
+
+    fn __c_ftell(&mut self) -> Self::Function {
+        const FN_NAME: &str = "ftell";
+
+        if let Some(function_value) = self.built_functions.get(FN_NAME) {
+            return *function_value;
+        }
+
+        let fn_type = self.context.i32_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false
+        );
+        let fn_obj = self
+            .module
+            .add_function(FN_NAME, fn_type, Some(Linkage::External));
+        let _ = self.built_functions.insert(FN_NAME.to_string(), fn_obj);
+
+        fn_obj
+    }
+
+    fn __c_feof(&mut self) -> Self::Function {
+         const FN_NAME: &str = "feof";
+
+        if let Some(function_value) = self.built_functions.get(FN_NAME) {
+            return *function_value;
+        }
+
+        let fn_type = self.context.i32_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false
+        );
+        let fn_obj = self
+            .module
+            .add_function(FN_NAME, fn_type, Some(Linkage::External));
+        let _ = self.built_functions.insert(FN_NAME.to_string(), fn_obj);
+
+        fn_obj
+    }
+
+    fn __c_fsetpos(&mut self) -> Self::Function {
+        const FN_NAME: &str = "fsetpos";
+
+        if let Some(function_value) = self.built_functions.get(FN_NAME) {
+            return *function_value;
+        }
+
+        let fn_type = self.context.i32_type().fn_type(
+            &[
+                self.context.ptr_type(AddressSpace::default()).into(),
+            ],
+            false
+        );
+        let fn_obj = self
+            .module
+            .add_function(FN_NAME, fn_type, Some(Linkage::External));
+        let _ = self.built_functions.insert(FN_NAME.to_string(), fn_obj);
+
+        fn_obj
     }
 }

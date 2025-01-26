@@ -10,6 +10,7 @@ pub enum TokenType {
 
     Number,  // 123
     String,  // "asd"
+    Char,    // 'a'
     Boolean, // true/false
 
     Equal,    // =
@@ -26,12 +27,18 @@ pub enum TokenType {
     Or,  // ||
     And, // &&
 
-    Semicolon, // ;
-    Ampersand, // &
-    Verbar,    // |
-    Dot,       // .
-    Comma,     // ,
-    Quote,     // "
+    Semicolon,   // ;
+    Ampersand,   // &
+    Ref,         // &_
+    Verbar,      // |
+    Dot,         // .
+    Comma,       // ,
+    Quote,       // "
+    SingleQuote, // '
+
+    LShift, // <<
+    RShift, // >>
+    Xor,    // ^
 
     LParen, // (
     RParen, // )

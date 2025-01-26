@@ -8,6 +8,7 @@
 #[derive(Debug, Clone)]
 pub struct Variable<'ctx> {
     pub str_type: String,
+    pub assigned: bool,
     pub basic_type: inkwell::types::BasicTypeEnum<'ctx>,
     pub pointer: inkwell::values::PointerValue<'ctx>,
     pub assigned_function: Option<crate::function::Function<'ctx>>,
@@ -17,12 +18,14 @@ pub struct Variable<'ctx> {
 impl<'ctx> Variable<'ctx> {
     pub fn new(
         str_type: String,
+        assigned: bool,
         basic_type: inkwell::types::BasicTypeEnum<'ctx>,
         pointer: inkwell::values::PointerValue<'ctx>,
         assigned_function: Option<crate::function::Function<'ctx>>,
     ) -> Self {
         Self {
             str_type,
+            assigned,
             basic_type,
             pointer,
             assigned_function,

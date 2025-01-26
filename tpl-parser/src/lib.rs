@@ -18,8 +18,8 @@ use value::Value;
 
 // globals
 
-static DATATYPES: [&str; 10] = [
-    "int8", "int16", "int32", "int64", "int128", "str", "bool", "auto", "void", "fn",
+static DATATYPES: [&str; 12] = [
+    "int8", "int16", "int32", "int64", "int128", "str", "char", "bool", "auto", "void", "fn", "FILE"
 ];
 static BINARY_OPERATORS: [TokenType; 4] = [
     TokenType::Plus,     // +
@@ -35,6 +35,14 @@ static BOOLEAN_OPERATORS: [TokenType; 6] = [
     TokenType::Ne,  // !
     TokenType::Or,  // ||
     TokenType::And, // &&
+];
+
+static BITWISE_OPERATORS: [TokenType; 5] = [
+    TokenType::LShift,    // <<
+    TokenType::RShift,    // >>
+    TokenType::Ampersand, // &
+    TokenType::Verbar,    // |
+    TokenType::Xor,       // ^
 ];
 
 static PRIORITY_BINARY_OPERATORS: [TokenType; 2] = [TokenType::Multiply, TokenType::Divide];
@@ -112,6 +120,10 @@ impl Parser {
 
     fn expect(&self, expected: TokenType) -> bool {
         self.current().token_type == expected
+    }
+
+    fn is_bitwise_operand(&self, token_type: TokenType) -> bool {
+        BITWISE_OPERATORS.contains(&token_type)
     }
 
     fn is_binary_operand(&self, token_type: TokenType) -> bool {
@@ -315,11 +327,16 @@ impl Parser {
                 output = Expressions::Value(Value::Integer(current.value.trim().parse().unwrap()))
             }
             TokenType::String => output = Expressions::Value(Value::String(current.value)),
+            TokenType::Char => {
+                let ch = current.value.chars().nth(0).unwrap();
+                output = Expressions::Value(Value::Char(ch));
+            }
             TokenType::Boolean => {
                 output = Expressions::Value(Value::Boolean(current.value == "true"))
             }
-            TokenType::Ampersand => {
+            TokenType::Ref => {
                 let _ = self.next();
+
                 return Expressions::Reference {
                     object: Box::new(self.term()),
                     line: current.line,
@@ -380,7 +397,7 @@ impl Parser {
                 return self.call_expression(current.value);
             }
             TokenType::Keyword => {
-                return Expressions::Value(Value::Keyword(current.value));
+                output = Expressions::Value(Value::Keyword(current.value));
             }
             _ => {
                 self.error(format!(
@@ -407,7 +424,32 @@ impl Parser {
             _ if self.is_boolean_operand(current.token_type) => {
                 node = self.boolean_expression(node);
             }
+            _ if self.is_bitwise_operand(current.token_type) => {
+                node = self.bitwise_expression(node);
+            }
 
+            TokenType::LBrack => {
+                let _ = self.next();
+
+                if self.expect(TokenType::RBrack) {
+                    return node;
+                }
+
+                let slice_index = self.expression();
+
+                if !self.expect(TokenType::RBrack) {
+                    self.error("Brackets in expression is not closed!");
+                    return Expressions::None;
+                }
+
+                let _ = self.next();
+
+                node = Expressions::Slice {
+                    object: Box::new(node),
+                    index: Box::new(slice_index),
+                    line: current.line,
+                }
+            }
             TokenType::LParen => {
                 if let Expressions::Value(Value::Keyword(keyword)) = node.clone() {
                     if !DATATYPES.contains(&keyword.as_str()) {
@@ -530,6 +572,31 @@ impl Parser {
                 }
 
                 Expressions::Binary {
+                    operand: current_token.value,
+                    lhs: Box::new(lhs),
+                    rhs: Box::new(rhs),
+                    line: current_line,
+                }
+            }
+            _ => {
+                self.error("Unexpected token at binary expression!");
+                Expressions::None
+            }
+        }
+    }
+
+    fn bitwise_expression(&mut self, node: Expressions) -> Expressions {
+        let current_token = self.current();
+        let current_line = current_token.line;
+
+        match current_token.token_type {
+            ttype if self.is_bitwise_operand(ttype) => {
+                let _ = self.next();
+
+                let lhs = node;
+                let rhs = self.expression();
+
+                Expressions::Bitwise {
                     operand: current_token.value,
                     lhs: Box::new(lhs),
                     rhs: Box::new(rhs),
@@ -2550,7 +2617,7 @@ mod tests {
 
     #[test]
     fn pointer_on_ref_annotation_test() {
-        let input = String::from("int32* a = &5;");
+        let input = String::from("int32* a = &b;");
         let mut lexer = Lexer::new(input.clone(), "test".to_string());
 
         let tokens = match lexer.tokenize() {
@@ -2567,7 +2634,7 @@ mod tests {
                 identifier: String::from("a"),
                 datatype: String::from("int32*"),
                 value: Some(Box::new(Expressions::Reference {
-                    object: Box::new(Expressions::Value(Value::Integer(5))),
+                    object: Box::new(Expressions::Value(Value::Identifier("b".to_string()))),
                     line: 0
                 })),
                 line: 0
@@ -2589,5 +2656,34 @@ mod tests {
         let ast = parser.parse().unwrap();
 
         dbg!(&ast);
+    }
+
+    #[test]
+    fn bitwise_operation_in_annotation() {
+        let input = String::from("int32 a = 5 & 1");
+        let mut lexer = Lexer::new(input.clone(), "test".to_string());
+
+        let tokens = match lexer.tokenize() {
+            Ok(t) => t,
+            Err(_) => panic!("Lexer side error occured!"),
+        };
+
+        let mut parser = Parser::new(tokens, "test".to_string(), input);
+        let ast = parser.parse().unwrap();
+
+        assert_eq!(
+            ast[0],
+            Statements::AnnotationStatement {
+                identifier: String::from("a"),
+                datatype: String::from("int32"),
+                value: Some(Box::new(Expressions::Bitwise {
+                    operand: String::from("&"),
+                    lhs: Box::new(Expressions::Value(Value::Integer(5))),
+                    rhs: Box::new(Expressions::Value(Value::Integer(1))),
+                    line: 0
+                })),
+                line: 0
+            }
+        );
     }
 }

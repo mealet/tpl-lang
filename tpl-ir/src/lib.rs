@@ -34,9 +34,21 @@ use variable::Variable;
 
 use tpl_parser::{expressions::Expressions, statements::Statements, value::Value};
 
-const LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
+static LAMBDA_NAME: &str = "i_need_newer_inkwell_version"; // :D
 static INT_TYPES_ORDER: LazyLock<HashMap<&str, u8>> =
     LazyLock::new(|| HashMap::from([("int8", 0), ("int16", 1), ("int32", 2), ("int64", 3)]));
+
+static TYPE_SIZES: LazyLock<HashMap<&str, u64>> = LazyLock::new(|| {
+    HashMap::from([
+        ("int8", 1),
+        ("int16", 2),
+        ("int32", 4),
+        ("int64", 8),
+        ("bool", 1),
+        ("char", 1),
+        ("str", 8),
+    ])
+});
 
 pub fn get_int_order(o_type: &str) -> i8 {
     if let Some(order) = INT_TYPES_ORDER.get(o_type) {
@@ -175,7 +187,7 @@ impl<'ctx> Compiler<'ctx> {
 
                     self.variables.insert(
                         identifier.clone(),
-                        Variable::new(compiled_expression.0, var_type, alloca, None),
+                        Variable::new(compiled_expression.0, true, var_type, alloca, None),
                     );
 
                     let _ = self.builder.build_store(alloca, compiled_expression.1);
@@ -211,6 +223,7 @@ impl<'ctx> Compiler<'ctx> {
                         identifier.clone(),
                         Variable::new(
                             datatype.clone(),
+                            false,
                             var_type,
                             alloca,
                             assigned_function.clone(),
@@ -225,11 +238,15 @@ impl<'ctx> Compiler<'ctx> {
                             _ => Some(datatype.clone()),
                         };
 
+                        let old_expectation_value = self.current_expectation_value.clone();
+                        self.current_expectation_value = expected_type.clone();
+
                         let compiled_expression =
                             self.compile_expression(*intial_value, line, function, expected_type);
 
                         // matching datatypes
 
+                        if compiled_expression.0 == String::from("null") { return };
                         if compiled_expression.0 != datatype {
                             GenError::throw(
                                 format!(
@@ -251,6 +268,7 @@ impl<'ctx> Compiler<'ctx> {
                                 identifier.clone(),
                                 Variable::new(
                                     datatype.clone(),
+                                    true,
                                     var_type,
                                     alloca,
                                     // compiled_expression.1.into_pointer_value(),
@@ -269,12 +287,16 @@ impl<'ctx> Compiler<'ctx> {
                                 identifier.clone(),
                                 Variable::new(
                                     datatype.clone(),
+                                    true,
                                     var_type,
                                     alloca,
                                     self.current_assign_function.clone(),
                                 ),
                             );
                         }
+
+                        // returning old expectation value
+                        self.current_expectation_value = old_expectation_value;
                     }
                 }
             }
@@ -336,43 +358,7 @@ impl<'ctx> Compiler<'ctx> {
                         function,
                         Some(Compiler::clean_array_datatype(&var_ptr.str_type)),
                     );
-
-                    // matching datatypes
-
-                    if expr_value.0 != Compiler::clean_array_datatype(&var_ptr.str_type) {
-                        GenError::throw(
-                            format!(
-                                "Expected type `{}`, but found `{}`!",
-                                var_ptr.str_type, expr_value.0
-                            ),
-                            ErrorType::TypeError,
-                            self.module_name.clone(),
-                            self.module_source.clone(),
-                            line,
-                        );
-                        std::process::exit(1);
-                    }
-
-                    // loading array from pointer
-
-                    let array = self
-                        .builder
-                        .build_load(var_ptr.basic_type, var_ptr.pointer, "")
-                        .unwrap_or_else(|_| {
-                            GenError::throw(
-                                "Unable to load pointer value!",
-                                ErrorType::BuildError,
-                                self.module_name.clone(),
-                                self.module_source.clone(),
-                                line,
-                            );
-                            std::process::exit(1);
-                        })
-                        .into_vector_value();
-
                     let index_value = self.compile_expression(*index, line, function, None);
-
-                    // checking index value type
 
                     if !index_value.0.starts_with("int") {
                         GenError::throw(
@@ -385,28 +371,116 @@ impl<'ctx> Compiler<'ctx> {
                         std::process::exit(1);
                     }
 
-                    let new_vector = self
-                        .builder
-                        .build_insert_element(
-                            array,
-                            expr_value.1,
-                            index_value.1.into_int_value(),
-                            "",
-                        )
-                        .unwrap_or_else(|_| {
+                    match var_ptr.str_type.as_str() {
+                        vartype if Compiler::__is_ptr_type(vartype) => {
+                            let raw_type = Compiler::__unwrap_ptr_type(&var_ptr.str_type);
+                            let raw_basic_type = self.get_basic_type(&raw_type, line);
+
+                            if expr_value.0 != raw_type {
+                                GenError::throw(
+                                    format!(
+                                        "Expected type `{}`, but found `{}`!",
+                                        var_ptr.str_type, expr_value.0
+                                    ),
+                                    ErrorType::TypeError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            }
+
+                            let var_value = self
+                                .builder
+                                .build_load(
+                                    self.context.ptr_type(AddressSpace::default()),
+                                    var_ptr.pointer,
+                                    "",
+                                )
+                                .unwrap();
+
+                            let ptr = unsafe {
+                                self.builder
+                                    .build_in_bounds_gep(
+                                        raw_basic_type,
+                                        var_value.into_pointer_value(),
+                                        &[index_value.1.into_int_value()],
+                                        "",
+                                    )
+                                    .unwrap()
+                            };
+
+                            let _ = self.builder.build_store(ptr, expr_value.1).unwrap();
+                        }
+                        vartype if Compiler::__is_arr_type(vartype) => {
+                            if expr_value.0 != Compiler::clean_array_datatype(&var_ptr.str_type) {
+                                GenError::throw(
+                                    format!(
+                                        "Expected type `{}`, but found `{}`!",
+                                        var_ptr.str_type, expr_value.0
+                                    ),
+                                    ErrorType::TypeError,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line,
+                                );
+                                std::process::exit(1);
+                            }
+
+                            // loading array from pointer
+
+                            let array = self
+                                .builder
+                                .build_load(var_ptr.basic_type, var_ptr.pointer, "")
+                                .unwrap_or_else(|_| {
+                                    GenError::throw(
+                                        "Unable to load pointer value!",
+                                        ErrorType::BuildError,
+                                        self.module_name.clone(),
+                                        self.module_source.clone(),
+                                        line,
+                                    );
+                                    std::process::exit(1);
+                                })
+                                .into_vector_value();
+
+                            let new_vector = self
+                                .builder
+                                .build_insert_element(
+                                    array,
+                                    expr_value.1,
+                                    index_value.1.into_int_value(),
+                                    "",
+                                )
+                                .unwrap_or_else(|_| {
+                                    GenError::throw(
+                                        "Unable to insert element into vector!",
+                                        ErrorType::NotExpected,
+                                        self.module_name.clone(),
+                                        self.module_source.clone(),
+                                        line,
+                                    );
+                                    std::process::exit(1);
+                                });
+
+                            // storing new vector into pointer
+
+                            let _ = self.builder.build_store(var_ptr.pointer, new_vector);
+                        }
+                        _ => {
                             GenError::throw(
-                                "Unable to insert element into vector!",
-                                ErrorType::NotExpected,
+                                format!(
+                                    "Unsupported for slicing type found: `{}`",
+                                    var_ptr.str_type
+                                ),
+                                ErrorType::NotSupported,
                                 self.module_name.clone(),
                                 self.module_source.clone(),
                                 line,
                             );
                             std::process::exit(1);
-                        });
-
-                    // storing new vector into pointer
-
-                    let _ = self.builder.build_store(var_ptr.pointer, new_vector);
+                        }
+                    }
                 } else {
                     GenError::throw(
                         format!("Variable `{}` is not defined!", identifier),
@@ -920,28 +994,63 @@ impl<'ctx> Compiler<'ctx> {
                 index,
                 line,
             } => {
-                let obj =
-                    self.compile_expression(*object, line, function, expected_datatype.clone());
-                let idx = self.compile_expression(*index, line, function, expected_datatype);
+                let obj = self.compile_expression(*object, line, function, expected_datatype);
+                let idx = self.compile_expression(*index, line, function, None);
+                let int_index = match idx.0 {
+                    itype if itype.starts_with("int") => idx.1.into_int_value(),
+                    _ => {
+                        GenError::throw(
+                            "Non-integer slice index found!",
+                            ErrorType::TypeError,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    }
+                };
 
                 match obj.0.as_str() {
+                    obj_type if Compiler::__is_ptr_type(obj_type) => {
+                        let raw_type = Compiler::__unwrap_ptr_type(obj_type);
+                        let raw_basic_type = self.get_basic_type(&raw_type, line);
+
+                        let ptr = unsafe {
+                            self.builder
+                                .build_in_bounds_gep(
+                                    raw_basic_type,
+                                    obj.1.into_pointer_value(),
+                                    &[int_index],
+                                    "",
+                                )
+                                .unwrap()
+                        };
+
+                        let value = self.builder.build_load(raw_basic_type, ptr, "").unwrap();
+
+                        (raw_type, value)
+                    }
+                    "str" => {
+                        let basic_type = self.context.i8_type();
+
+                        let ptr = unsafe {
+                            self.builder
+                                .build_in_bounds_gep(
+                                    basic_type,
+                                    obj.1.into_pointer_value(),
+                                    &[int_index],
+                                    "",
+                                )
+                                .unwrap()
+                        };
+
+                        let char_value = self.builder.build_load(basic_type, ptr, "").unwrap();
+
+                        (String::from("char"), char_value)
+                    }
                     array_type if Compiler::__is_arr_type(array_type) => {
                         let raw_type = Compiler::clean_array_datatype(array_type);
                         let raw_len = Compiler::get_array_datatype_len(array_type);
-
-                        let int_index = match idx.0 {
-                            itype if itype.starts_with("int") => idx.1.into_int_value(),
-                            _ => {
-                                GenError::throw(
-                                    "Non-integer slice index found!",
-                                    ErrorType::TypeError,
-                                    self.module_name.clone(),
-                                    self.module_source.clone(),
-                                    line,
-                                );
-                                std::process::exit(1);
-                            }
-                        };
 
                         let raw_index = int_index.get_sign_extended_constant().unwrap_or(0);
                         // if we cannot verify index on build, it will cause some bugs on runtime
@@ -1113,24 +1222,30 @@ impl<'ctx> Compiler<'ctx> {
                     // int
                     "int8" | "int16" | "int32" | "int64" => {
                         // checking if all sides are the same type
-                        if !["int8", "int16", "int32", "int64"].contains(&right.0.as_str()) {
-                            GenError::throw(
-                                "Left and Right sides must be the same types in Binary Expression!"
-                                    .to_string(),
-                                ErrorType::TypeError,
-                                self.module_name.clone(),
-                                self.module_source.clone(),
-                                line,
-                            );
-                            std::process::exit(1);
-                        }
+                        // if !["int8", "int16", "int32", "int64"].contains(&right.0.as_str()) {
+                        //     GenError::throw(
+                        //         "Left and Right sides must be the same types in Binary Expression!"
+                        //             .to_string(),
+                        //         ErrorType::TypeError,
+                        //         self.module_name.clone(),
+                        //         self.module_source.clone(),
+                        //         line,
+                        //     );
+                        //     std::process::exit(1);
+                        // }
 
                         match operand.as_str() {
                             // NOTE: Basic Binary Operations
                             "+" => {
                                 // add
                                 (
-                                    right.0,
+                                    if let Some(exp_type) = self.current_expectation_value.clone() {
+                                        exp_type
+                                    } else if get_int_order(&left.0) > get_int_order(&right.0) {
+                                        left.0
+                                    } else {
+                                        right.0
+                                    },
                                     self.builder
                                         .build_int_add(
                                             left.1.into_int_value(),
@@ -1144,7 +1259,13 @@ impl<'ctx> Compiler<'ctx> {
                             "-" => {
                                 // substract
                                 (
-                                    right.0,
+                                    if let Some(exp_type) = self.current_expectation_value.clone() {
+                                        exp_type
+                                    } else if get_int_order(&left.0) > get_int_order(&right.0) {
+                                        left.0
+                                    } else {
+                                        right.0
+                                    },
                                     self.builder
                                         .build_int_sub(
                                             left.1.into_int_value(),
@@ -1158,7 +1279,13 @@ impl<'ctx> Compiler<'ctx> {
                             "*" => {
                                 // multiply
                                 (
-                                    right.0,
+                                    if let Some(exp_type) = self.current_expectation_value.clone() {
+                                        exp_type
+                                    } else if get_int_order(&left.0) > get_int_order(&right.0) {
+                                        left.0
+                                    } else {
+                                        right.0
+                                    },
                                     self.builder
                                         .build_int_mul(
                                             left.1.into_int_value(),
@@ -1172,7 +1299,13 @@ impl<'ctx> Compiler<'ctx> {
                             "/" => {
                                 // divide
                                 (
-                                    right.0,
+                                    if let Some(exp_type) = self.current_expectation_value.clone() {
+                                        exp_type
+                                    } else if get_int_order(&left.0) > get_int_order(&right.0) {
+                                        left.0
+                                    } else {
+                                        right.0
+                                    },
                                     self.builder
                                         .build_int_signed_div(
                                             left.1.into_int_value(),
@@ -1198,6 +1331,106 @@ impl<'ctx> Compiler<'ctx> {
                     _ => {
                         GenError::throw(
                             format!("Binary operations is not supported for `{}` type!", left.0),
+                            ErrorType::NotSupported,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line,
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            }
+            Expressions::Bitwise {
+                operand,
+                lhs,
+                rhs,
+                line,
+            } => {
+                let left = self.compile_expression(*lhs, line, function, expected_datatype.clone());
+                let right = self.compile_expression(*rhs, line, function, expected_datatype);
+
+                // matching types
+                match left.0.as_str() {
+                    // int or bool
+                    "int8" | "int16" | "int32" | "int64" | "bool" => match operand.as_str() {
+                        "<<" => (
+                            if let Some(exp_type) = self.current_expectation_value.clone() {
+                                exp_type
+                            } else {
+                                right.0
+                            },
+                            self.builder
+                                .build_left_shift(
+                                    left.1.into_int_value(),
+                                    right.1.into_int_value(),
+                                    "",
+                                )
+                                .unwrap()
+                                .as_basic_value_enum(),
+                        ),
+                        ">>" => (
+                            if let Some(exp_type) = self.current_expectation_value.clone() {
+                                exp_type
+                            } else {
+                                right.0
+                            },
+                            self.builder
+                                .build_right_shift(
+                                    left.1.into_int_value(),
+                                    right.1.into_int_value(),
+                                    true,
+                                    "",
+                                )
+                                .unwrap()
+                                .as_basic_value_enum(),
+                        ),
+                        "&" => (
+                            if let Some(exp_type) = self.current_expectation_value.clone() {
+                                exp_type
+                            } else {
+                                right.0
+                            },
+                            self.builder
+                                .build_and(left.1.into_int_value(), right.1.into_int_value(), "")
+                                .unwrap()
+                                .as_basic_value_enum(),
+                        ),
+                        "|" => (
+                            if let Some(exp_type) = self.current_expectation_value.clone() {
+                                exp_type
+                            } else {
+                                right.0
+                            },
+                            self.builder
+                                .build_or(left.1.into_int_value(), right.1.into_int_value(), "")
+                                .unwrap()
+                                .as_basic_value_enum(),
+                        ),
+                        "^" => (
+                            if let Some(exp_type) = self.current_expectation_value.clone() {
+                                exp_type
+                            } else {
+                                right.0
+                            },
+                            self.builder
+                                .build_xor(left.1.into_int_value(), right.1.into_int_value(), "")
+                                .unwrap()
+                                .as_basic_value_enum(),
+                        ),
+                        _ => {
+                            GenError::throw(
+                                "Unsupported bitwise operator found! Please open issue on Github!",
+                                ErrorType::NotSupported,
+                                self.module_name.clone(),
+                                self.module_source.clone(),
+                                line,
+                            );
+                            std::process::exit(1);
+                        }
+                    },
+                    _ => {
+                        GenError::throw(
+                            format!("Type `{}` is not supported for bitwise operations!", left.0),
                             ErrorType::NotSupported,
                             self.module_name.clone(),
                             self.module_source.clone(),
@@ -1380,8 +1613,23 @@ impl<'ctx> Compiler<'ctx> {
                 str_val.set_constant(false);
                 ("str".to_string(), str_val.as_pointer_value().into())
             }
+            Value::Char(ch) => (
+                "char".to_string(),
+                self.context.i8_type().const_int(ch as u64, false).into(),
+            ),
             Value::Identifier(id) => {
                 if let Some(var_ptr) = self.variables.get(&id) {
+                    if !var_ptr.assigned {
+                        GenError::throw(
+                            format!("No value assigned to `{}` variable!", id),
+                            ErrorType::NoValue,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line
+                        );
+                        std::process::exit(1);
+                    }
+
                     let exp = expected.unwrap_or_default();
 
                     let value = if Compiler::__is_ptr_type(&exp) {
@@ -1413,7 +1661,34 @@ impl<'ctx> Compiler<'ctx> {
                     std::process::exit(1);
                 }
             }
-            _ => todo!(),
+            Value::Keyword(word) => {
+                match word.as_str() {
+                    "null" => (
+                        String::from("null"),
+                        self.context.bool_type().const_zero().into()
+                    ),
+                    _ => {
+                        GenError::throw(
+                            format!("Unsupported value with keyword `{}` found!", word),
+                            ErrorType::NotSupported,
+                            self.module_name.clone(),
+                            self.module_source.clone(),
+                            line
+                        );
+                        std::process::exit(1);
+                    }
+                }
+            }
+            // _ => {
+            //     GenError::throw(
+            //         format!("Value `{:?}` is not supported yet!", value),
+            //         ErrorType::NotSupported,
+            //         self.module_name.clone(),
+            //         self.module_source.clone(),
+            //         line,
+            //     );
+            //     std::process::exit(1);
+            // }
         }
     }
 
@@ -1538,6 +1813,59 @@ impl<'ctx> Compiler<'ctx> {
 
                 // matching same supported types
                 match (left.0.as_str(), right.0.as_str()) {
+                    ("null", "null") => {
+                        self.context.bool_type().const_int(1, false)
+                    }
+
+                    (ltype, rtype) if ltype == "null" => {
+                        if !Compiler::__is_ptr_type(rtype) {
+                            return self.context.bool_type().const_zero();
+                        }
+
+                        match operand.as_str() {
+                            "==" => {
+                                self.builder.build_is_null(right.1.into_pointer_value(), "").unwrap()
+                            },
+                            "!=" => {
+                                self.builder.build_is_not_null(right.1.into_pointer_value(), "").unwrap()
+                            },
+                            _ => {
+                                GenError::throw(
+                                    format!("Operand `{}` is not supported for `null` checker!", operand),
+                                    ErrorType::NotSupported,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line
+                                );
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+                    (ltype, rtype) if rtype == "null" => {
+                        if !Compiler::__is_ptr_type(ltype) {
+                            return self.context.bool_type().const_zero();
+                        }
+
+                        match operand.as_str() {
+                            "==" => {
+                                self.builder.build_is_null(left.1.into_pointer_value(), "").unwrap()
+                            },
+                            "!=" => {
+                                self.builder.build_is_not_null(left.1.into_pointer_value(), "").unwrap()
+                            },
+                            _ => {
+                                GenError::throw(
+                                    format!("Operand `{}` is not supported for `null` checker!", operand),
+                                    ErrorType::NotSupported,
+                                    self.module_name.clone(),
+                                    self.module_source.clone(),
+                                    line
+                                );
+                                std::process::exit(1);
+                            }
+                        }
+                    }
+
                     ("int8", "int8")
                     | ("int16", "int16")
                     | ("int32", "int32")
@@ -1681,6 +2009,7 @@ impl<'ctx> Compiler<'ctx> {
                 "concat" => return self.build_concat_call(arguments, line, function),
                 "type" => return self.build_type_call(arguments, line, function),
                 "len" => return self.build_len_call(arguments, line, function),
+                "size" => return self.build_size_call(arguments, line, function),
                 "print" => {
                     GenError::throw(
                         "Function `print` is 'void' type!",
@@ -1698,6 +2027,15 @@ impl<'ctx> Compiler<'ctx> {
                 "to_int16" => return self.build_to_int16_call(arguments, line, function),
                 "to_int32" => return self.build_to_int32_call(arguments, line, function),
                 "to_int64" => return self.build_to_int64_call(arguments, line, function),
+
+                "malloc" => return self.build_malloc_call(arguments, line, function),
+                "realloc" => return self.build_realloc_call(arguments, line, function),
+                "free" => return self.build_free_call(arguments, line, function),
+
+                "file" => return self.build_file_call(arguments, line, function),
+                "close" => return self.build_close_call(arguments, line, function),
+
+                "write" => return self.build_write_call(arguments, line, function),
                 _ => {
                     if let Some(var) = self.variables.get(&function_name) {
                         if var.assigned_function.is_some() {
@@ -1714,7 +2052,7 @@ impl<'ctx> Compiler<'ctx> {
                         }
                     } else {
                         GenError::throw(
-                            format!("Function `{}` is not defined!", function_name),
+                            format!("Function `{}()` is not defined!", function_name),
                             ErrorType::NotDefined,
                             self.module_name.clone(),
                             self.module_source.clone(),
@@ -1879,6 +2217,7 @@ impl<'ctx> Compiler<'ctx> {
             "int64" => self.context.i64_type().into(),
             "bool" => self.context.bool_type().into(),
             "str" => self.context.ptr_type(AddressSpace::default()).into(),
+            "char" => self.context.i8_type().into(),
             "auto" => self.context.i8_type().into(),
             "void" => self.context.ptr_type(AddressSpace::default()).into(),
             _ => {
@@ -2008,7 +2347,7 @@ impl<'ctx> Compiler<'ctx> {
             // and inserting variables pointers to main hashmap
             self.variables.insert(
                 varname,
-                Variable::new(arg.1.clone(), parameter_type, parameter_alloca, None),
+                Variable::new(arg.1.clone(), true, parameter_type, parameter_alloca, None),
             );
         }
 
@@ -2056,6 +2395,7 @@ impl<'ctx> Compiler<'ctx> {
                         )
                         .1
                     }
+                    "char" => self.compile_value(Value::Char('0'), line, None).1,
                     "bool" => self.compile_value(Value::Boolean(false), line, None).1,
                     _ => unreachable!(),
                 }));
@@ -2158,6 +2498,7 @@ impl<'ctx> Compiler<'ctx> {
             "int64" => "%lld",
             "bool" => "%s",
             "str" => "%s",
+            "char" => "%c",
             _ => unreachable!(),
         }
         .to_string()

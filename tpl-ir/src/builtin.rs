@@ -10,7 +10,7 @@ use crate::{
     Compiler,
 };
 
-use tpl_parser::expressions::Expressions;
+use tpl_parser::{expressions::Expressions, value::Value};
 
 pub trait BuiltIn<'ctx> {
     // input output
@@ -40,6 +40,12 @@ pub trait BuiltIn<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
+    fn build_size_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
     fn build_concat_call(
         &mut self,
         arguments: Vec<Expressions>,
@@ -47,6 +53,7 @@ pub trait BuiltIn<'ctx> {
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
 
+    // conversions
     fn build_to_str_call(
         &mut self,
         arguments: Vec<Expressions>,
@@ -77,6 +84,50 @@ pub trait BuiltIn<'ctx> {
         line: usize,
         function: FunctionValue<'ctx>,
     ) -> (String, BasicValueEnum<'ctx>);
+
+    // allocation
+    fn build_malloc_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
+
+    fn build_realloc_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
+
+    fn build_free_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
+
+    // files
+    fn build_file_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
+
+    fn build_close_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
+
+    fn build_write_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>);
 }
 
 impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
@@ -94,6 +145,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                 self.module_source.clone(),
                 line,
             );
+            std::process::exit(1);
         }
 
         let left_arg = self.compile_expression(
@@ -226,6 +278,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                                 "%s"
                             }
                             "str" => "\"%s\"",
+                            "char" => "'%c'",
                             _ => {
                                 GenError::throw(
                                     format!(
@@ -285,6 +338,7 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
                     "%s"
                 }
                 "str" => "%s",
+                "char" => "%c",
                 _ => {
                     GenError::throw(
                         format!(
@@ -444,9 +498,57 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
 
         let compiled_arg = self.compile_expression(arguments[0].clone(), line, function, None);
 
-        if !Compiler::__is_arr_type(&compiled_arg.0) {
+        match compiled_arg.0.as_str() {
+            argtype if Compiler::__is_arr_type(argtype) => {
+                let length = Compiler::get_array_datatype_len(&compiled_arg.0);
+                let basic_value = self
+                    .context
+                    .i64_type()
+                    .const_int(length, false)
+                    .as_basic_value_enum();
+
+                (String::from("int64"), basic_value)
+            }
+            "str" => {
+                let strlen_fn = self.__c_strlen();
+                let value = self
+                    .builder
+                    .build_call(strlen_fn, &[compiled_arg.1.into()], "")
+                    .unwrap()
+                    .try_as_basic_value()
+                    .left()
+                    .unwrap();
+
+                (String::from("int64"), value)
+            }
+            _ => {
+                GenError::throw(
+                    format!(
+                        "Type `{}` is not supported for `len()` function!",
+                        &compiled_arg.0
+                    ),
+                    ErrorType::NotSupported,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line,
+                );
+                std::process::exit(1);
+            }
+        }
+    }
+
+    fn build_size_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 1 {
             GenError::throw(
-                format!("Type `{}` is non-array type!", &compiled_arg.0),
+                format!(
+                    "Function `len()` requires only 1 argument, but {} found!",
+                    arguments.len()
+                ),
                 ErrorType::NotExpected,
                 self.module_name.clone(),
                 self.module_source.clone(),
@@ -455,14 +557,53 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             std::process::exit(1);
         }
 
-        let length = Compiler::get_array_datatype_len(&compiled_arg.0);
-        let basic_value = self
-            .context
-            .i16_type()
-            .const_int(length, false)
-            .as_basic_value_enum();
+        let compiled_type = match arguments[0].clone() {
+            Expressions::Value(Value::Keyword(arg_type)) => arg_type,
+            _ => {
+                self.compile_expression(arguments[0].clone(), line, function, None)
+                    .0
+            }
+        };
 
-        (String::from("int16"), basic_value)
+        let mut raw_type = compiled_type;
+        let mut type_multiplier = 1;
+
+        loop {
+            match raw_type {
+                ctype if Compiler::__is_ptr_type(&ctype) => {
+                    raw_type = Compiler::__unwrap_ptr_type(&ctype);
+                }
+                ctype if Compiler::__is_arr_type(&ctype) => {
+                    raw_type = Compiler::clean_array_datatype(&ctype);
+                    type_multiplier *= Compiler::get_array_datatype_len(&ctype);
+                }
+                ctype if ctype.starts_with("fn<") => {
+                    raw_type = ctype.split("fn<").collect::<Vec<&str>>()[0]
+                        .split(">")
+                        .collect::<Vec<&str>>()[0]
+                        .to_string();
+                }
+                _ => break,
+            };
+        }
+
+        let size = crate::TYPE_SIZES
+            .get(&raw_type.as_str())
+            .unwrap_or_else(|| {
+                GenError::throw(
+                    format!("Unsupported for size type found: `{}`", raw_type),
+                    ErrorType::NotSupported,
+                    self.module_name.clone(),
+                    self.module_source.clone(),
+                    line,
+                );
+                std::process::exit(1);
+            })
+            * type_multiplier;
+
+        let constant = self.context.i64_type().const_int(size, false);
+
+        (String::from("int64"), constant.into())
     }
 
     // conversion
@@ -1030,5 +1171,339 @@ impl<'ctx> BuiltIn<'ctx> for Compiler<'ctx> {
             });
 
         ("str".to_string(), data_ptr.into())
+    }
+
+    fn build_malloc_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 1 {
+            GenError::throw(
+                format!(
+                    "Function `malloc` requires 1 argument, but {} found!",
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let compiled_size = self.compile_expression(
+            arguments[0].clone(),
+            line,
+            function,
+            Some(String::from("int64")),
+        );
+
+        if !compiled_size.0.starts_with("int") {
+            dbg!(arguments);
+            GenError::throw(
+                "Non-integer size for allocation found!",
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let malloc_fn = self.__c_malloc();
+
+        let result = self
+            .builder
+            .build_call(malloc_fn, &[compiled_size.1.into()], "")
+            .unwrap()
+            .try_as_basic_value()
+            .left()
+            .unwrap();
+
+        let output_type = self
+            .current_expectation_value
+            .clone()
+            .unwrap_or(String::from("void*"));
+
+        if !Compiler::__is_ptr_type(&output_type) {
+            GenError::throw(
+                format!(
+                    "Non-pointer type `{}` requested for `malloc()`",
+                    output_type
+                ),
+                ErrorType::TypeError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        (output_type, result)
+    }
+
+    fn build_free_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 1 {
+            GenError::throw(
+                format!(
+                    "Function `free` requires 1 arguments, but {} found!",
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let compiled_arg = self.compile_expression(arguments[0].clone(), line, function, None);
+
+        if !Compiler::__is_ptr_type(&compiled_arg.0) {
+            GenError::throw(
+                "Function `free` requires pointer as an argument!",
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let free_fn = self.__c_free();
+        let _ = self
+            .builder
+            .build_call(free_fn, &[compiled_arg.1.into()], "")
+            .unwrap();
+
+        (
+            String::from("void"),
+            self.context.bool_type().const_zero().into(),
+        )
+    }
+
+    fn build_realloc_call(
+        &mut self,
+        arguments: Vec<Expressions>,
+        line: usize,
+        function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 2 {
+            GenError::throw(
+                format!(
+                    "Function `realloc` requires 2 arguments, but {} found!",
+                    arguments.len()
+                ),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let argument_ptr = self.compile_expression(arguments[0].clone(), line, function, None);
+
+        if !Compiler::__is_ptr_type(&argument_ptr.0) {
+            GenError::throw(
+                "Function `realloc` requires pointer as first argument!",
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let compiled_size = self.compile_expression(arguments[1].clone(), line, function, None);
+
+        if !compiled_size.0.starts_with("int") {
+            dbg!(arguments);
+            GenError::throw(
+                "Non-integer size for allocation found!",
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line,
+            );
+            std::process::exit(1);
+        }
+
+        let realloc_fn = self.__c_realloc();
+        let result_ptr = self
+            .builder
+            .build_call(
+                realloc_fn,
+                &[argument_ptr.1.into(), compiled_size.1.into()],
+                "",
+            )
+            .unwrap()
+            .try_as_basic_value()
+            .left()
+            .unwrap();
+
+        (argument_ptr.0, result_ptr)
+    }
+
+    fn build_file_call(
+            &mut self,
+            arguments: Vec<Expressions>,
+            line: usize,
+            function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 2 {
+            GenError::throw(
+                format!("Function `file` requires 2 arguments, but {} found", arguments.len()),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let path_to_file = self.compile_expression(arguments[0].clone(), line, function, None);
+        let open_mode = self.compile_expression(arguments[1].clone(), line, function, None);
+
+        if path_to_file.0 != String::from("str")
+        && open_mode.0 != String::from("str") {
+            GenError::throw(
+                "Wrong arguments found! Function `file` takes next arguments: file(str path, str mode)",
+                ErrorType::TypeError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let fopen_fn = self.__c_fopen();
+        let call_result = self
+            .builder
+            .build_call(
+                fopen_fn,
+                &[
+                    path_to_file.1.into(),
+                    open_mode.1.into()
+                ],
+                ""
+            )
+            .unwrap()
+            .try_as_basic_value()
+            .left()
+            .unwrap();
+
+        (String::from("FILE*"), call_result)
+    }
+
+    fn build_close_call(
+            &mut self,
+            arguments: Vec<Expressions>,
+            line: usize,
+            function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 1 {
+            GenError::throw(
+                format!("Function `close` requires 1 argument, but {} found", arguments.len()),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let file_ptr = self.compile_expression(arguments[0].clone(), line, function, None);
+
+        if file_ptr.0 != String::from("FILE*") {
+            GenError::throw(
+                "Function `close` requires file pointer as an argument!",
+                ErrorType::TypeError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let fclose_fn = self.__c_fclose();
+        let _ = self
+            .builder
+            .build_call(
+                fclose_fn,
+                &[
+                    file_ptr.1.into()
+                ],
+                ""
+            )
+            .unwrap();
+
+        (String::from("void"), self.context.bool_type().const_zero().into())
+    }
+
+    fn build_write_call(
+            &mut self,
+            arguments: Vec<Expressions>,
+            line: usize,
+            function: FunctionValue<'ctx>,
+    ) -> (String, BasicValueEnum<'ctx>) {
+        if arguments.len() != 2 {
+            GenError::throw(
+                format!("Function `write` requires 2 arguments, but {} found", arguments.len()),
+                ErrorType::NotExpected,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let file_ptr = self.compile_expression(arguments[0].clone(), line, function, None);
+        let string = self.compile_expression(arguments[1].clone(), line, function, None);
+
+        if file_ptr.0 != String::from("FILE*") {
+            GenError::throw(
+                "Function `write` requires file pointer!",
+                ErrorType::TypeError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        if string.0 != String::from("str") {
+            GenError::throw(
+                format!("Type `str` expected, but found `{}`", file_ptr.1),
+                ErrorType::TypeError,
+                self.module_name.clone(),
+                self.module_source.clone(),
+                line
+            );
+            std::process::exit(1);
+        }
+
+        let fprintf_fn = self.__c_fprintf();
+
+        let _ = self
+            .builder
+            .build_call(
+                fprintf_fn,
+                &[
+                    file_ptr.1.into(),
+                    string.1.into()
+                ],
+                ""
+            )
+            .unwrap();
+
+        ("void".into(), self.context.bool_type().const_zero().into())
     }
 }

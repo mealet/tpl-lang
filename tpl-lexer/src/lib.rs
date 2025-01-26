@@ -45,11 +45,13 @@ impl Lexer {
                 macros::std_symbol!('/', TokenType::Divide),
                 macros::std_symbol!('=', TokenType::Equal),
                 macros::std_symbol!('!', TokenType::Not),
+                macros::std_symbol!('^', TokenType::Xor),
                 macros::std_symbol!('<', TokenType::Lt),
                 macros::std_symbol!('>', TokenType::Bt),
                 macros::std_symbol!('.', TokenType::Dot),
                 macros::std_symbol!(',', TokenType::Comma),
                 macros::std_symbol!('"', TokenType::Quote),
+                macros::std_symbol!('\'', TokenType::SingleQuote),
                 macros::std_symbol!(';', TokenType::Semicolon),
                 macros::std_symbol!('&', TokenType::Ampersand),
                 macros::std_symbol!('|', TokenType::Verbar),
@@ -82,10 +84,13 @@ impl Lexer {
                 macros::std_keyword!("fn"),
                 macros::std_keyword!("void"),
                 macros::std_keyword!("str"),
+                macros::std_keyword!("char"),
                 macros::std_keyword!("bool"),
-                // Boolean Values
+                macros::std_keyword!("FILE"),
+                // Values
                 macros::std_token!("true", TokenType::Boolean),
                 macros::std_token!("false", TokenType::Boolean),
+                macros::std_token!("null", TokenType::Keyword),
             ]),
             errors: LexerErrorHandler::new(),
 
@@ -130,16 +135,75 @@ impl Lexer {
         self.char == '\0'
     }
 
+    fn is_hexadecimal_literal(&self, value: char) -> bool {
+        ['a', 'b', 'c', 'd', 'e', 'f'].contains(&value.to_ascii_lowercase())
+    }
+
     // helpful functions
 
     fn get_integer(&mut self) -> i64 {
         let mut value = String::new();
+        let mut mode = 0; // 1 - binary, 2 - hexadecimal
+
         // lexer will support numbers like 10_000_000 instead 10000000
-        while self.char.is_ascii_digit() || self.char == '_' {
+        while self.char.is_ascii_digit()
+            || ['_', 'x', 'b'].contains(&self.char)
+            || self.is_hexadecimal_literal(self.char)
+        {
+            if self.char == '0' {
+                self.getc();
+
+                match self.char {
+                    'b' => {
+                        if mode != 0 || !value.is_empty() {
+                            self.error("Unexpected binary/hexadecimal number found!");
+                            return 0;
+                        }
+
+                        mode = 1;
+                        self.getc();
+                        continue;
+                    }
+                    'x' => {
+                        if mode != 0 || !value.is_empty() {
+                            self.error("Unexpected binary/hexadecimal number found!");
+                            return 0;
+                        }
+
+                        mode = 2;
+
+                        self.getc();
+                        continue;
+                    }
+                    _ => {
+                        value.push('0');
+                        continue;
+                    }
+                }
+            }
+
             if self.char != '_' {
                 value.push(self.char);
             }
+
             self.getc();
+        }
+
+        match mode {
+            1 => {
+                return i64::from_str_radix(value.trim(), 2).unwrap_or_else(|_| {
+                    self.error("Error with parsing binary number!");
+                    0
+                });
+            }
+            2 => {
+                dbg!(&value);
+                return i64::from_str_radix(value.trim(), 16).unwrap_or_else(|_| {
+                    self.error("Error with parsing hexadecimal number!");
+                    0
+                });
+            }
+            _ => {}
         }
 
         value.parse().unwrap_or_else(|_| {
@@ -198,6 +262,21 @@ impl Lexer {
                             output.push(Token::new(TokenType::String, captured_string, self.line));
                             self.getc();
                         }
+                        TokenType::SingleQuote => {
+                            self.getc();
+
+                            let char = self.char;
+
+                            self.getc();
+
+                            if self.char != '\'' {
+                                self.error("Wrong char found! For strings use `str` type!");
+                                self.getc();
+                            }
+
+                            output.push(Token::new(TokenType::Char, char.to_string(), self.line));
+                            self.getc();
+                        }
                         TokenType::Equal => {
                             // checking if next symbol is `equal`
                             self.getc();
@@ -214,6 +293,48 @@ impl Lexer {
                                 formatted_token.line = self.line;
 
                                 output.push(formatted_token);
+                            }
+                        }
+                        TokenType::Lt => {
+                            // checking if next symbol is similar
+                            self.getc();
+
+                            match self.char {
+                                '<' => {
+                                    output.push(Token::new(
+                                        TokenType::LShift,
+                                        String::from("<<"),
+                                        self.line,
+                                    ));
+                                    self.getc();
+                                }
+                                _ => {
+                                    let mut formatted_token = matched_token;
+                                    formatted_token.line = self.line;
+
+                                    output.push(formatted_token);
+                                }
+                            }
+                        }
+                        TokenType::Bt => {
+                            // checking if next symbol is similar
+                            self.getc();
+
+                            match self.char {
+                                '>' => {
+                                    output.push(Token::new(
+                                        TokenType::RShift,
+                                        String::from(">>"),
+                                        self.line,
+                                    ));
+                                    self.getc();
+                                }
+                                _ => {
+                                    let mut formatted_token = matched_token;
+                                    formatted_token.line = self.line;
+
+                                    output.push(formatted_token);
+                                }
                             }
                         }
                         TokenType::Not => {
@@ -256,18 +377,28 @@ impl Lexer {
                             // checking if next symbol is the same
                             self.getc();
 
-                            if self.char == '&' {
-                                output.push(Token::new(
-                                    TokenType::And,
-                                    String::from("&&"),
-                                    self.line,
-                                ));
-                                self.getc()
-                            } else {
-                                let mut formatted_token = matched_token;
-                                formatted_token.line = self.line;
+                            match self.char {
+                                '&' => {
+                                    output.push(Token::new(
+                                        TokenType::And,
+                                        String::from("&&"),
+                                        self.line,
+                                    ));
+                                    self.getc()
+                                }
+                                ' ' => {
+                                    let mut formatted_token = matched_token;
+                                    formatted_token.line = self.line;
 
-                                output.push(formatted_token);
+                                    output.push(formatted_token);
+                                }
+                                _ => {
+                                    output.push(Token::new(
+                                        TokenType::Ref,
+                                        String::from("&"),
+                                        self.line,
+                                    ));
+                                }
                             }
                         }
                         _ => {
@@ -641,6 +772,26 @@ mod tests {
                 Token::new(TokenType::Identifier, String::from("a"), 0),
                 Token::new(TokenType::And, String::from("&&"), 0),
                 Token::new(TokenType::Identifier, String::from("b"), 0),
+                Token::new(TokenType::EOF, String::from(""), 0),
+            ]
+        );
+    }
+
+    #[test]
+    fn bitwise_operators_test() {
+        let input = String::from("& | << >> ^");
+        let mut lexer = Lexer::new(input, "tests".to_string());
+
+        let tokens = lexer.tokenize().unwrap();
+
+        assert_eq!(
+            tokens,
+            vec![
+                Token::new(TokenType::Ampersand, String::from("&"), 0),
+                Token::new(TokenType::Verbar, String::from("|"), 0),
+                Token::new(TokenType::LShift, String::from("<<"), 0),
+                Token::new(TokenType::RShift, String::from(">>"), 0),
+                Token::new(TokenType::Xor, String::from("^"), 0),
                 Token::new(TokenType::EOF, String::from(""), 0),
             ]
         );
