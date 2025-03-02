@@ -277,6 +277,16 @@ impl<'ctx> Compiler<'ctx> {
                             );
                             let _ = self.builder.build_store(alloca, compiled_expression.1);
                         } else {
+                            self.variables.insert(
+                                identifier.clone(),
+                                Variable::new(
+                                    datatype.clone(),
+                                    true,
+                                    var_type,
+                                    alloca,
+                                    assigned_function.clone(),
+                                ),
+                            );
                             let _ = self.builder.build_store(alloca, compiled_expression.1);
                         }
 
