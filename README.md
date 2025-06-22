@@ -13,3 +13,7 @@
  <br/>
  <a href="https://tpl-lang.vercel.app"><img src="https://img.shields.io/badge/official_site-red?style=for-the-badge&color=%230389f5" /></a>
 </div>
+
+## ⚠️ Project is closed
+The project will no longer be maintained or updated. <br/>
+You can check my new compiler project: https://github.com/mealet/deen
